@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Habayit Jewish Center – Cooper City, FL</title>
+  <meta name="description" content="Habayit Jewish Center of Cooper City – Where Community Feels Like Home. Shabbat, events, Hebrew School, and a warm Jewish community in Cooper City, Florida." />
+  <meta property="og:title" content="Habayit Jewish Center – Cooper City" />
+  <meta property="og:description" content="Where Community Feels Like Home." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&family=Frank+Ruhl+Libre:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy:       #1a2744;
+      --gold:       #b8902a;
+      --gold-light: #d4a843;
+      --cream:      #f7f4ef;
+      --white:      #ffffff;
+      --text:       #2c2c2c;
+      --muted:      #6b6b6b;
+      --border:     #e2ddd6;
+      --nav-h:      72px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      color: var(--text);
+      background: var(--cream);
+      line-height: 1.7;
+    }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+
+    /* Hebrew font utility */
+    .heb {
+      font-family: 'Frank Ruhl Libre', serif;
+      direction: rtl;
+      unicode-bidi: embed;
+    }
+    .heb-display {
+      font-family: 'Frank Ruhl Libre', serif;
+      direction: rtl;
+      unicode-bidi: embed;
+      font-weight: 700;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--nav-h);
+      background: rgba(247,244,239,0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      z-index: 100;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 14px; }
+    .nav-logo img { height: 44px; width: auto; }
+    .nav-logo-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .nav-logo-text .en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.2rem; font-weight: 600;
+      color: var(--navy); letter-spacing: 0.04em;
+    }
+    .nav-logo-text .heb-sub {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 0.85rem; color: var(--gold);
+      direction: rtl; letter-spacing: 0.02em;
+    }
+    .beta-pill {
+      font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+      color: var(--gold); border: 1px solid var(--gold);
+      padding: 2px 8px; border-radius: 12px; margin-left: 10px;
+      text-transform: uppercase; line-height: 1.6;
+    }
+    .nav-links { display: flex; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 0.8rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--navy); transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--gold); }
+    .nav-donate-btn {
+      background: var(--gold); color: var(--white) !important;
+      padding: 8px 20px; border-radius: 2px;
+      transition: background 0.2s !important;
+    }
+    .nav-donate-btn:hover { background: var(--navy) !important; }
+    .hamburger {
+      display: none; flex-direction: column; gap: 5px;
+      cursor: pointer; background: none; border: none; padding: 4px;
+    }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--navy); }
+    .mobile-menu {
+      display: none; position: fixed;
+      top: var(--nav-h); left: 0; right: 0;
+      background: var(--cream); border-bottom: 1px solid var(--border);
+      padding: 24px 5%; z-index: 99;
+      flex-direction: column; gap: 20px;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      font-size: 1rem; font-weight: 500; color: var(--navy);
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+    }
+    .mobile-menu a:last-child { border-bottom: none; }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      padding-top: var(--nav-h);
+      display: flex; align-items: center;
+      position: relative; overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(26,39,68,0.06) 0%, transparent 60%), var(--cream);
+      z-index: 0;
+    }
+    /* large decorative Hebrew letter shin in background */
+    .hero-bg::before {
+      content: 'ב';
+      font-family: 'Frank Ruhl Libre', serif;
+      position: absolute;
+      right: 3%;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 42vw;
+      color: rgba(26,39,68,0.025);
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+    }
+    .hero-inner {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 1200px;
+      margin: 0 auto; padding: 80px 5%;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 60px; align-items: center;
+    }
+    .hero-eyebrow {
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .hero-eyebrow::before {
+      content: ''; display: block; width: 32px; height: 1px; background: var(--gold);
+    }
+    .hero-headline {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2.8rem, 5vw, 4.2rem);
+      font-weight: 600; line-height: 1.15;
+      color: var(--navy); margin-bottom: 16px;
+    }
+    .hero-headline em { color: var(--gold); font-style: italic; }
+    /* Hebrew tagline under main headline */
+    .hero-heb-tagline {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+      color: rgba(26,39,68,0.35);
+      direction: rtl;
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+    .hero-sub {
+      font-size: 1.05rem; color: var(--muted);
+      max-width: 480px; margin-bottom: 40px; line-height: 1.8;
+    }
+    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--navy); color: var(--white);
+      padding: 14px 32px; font-size: 0.8rem;
+      font-weight: 500; letter-spacing: 0.1em;
+      text-transform: uppercase; border-radius: 2px;
+      transition: background 0.2s, transform 0.2s;
+      border: none; cursor: pointer; display: inline-block;
+    }
+    .btn-primary:hover { background: var(--gold); transform: translateY(-1px); }
+    .btn-secondary {
+      background: transparent; color: var(--navy);
+      padding: 14px 32px; font-size: 0.8rem;
+      font-weight: 500; letter-spacing: 0.1em;
+      text-transform: uppercase; border-radius: 2px;
+      border: 1.5px solid var(--navy);
+      transition: all 0.2s; cursor: pointer; display: inline-block;
+    }
+    .btn-secondary:hover { background: var(--navy); color: var(--white); }
+    .hero-image-wrap { position: relative; }
+    .hero-placeholder {
+      width: 100%; aspect-ratio: 4/5;
+      background: linear-gradient(145deg, var(--navy) 0%, #2a3d6b 100%);
+      border-radius: 4px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; color: rgba(255,255,255,0.3);
+    }
+    .hero-placeholder p { font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.5; }
+    .hero-image-wrap::before {
+      content: ''; position: absolute;
+      top: 20px; left: -20px;
+      width: 4px; height: 80px;
+      background: var(--gold); border-radius: 2px;
+    }
+
+    /* ── SHABBAT STRIP ── */
+    .shabbat-strip {
+      background: var(--navy); color: var(--white);
+      padding: 14px 5%;
+      display: flex; align-items: center;
+      justify-content: center; gap: 32px;
+      font-size: 0.78rem; letter-spacing: 0.06em;
+      flex-wrap: wrap;
+    }
+    .shabbat-strip strong { color: var(--gold-light); }
+    .shabbat-heb {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 1.1rem; color: var(--gold-light);
+      direction: rtl;
+    }
+    .shabbat-divider { color: rgba(255,255,255,0.2); }
+
+    /* ── SECTIONS ── */
+    section { padding: 100px 5%; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .section-label::before {
+      content: ''; display: block; width: 24px; height: 1px; background: var(--gold);
+    }
+    .section-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2rem, 3.5vw, 2.8rem);
+      font-weight: 600; color: var(--navy); margin-bottom: 8px;
+    }
+    /* Hebrew subtitle under section titles */
+    .section-heb {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 1.2rem; color: var(--gold);
+      direction: rtl; margin-bottom: 16px;
+      opacity: 0.8;
+    }
+    .section-intro {
+      font-size: 1rem; color: var(--muted);
+      max-width: 560px; line-height: 1.8; margin-bottom: 56px;
+    }
+
+    /* ── WELCOME ── */
+    .welcome { background: var(--white); }
+    .welcome-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; align-items: center;
+    }
+    .welcome-text p { color: var(--muted); line-height: 1.9; margin-bottom: 20px; }
+    .welcome-quote {
+      border-left: 3px solid var(--gold);
+      padding: 20px 24px; margin: 32px 0;
+      background: var(--cream); border-radius: 0 4px 4px 0;
+    }
+    .welcome-quote .heb-verse {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 1.5rem; direction: rtl;
+      color: var(--navy); line-height: 1.6;
+      margin-bottom: 8px; display: block;
+    }
+    .welcome-quote .verse-translation {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.1rem; font-style: italic;
+      color: var(--muted); line-height: 1.5;
+      display: block;
+    }
+    .welcome-quote .verse-source {
+      font-size: 0.72rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--gold);
+      margin-top: 8px; display: block;
+    }
+    .rabbi-card {
+      background: var(--cream); border-radius: 4px; overflow: hidden;
+    }
+    .rabbi-photo {
+      width: 100%; aspect-ratio: 3/2;
+      background: linear-gradient(145deg, #c8d4e8 0%, #a8bcd8 100%);
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(26,39,68,0.3); font-size: 0.8rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .rabbi-info { padding: 28px 32px; }
+    .rabbi-info h3 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.5rem; color: var(--navy); margin-bottom: 2px;
+    }
+    .rabbi-info .rabbi-heb {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 1rem; color: var(--gold);
+      direction: rtl; display: block; margin-bottom: 4px;
+    }
+    .rabbi-info p { font-size: 0.82rem; color: var(--muted); margin: 0; }
+
+    /* ── EVENTS ── */
+    .events { background: var(--cream); }
+    .events-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px; margin-bottom: 48px;
+    }
+    .event-card {
+      background: var(--white); border-radius: 4px;
+      overflow: hidden; border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .event-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(26,39,68,0.1); }
+    .event-date-bar {
+      background: var(--navy); padding: 16px 24px;
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .event-date-left {}
+    .event-month { font-size: 0.68rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-light); }
+    .event-day { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; color: var(--white); line-height: 1; }
+    .event-heb-label {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 1rem; color: rgba(255,255,255,0.35);
+      direction: rtl; align-self: center;
+    }
+    .event-body { padding: 24px; }
+    .event-body h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: var(--navy); margin-bottom: 8px; }
+    .event-body p { font-size: 0.85rem; color: var(--muted); line-height: 1.7; margin-bottom: 20px; }
+    .event-meta { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .event-meta span { font-size: 0.75rem; color: var(--gold); font-weight: 500; }
+    .event-link {
+      font-size: 0.78rem; font-weight: 500; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--navy);
+      border-bottom: 1px solid var(--gold); padding-bottom: 2px; transition: color 0.2s;
+    }
+    .event-link:hover { color: var(--gold); }
+    .events-footer { text-align: center; }
+
+    /* ── DONATE STRIP ── */
+    .donate-strip {
+      background: var(--navy); padding: 80px 5%; text-align: center;
+    }
+    .donate-strip .section-label { justify-content: center; }
+    .donate-strip .section-label::before { display: none; }
+    .donate-strip .section-title { color: var(--white); }
+    .donate-strip .section-heb { color: var(--gold-light); opacity: 1; text-align: center; }
+    .donate-strip p { color: rgba(255,255,255,0.65); max-width: 520px; margin: 0 auto 40px; line-height: 1.8; }
+    .donate-amounts {
+      display: flex; gap: 12px;
+      justify-content: center; flex-wrap: wrap; margin-bottom: 32px;
+    }
+    .donate-amount {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(184,144,42,0.4);
+      color: var(--white); padding: 10px 20px;
+      border-radius: 2px; font-size: 0.85rem;
+      font-weight: 500; cursor: pointer; transition: all 0.2s;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .donate-amount .heb-small {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 0.9rem; color: var(--gold-light); direction: rtl;
+    }
+    .donate-amount:hover, .donate-amount.active { background: var(--gold); border-color: var(--gold); }
+    .btn-donate {
+      background: var(--gold); color: var(--white);
+      padding: 16px 48px; font-size: 0.85rem;
+      font-weight: 500; letter-spacing: 0.1em;
+      text-transform: uppercase; border-radius: 2px;
+      border: none; cursor: pointer; transition: background 0.2s, transform 0.2s;
+      display: inline-block;
+    }
+    .btn-donate:hover { background: var(--gold-light); transform: translateY(-1px); }
+
+    /* ── PROGRAMS ── */
+    .programs { background: var(--white); }
+    .programs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+    .program-card {
+      padding: 40px 32px; border: 1px solid var(--border);
+      border-radius: 4px; transition: border-color 0.2s, box-shadow 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .program-card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: var(--gold); transform: scaleX(0);
+      transition: transform 0.3s; transform-origin: left;
+    }
+    .program-card:hover::before { transform: scaleX(1); }
+    .program-card:hover { border-color: transparent; box-shadow: 0 8px 32px rgba(26,39,68,0.08); }
+    .program-heb {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 2rem; color: rgba(26,39,68,0.12);
+      direction: rtl; margin-bottom: 12px; line-height: 1;
+    }
+    .program-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; color: var(--navy); margin-bottom: 12px; }
+    .program-card p { font-size: 0.875rem; color: var(--muted); line-height: 1.8; margin-bottom: 24px; }
+
+    /* ── CONTACT ── */
+    .contact { background: var(--cream); }
+    .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; }
+    .contact-details { display: flex; flex-direction: column; gap: 28px; }
+    .contact-item { display: flex; gap: 16px; align-items: flex-start; }
+    .contact-icon {
+      width: 40px; height: 40px; background: var(--navy);
+      border-radius: 2px; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0; font-size: 1rem;
+    }
+    .contact-item-text strong {
+      display: block; font-size: 0.75rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 4px;
+    }
+    .contact-item-text span { font-size: 0.95rem; color: var(--text); }
+    .contact-form { display: flex; flex-direction: column; gap: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .contact-form input,
+    .contact-form textarea,
+    .contact-form select {
+      width: 100%; padding: 14px 16px;
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 2px; font-family: 'Inter', sans-serif;
+      font-size: 0.9rem; color: var(--text); outline: none;
+      transition: border-color 0.2s;
+    }
+    .contact-form input:focus,
+    .contact-form textarea:focus { border-color: var(--gold); }
+    .contact-form textarea { resize: vertical; min-height: 120px; }
+    .contact-form input::placeholder,
+    .contact-form textarea::placeholder { color: #aaa; }
+
+    /* ── FOOTER ── */
+    footer { background: var(--navy); color: rgba(255,255,255,0.7); padding: 60px 5% 32px; }
+    .footer-grid {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 2fr 1fr 1fr;
+      gap: 60px; padding-bottom: 48px;
+      border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 32px;
+    }
+    .footer-brand img { height: 48px; margin-bottom: 16px; filter: brightness(0) invert(1); opacity: 0.9; }
+    .footer-brand p { font-size: 0.875rem; line-height: 1.8; max-width: 280px; }
+    .footer-blessing {
+      font-family: 'Frank Ruhl Libre', serif;
+      font-size: 1.3rem; color: var(--gold-light);
+      direction: rtl; margin-bottom: 4px; display: block;
+    }
+    .footer-blessing-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic; font-size: 0.9rem;
+      color: rgba(255,255,255,0.4); display: block; margin-bottom: 16px;
+    }
+    .footer-col h4 {
+      font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--gold-light); margin-bottom: 20px;
+    }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .footer-col ul a { font-size: 0.875rem; color: rgba(255,255,255,0.6); transition: color 0.2s; }
+    .footer-col ul a:hover { color: var(--gold-light); }
+    .footer-bottom {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.78rem; color: rgba(255,255,255,0.35);
+      flex-wrap: wrap; gap: 8px;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .nav-links { display: none; }
+      .hamburger { display: flex; }
+      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+      .hero-image-wrap { order: -1; }
+      .hero-placeholder { aspect-ratio: 16/9; }
+      .welcome-grid { grid-template-columns: 1fr; gap: 48px; }
+      .events-grid { grid-template-columns: 1fr; }
+      .programs-grid { grid-template-columns: 1fr; }
+      .contact-grid { grid-template-columns: 1fr; gap: 48px; }
+      .footer-grid { grid-template-columns: 1fr; gap: 40px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      section { padding: 72px 6%; }
+      .shabbat-strip { gap: 16px; flex-direction: column; text-align: center; }
+      .shabbat-divider { display: none; }
+      .donate-amounts { gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── NAV ── -->
+  <nav>
+    <a class="nav-logo" href="index.html">
+      <img src="images/logo.png" alt="Habayit Jewish Center" />
+      <div class="nav-logo-text">
+        <span class="en">HABAYIT</span>
+        <span class="heb-sub">הַבַּיִת · Jewish Center</span>
+      </div>
+      <span class="beta-pill">BETA</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#about">About</a></li>
+      <li><a href="synagogue.html">Synagogue</a></li>
+      <li><a href="#events">Events</a></li>
+      <li><a href="hebrew-school.html">Hebrew School</a></li>
+      <li><a href="chai-club/index.html">Chai Club</a></li>
+      <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="#contact">Contact</a></li>
+      <li><a href="donate.html" class="nav-donate-btn">Donate</a></li>
+    </ul>
+    <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#about" onclick="toggleMenu()">About</a>
+    <a href="synagogue.html" onclick="toggleMenu()">Synagogue</a>
+    <a href="#events" onclick="toggleMenu()">Events</a>
+    <a href="hebrew-school.html" onclick="toggleMenu()">Hebrew School</a>
+    <a href="chai-club/index.html" onclick="toggleMenu()">Chai Club</a>
+    <a href="gallery.html" onclick="toggleMenu()">Gallery</a>
+    <a href="#contact" onclick="toggleMenu()">Contact</a>
+    <a href="donate.html" onclick="toggleMenu()">Donate</a>
+  </div>
+
+  <!-- ── HERO ── -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-inner">
+      <div class="hero-content">
+        <p class="hero-eyebrow">Cooper City, Florida</p>
+        <h1 class="hero-headline">
+          Where Community<br>Feels Like <em>Home</em>
+        </h1>
+        <p class="hero-heb-tagline">קְהִילָּה שֶׁמַּרְגִּישָׁה בְּבַּיִת</p>
+        <p class="hero-sub">
+          Habayit Jewish Center is a warm, welcoming home for every Jewish soul in Cooper City and the surrounding South Florida community.
+        </p>
+        <div class="hero-actions">
+          <a href="#events" class="btn-primary">Upcoming Events</a>
+          <a href="#contact" class="btn-secondary">Get In Touch</a>
+        </div>
+      </div>
+      <div class="hero-image-wrap">
+        <div class="hero-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <p>Your photo here</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SHABBAT STRIP ── -->
+  <div class="shabbat-strip">
+    <span class="shabbat-heb">שַׁבָּת שָׁלוֹם</span>
+    <span class="shabbat-divider">|</span>
+    <span>🕯️ <strong>Shabbat</strong> Candle Lighting · Cooper City, FL</span>
+    <span class="shabbat-divider">|</span>
+    <span>Call <strong>(646) 462-1138</strong> for this week's times</span>
+  </div>
+
+  <!-- ── ABOUT ── -->
+  <section class="welcome" id="about">
+    <div class="section-inner">
+      <div class="welcome-grid">
+        <div class="welcome-text">
+          <p class="section-label">About Habayit</p>
+          <h2 class="section-title">A Jewish Home<br>in Cooper City</h2>
+          <p class="section-heb">בַּיִת יִשְׂרְאֵלִי בְּקוּפֶּר סִיטִי</p>
+          <p>Habayit Jewish Center was founded with a single vision: to create a place where every Jewish person — regardless of background, affiliation, or observance — feels genuinely at home.</p>
+          <p>We offer Shabbat and holiday celebrations, Jewish education for all ages, meaningful life-cycle events, and a warm community that shows up for one another.</p>
+          <div class="welcome-quote">
+            <span class="heb-verse">כָּל יִשְׂרָאֵל עֲרֵבִים זֶה בָּזֶה</span>
+            <span class="verse-translation">"All of Israel is responsible for one another."</span>
+            <span class="verse-source">Talmud · Shevuot 39a</span>
+          </div>
+          <a href="#contact" class="btn-primary">Connect With Us</a>
+        </div>
+        <div class="rabbi-card">
+          <div class="rabbi-photo">Photo coming soon</div>
+          <div class="rabbi-info">
+            <h3>Rabbi Shmuly &amp; Devora Hurwitz</h3>
+            <span class="rabbi-heb">הרב שמולי ודבורה הורביץ</span>
+            <p>Directors · Habayit Jewish Center · Cooper City</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EVENTS ── -->
+  <section class="events" id="events">
+    <div class="section-inner">
+      <p class="section-label">What's Coming Up</p>
+      <h2 class="section-title">Upcoming Events</h2>
+      <p class="section-heb">אֵירוּעִים קְרוֹבִים</p>
+      <p class="section-intro">Join us for Shabbat dinners, holiday celebrations, classes, and community gatherings. Everyone is welcome.</p>
+      <div class="events-grid">
+
+        <div class="event-card">
+          <div class="event-date-bar">
+            <div class="event-date-left">
+              <div class="event-month">July</div>
+              <div class="event-day">18</div>
+            </div>
+            <span class="event-heb-label">שַׁבָּת</span>
+          </div>
+          <div class="event-body">
+            <h3>Shabbat Dinner</h3>
+            <div class="event-meta">
+              <span>🕯️ Friday 7:30 PM</span>
+              <span>📍 Habayit Center</span>
+            </div>
+            <p>Join us for a warm, home-style Shabbat dinner. Beautiful blessings, delicious food, great company. All are welcome.</p>
+            <a href="#contact" class="event-link">RSVP →</a>
+          </div>
+        </div>
+
+        <div class="event-card">
+          <div class="event-date-bar">
+            <div class="event-date-left">
+              <div class="event-month">July</div>
+              <div class="event-day">25</div>
+            </div>
+            <span class="event-heb-label">תּוֹרָה</span>
+          </div>
+          <div class="event-body">
+            <h3>Torah &amp; Coffee</h3>
+            <div class="event-meta">
+              <span>☕ Sunday 10:00 AM</span>
+              <span>📍 Habayit Center</span>
+            </div>
+            <p>A relaxed weekly class exploring timeless Torah wisdom with real-life relevance. Great coffee included.</p>
+            <a href="#contact" class="event-link">RSVP →</a>
+          </div>
+        </div>
+
+        <div class="event-card">
+          <div class="event-date-bar">
+            <div class="event-date-left">
+              <div class="event-month">Aug</div>
+              <div class="event-day">1</div>
+            </div>
+            <span class="event-heb-label">מִשְׁפָּחָה</span>
+          </div>
+          <div class="event-body">
+            <h3>Family Shabbat</h3>
+            <div class="event-meta">
+              <span>🕯️ Friday 6:30 PM</span>
+              <span>📍 Habayit Center</span>
+            </div>
+            <p>A special Shabbat experience designed for families with young children. Songs, stories, candle lighting together.</p>
+            <a href="#contact" class="event-link">RSVP →</a>
+          </div>
+        </div>
+
+      </div>
+      <div class="events-footer">
+        <a href="#contact" class="btn-secondary">See All Events &amp; RSVP</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DONATE STRIP ── -->
+  <section class="donate-strip">
+    <div class="section-inner" style="max-width:700px;">
+      <p class="section-label">Support Habayit</p>
+      <h2 class="section-title">Your Gift Lights the Way</h2>
+      <p>Every contribution helps us keep Shabbat candles burning, our doors open, and our community growing.</p>
+      <div class="donate-amounts">
+        <button class="donate-amount" onclick="setAmount(this)">
+          <span>$18</span>
+        </button>
+        <button class="donate-amount" onclick="setAmount(this)">
+          <span>$36</span>
+        </button>
+        <button class="donate-amount" onclick="setAmount(this)">
+          <span>$100</span>
+        </button>
+        <button class="donate-amount" onclick="setAmount(this)">
+          <span>$180</span>
+        </button>
+        <button class="donate-amount" onclick="setAmount(this)">
+          <span>$360</span>
+        </button>
+      </div>
+      <a href="donate.html" class="btn-donate">Donate Now</a>
+    </div>
+  </section>
+
+  <!-- ── PROGRAMS ── -->
+  <section class="programs" id="programs">
+    <div class="section-inner">
+      <p class="section-label">Our Programs</p>
+      <h2 class="section-title">Something for Everyone</h2>
+      <p class="section-heb">תָּכְנִיּוֹת לְכָל אֶחָד</p>
+      <p class="section-intro">From weekly Shabbat to Jewish education, we have programming for every age and stage of life.</p>
+      <div class="programs-grid">
+        <div class="program-card">
+          <div class="program-heb">שַׁבָּת</div>
+          <h3>Shabbat &amp; Holidays</h3>
+          <p>Weekly Shabbat dinners and services, plus celebrations for every Jewish holiday throughout the year.</p>
+          <a href="#events" class="event-link">View Schedule →</a>
+        </div>
+        <div class="program-card">
+          <div class="program-heb">תַּלְמוּד תּוֹרָה</div>
+          <h3>Hebrew School</h3>
+          <p>Joyful Jewish education for children, building identity, Hebrew literacy, and a lifelong connection to their heritage.</p>
+          <a href="hebrew-school.html" class="event-link">Learn More →</a>
+        </div>
+        <div class="program-card">
+          <div class="program-heb">לִמּוּד</div>
+          <h3>Adult Learning</h3>
+          <p>Torah classes, Jewish philosophy, holiday workshops, and one-on-one learning for adults at any level.</p>
+          <a href="#contact" class="event-link">Get Involved →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CONTACT ── -->
+  <section class="contact" id="contact">
+    <div class="section-inner">
+      <div class="contact-grid">
+        <div>
+          <p class="section-label">Find Us</p>
+          <h2 class="section-title">Get In Touch</h2>
+          <p class="section-heb">צְרוּ קֶשֶׁר</p>
+          <p style="color:var(--muted);margin-bottom:40px;line-height:1.8;">We'd love to hear from you. Whether you have a question, want to RSVP for an event, or just want to say <em>Shalom</em> — reach out anytime.</p>
+          <div class="contact-details">
+            <div class="contact-item">
+              <div class="contact-icon">📍</div>
+              <div class="contact-item-text">
+                <strong>Address</strong>
+                <span>3007 Bogota Ave<br>Cooper City, FL 33026</span>
+              </div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">📞</div>
+              <div class="contact-item-text">
+                <strong>Phone</strong>
+                <span><a href="tel:6464621138">(646) 462-1138</a></span>
+              </div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">✉️</div>
+              <div class="contact-item-text">
+                <strong>Email</strong>
+                <span><a href="mailto:info@habayitcc.org">info@habayitcc.org</a></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <form class="contact-form" onsubmit="handleContact(event)">
+            <div class="form-row">
+              <input type="text" placeholder="First Name" required />
+              <input type="text" placeholder="Last Name" required />
+            </div>
+            <input type="email" placeholder="Email Address" required />
+            <input type="tel" placeholder="Phone (optional)" />
+            <select>
+              <option value="" disabled selected>I'm interested in...</option>
+              <option>Shabbat Dinner</option>
+              <option>Hebrew School</option>
+              <option>Adult Learning</option>
+              <option>General Information</option>
+              <option>Other</option>
+            </select>
+            <textarea placeholder="Your message..."></textarea>
+            <button type="submit" class="btn-primary">Send Message · שְׁלַח</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── */-->
+  <footer>
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <img src="images/logo.png" alt="Habayit" />
+        <span class="footer-blessing">בָּרוּךְ הַבָּא — בְּרוּכִים הַבָּאִים</span>
+        <span class="footer-blessing-en">"Blessed is he who comes — All are welcome."</span>
+        <p>A warm and welcoming Jewish home in Cooper City, Florida. Everyone is family here.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="#about">About Us</a></li>
+          <li><a href="#events">Events</a></li>
+          <li><a href="hebrew-school.html">Hebrew School</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="donate.html">Donate</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Contact</h4>
+        <ul>
+          <li><a href="tel:6464621138">(646) 462-1138</a></li>
+          <li><a href="mailto:info@habayitcc.org">info@habayitcc.org</a></li>
+          <li><a href="#">3007 Bogota Ave</a></li>
+          <li><a href="#">Cooper City, FL 33026</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 Habayit Jewish Center of Cooper City · כָּל הַזְּכֻיּוֹת שְׁמוּרוֹת</span>
+      <span>501(c)(3) Nonprofit Organization</span>
+    </div>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('mobileMenu').classList.toggle('open');
+    }
+    function setAmount(btn) {
+      document.querySelectorAll('.donate-amount').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function handleContact(e) {
+      e.preventDefault();
+      alert('Thank you! We will be in touch soon.\n\nשָׁלוֹם וּבְרָכָה 🕯️');
+      e.target.reset();
+    }
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('mobileMenu');
+      const hamburger = document.querySelector('.hamburger');
+      if (menu.classList.contains('open') && !menu.contains(e.target) && !hamburger.contains(e.target)) {
+        menu.classList.remove('open');
+      }
+    });
+  </script>
+</body>
+</html>

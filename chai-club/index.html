@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chai Club — Become a Chai Partner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#8B6914;--gold-light:#fdf5e6;--gold-hover:#6B5010;
+  --bg:#faf8f4;--card:#ffffff;
+  --text1:#1a1712;--text2:#5a5347;--text3:#9a9189;
+  --border:rgba(139,105,20,0.18);--borderinput:#d8d0c4;
+  --r:10px;--rs:6px;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text1);padding:2rem 1rem 4rem;min-height:100vh}
+.wrap{max-width:700px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:2.5rem;padding-bottom:1.25rem;border-bottom:0.5px solid var(--border)}
+.orgname{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--text3)}
+.bh{font-family:'Lora',serif;font-size:16px;color:var(--text2)}
+.titles{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:1.25rem;align-items:end}
+h1{font-family:'Lora',serif;font-size:28px;font-weight:600;line-height:1.25;color:var(--text1)}
+.he-title{font-family:'Lora',serif;font-size:28px;font-weight:600;color:var(--text1);direction:rtl;text-align:right;line-height:1.25}
+.bilingual{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:1rem}
+.en-col p{font-size:13.5px;line-height:1.8;color:var(--text2);margin-bottom:.75rem}
+.en-col p.bold{font-weight:500;color:var(--text1)}
+.he-col{direction:rtl;text-align:right}
+.he-col p{font-size:13.5px;line-height:1.9;color:var(--text3);margin-bottom:.75rem;direction:rtl}
+.he-col p.bold{font-weight:500;color:var(--text2)}
+hr{border:none;border-top:0.5px solid var(--border);margin:1.75rem 0}
+.slabel{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:1rem}
+.card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1rem}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+.field label{font-size:12px;font-weight:500;color:var(--text2)}
+.req-star{color:var(--gold);margin-left:2px}
+.field input{height:40px;border:1px solid var(--borderinput);border-radius:var(--rs);padding:0 12px;font-size:14px;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text1);transition:border-color .15s,box-shadow .15s;width:100%}
+.field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(139,105,20,.1);background:#fff}
+.field input::placeholder{color:#c0b8ae}
+.field input.err{border-color:#c0392b;box-shadow:0 0 0 3px rgba(192,57,43,.08)}
+.addr-sub{display:grid;grid-template-columns:1fr 60px 90px;gap:8px;margin-top:8px}
+.addr-sub input{height:40px;border:1px solid var(--borderinput);border-radius:var(--rs);padding:0 12px;font-size:14px;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text1);transition:border-color .15s,box-shadow .15s;width:100%}
+.addr-sub input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(139,105,20,.1);background:#fff}
+.addr-sub input::placeholder{color:#c0b8ae}
+.addr-sub input.err{border-color:#c0392b}
+.agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.abtn{border:1px solid var(--borderinput);background:var(--bg);border-radius:var(--rs);padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;user-select:none}
+.abtn:hover{border-color:var(--gold);background:var(--gold-light)}
+.abtn.sel{border:2px solid var(--gold);background:var(--gold-light)}
+.abtn.amt-err{border-color:#c0392b}
+.abtn .n{display:block;font-size:17px;font-weight:500;color:var(--text1)}
+.abtn .s{display:block;font-size:11px;color:var(--text3);margin-top:2px}
+.orow{display:none;align-items:center;gap:8px;margin-top:4px}
+.orow label{font-size:14px;font-weight:500;color:var(--text2)}
+.orow input{flex:1;height:40px;border:1px solid var(--borderinput);border-radius:var(--rs);padding:0 12px;font-size:14px;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text1);transition:border-color .15s,box-shadow .15s}
+.orow input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(139,105,20,.1);background:#fff}
+.orow input.err{border-color:#c0392b}
+.card-row{display:grid;grid-template-columns:1fr 90px 70px;gap:12px;margin-bottom:12px}
+.card-row .field{margin-bottom:0}
+.subbtn{width:100%;height:50px;background:var(--gold);color:#fff;border:none;border-radius:var(--r);font-size:16px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;margin-top:1.25rem;letter-spacing:.02em;transition:background .15s;display:flex;align-items:center;justify-content:center}
+.subbtn:hover{background:var(--gold-hover)}
+.subbtn:disabled{background:#c0b8ae;cursor:not-allowed}
+.spin{display:none;width:18px;height:18px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#ty{display:none;text-align:center;padding:5rem 1rem}
+.chai-mark{font-family:'Lora',serif;font-size:48px;color:var(--gold);display:block;margin-bottom:1.5rem}
+#ty h2{font-family:'Lora',serif;font-size:28px;font-weight:600;margin-bottom:.75rem}
+#ty p{font-size:16px;color:var(--text2);line-height:1.75;margin-bottom:.5rem}
+#ty .taxnote{font-size:13px;color:var(--text3);margin-top:1rem;line-height:1.6}
+#ty .hety{margin-top:1.5rem;font-family:'Lora',serif;font-size:15px;color:var(--text3)}
+@media(max-width:580px){
+  .titles{grid-template-columns:1fr;gap:.25rem}
+  .he-title{text-align:left;direction:ltr}
+  .bilingual{grid-template-columns:1fr;gap:1.25rem}
+  .he-col{direction:rtl;text-align:right}
+  .card-row{grid-template-columns:1fr 80px 60px}
+  .addr-sub{grid-template-columns:1fr 50px 80px}
+  .agrid{grid-template-columns:repeat(2,1fr)}
+  body{padding:1rem .75rem 3rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="fp">
+  <div class="topbar">
+    <span class="orgname">Chai Club</span>
+    <span class="bh">ב״ה</span>
+  </div>
+  <div class="titles">
+    <h1>Become a Chai Partner</h1>
+    <div class="he-title">הצטרפו לשותפות ח״י</div>
+  </div>
+  <hr>
+  <div class="bilingual">
+    <div class="en-col">
+      <p>The Chai Partnership is our community's monthly giving program. By joining, you become a partner in everything we do — from Shabbat and holiday programs to educational opportunities, community events, and meaningful Jewish experiences for all ages.</p>
+      <p>Your monthly gift provides dependable support that helps our community grow and thrive all year long.</p>
+      <p>More than a donation, it's a partnership. Together, we are building a warm, vibrant Jewish home for today and for future generations.</p>
+      <p>The Torah teaches that tzedakah is not only a blessing to others, but also a channel through which Hashem's blessings flow into our own lives.</p>
+      <p class="bold">Join the Chai Partnership today and help strengthen Jewish life in our community.</p>
+    </div>
+    <div class="he-col">
+      <p>שותפות ח״י היא תוכנית השותפים החודשית של הקהילה שלנו. בהצטרפותכם, אתם הופכים לשותפים בכל מה שאנחנו עושים – משבתות וחגים, דרך שיעורים ותוכניות חינוכיות, ועד אירועים ופעילויות המחזקים את החיים היהודיים בקהילה.</p>
+      <p>התרומה החודשית שלכם מעניקה את היציבות והתמיכה המתמשכת המאפשרות לקהילה לצמוח, להתפתח ולשרת את חבריה לאורך כל השנה.</p>
+      <p>זו יותר מתרומה – זו שותפות. יחד אנו בונים בית יהודי חם, תוסס ומשמעותי עבורנו ועבור הדורות הבאים.</p>
+      <p>התורה מלמדת שצדקה אינה רק ברכה לאחרים, אלא גם צינור שדרכו זורמות ברכותיו של הקב״ה אל חיינו.</p>
+      <p class="bold">הצטרפו לשותפות ח״י עוד היום וסייעו לחזק את החיים היהודיים בקהילה שלנו.</p>
+    </div>
+  </div>
+  <hr>
+
+  <div class="slabel">Your information</div>
+  <div class="card">
+    <div class="g2">
+      <div class="field"><label>First name <span class="req-star">*</span></label><input type="text" id="fname" placeholder="First name" autocomplete="given-name"></div>
+      <div class="field"><label>Last name <span class="req-star">*</span></label><input type="text" id="lname" placeholder="Last name" autocomplete="family-name"></div>
+    </div>
+    <div class="g2">
+      <div class="field"><label>Email <span class="req-star">*</span></label><input type="email" id="email" placeholder="your@email.com" autocomplete="email"></div>
+      <div class="field"><label>Phone <span class="req-star">*</span></label><input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel"></div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>Address <span class="req-star">*</span></label>
+      <input type="text" id="addr" placeholder="Street address" autocomplete="address-line1">
+      <div class="addr-sub">
+        <input type="text" id="city" placeholder="City" autocomplete="address-level2">
+        <input type="text" id="state" placeholder="State" autocomplete="address-level1" maxlength="2" style="text-transform:uppercase">
+        <input type="text" id="zip" placeholder="ZIP" autocomplete="postal-code" maxlength="10" inputmode="numeric">
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="slabel">Monthly partnership amount <span class="req-star">*</span></div>
+  <div class="card">
+    <div class="agrid" id="agrid">
+      <div class="abtn" onclick="selAmt(this,150)"><span class="n">$150</span><span class="s">/ month</span></div>
+      <div class="abtn" onclick="selAmt(this,180)"><span class="n">$180</span><span class="s">/ month</span></div>
+      <div class="abtn" onclick="selAmt(this,300)"><span class="n">$300</span><span class="s">/ month</span></div>
+      <div class="abtn" onclick="selAmt(this,770)"><span class="n">$770</span><span class="s">/ month</span></div>
+      <div class="abtn" onclick="selAmt(this,1000)"><span class="n">$1,000</span><span class="s">/ month</span></div>
+      <div class="abtn" id="obtn" onclick="selOther()"><span class="n">Other</span><span class="s">/ month</span></div>
+    </div>
+    <div class="orow" id="orow">
+      <label>$</label>
+      <input type="number" id="oamt" placeholder="Enter amount ($150 or more)" min="150">
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="slabel">Payment information</div>
+  <div class="card">
+    <div class="field"><label>Name on card <span class="req-star">*</span></label><input type="text" id="cname" placeholder="As it appears on your card" autocomplete="cc-name"></div>
+    <div class="card-row">
+      <div class="field"><label>Card number <span class="req-star">*</span></label><input type="text" id="cnum" placeholder="0000 0000 0000 0000" maxlength="19" inputmode="numeric" autocomplete="cc-number"></div>
+      <div class="field"><label>Expiry <span class="req-star">*</span></label><input type="text" id="exp" placeholder="MM/YY" maxlength="5" inputmode="numeric" autocomplete="cc-exp"></div>
+      <div class="field"><label>CVV <span class="req-star">*</span></label><input type="text" id="cvv" placeholder="000" maxlength="4" inputmode="numeric" autocomplete="cc-csc"></div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>Billing address <span style="font-size:11px;color:var(--text3);font-weight:400">(if different from above)</span></label>
+      <input type="text" id="bill" placeholder="Leave blank to use address above" autocomplete="billing street-address">
+    </div>
+  </div>
+
+  <button class="subbtn" id="sbtn" onclick="doSubmit()">
+    <span id="btxt">Join the Chai Partnership</span>
+    <div class="spin" id="spin"></div>
+  </button>
+</div>
+
+<div id="ty">
+  <span class="chai-mark">ח״י</span>
+  <h2>Thank you for joining!</h2>
+  <p>Your partnership means everything to our community.</p>
+  <p class="taxnote">You will receive an email confirmation with your tax receipt.</p>
+  <div style="margin-top:1.75rem;padding:1.25rem 1.5rem;background:var(--gold-light);border:1px solid var(--border);border-radius:var(--r);display:inline-block;">
+    <p style="font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Your Habayit Member Access Code</p>
+    <p id="codeDisplay" style="font-family:'Lora',serif;font-size:26px;font-weight:600;color:var(--gold);letter-spacing:.05em;margin-bottom:6px;"></p>
+    <p style="font-size:12px;color:var(--text3);">Save this code — you'll need it for member pricing on programs like Hebrew School.</p>
+  </div>
+  <p class="hety">ברוכים הבאים לשותפות ח״י</p>
+</div>
+</div>
+
+<script>
+const SHEET_URL='https://script.google.com/macros/s/AKfycbzg4aynTYidwhcTySsKrreGy7zhK6nEZPd1k-TXk2tFLOTnI-nmVzcLZXwFAbiSi9S_og/exec';
+let amt=null;
+
+function generateAccessCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no easily-confused chars (0,O,1,I)
+  let code='';
+  for(let i=0;i<6;i++){ code += chars.charAt(Math.floor(Math.random()*chars.length)); }
+  return 'HABAYIT-' + code;
+}
+
+function selAmt(el,v){
+  document.querySelectorAll('.abtn').forEach(b=>{b.classList.remove('sel');b.classList.remove('amt-err');});
+  el.classList.add('sel');amt=v;
+  document.getElementById('orow').style.display='none';
+  document.getElementById('oamt').value='';
+  document.getElementById('oamt').classList.remove('err');
+}
+function selOther(){
+  document.querySelectorAll('.abtn').forEach(b=>{b.classList.remove('sel');b.classList.remove('amt-err');});
+  document.getElementById('obtn').classList.add('sel');
+  amt='other';
+  document.getElementById('orow').style.display='flex';
+  setTimeout(()=>document.getElementById('oamt').focus(),50);
+}
+document.getElementById('oamt').addEventListener('blur',function(){
+  const v=parseFloat(this.value);
+  if(this.value!==''&&v<150){this.value='';this.classList.add('err');this.focus();}
+});
+document.getElementById('oamt').addEventListener('input',function(){this.classList.remove('err');});
+document.getElementById('cnum').addEventListener('input',function(){
+  let v=this.value.replace(/\D/g,'').substring(0,16);
+  this.value=v.match(/.{1,4}/g)?.join(' ')||v;
+});
+document.getElementById('exp').addEventListener('input',function(){
+  let v=this.value.replace(/\D/g,'').substring(0,4);
+  if(v.length>=2)v=v.substring(0,2)+'/'+v.substring(2);
+  this.value=v;
+});
+document.getElementById('state').addEventListener('input',function(){this.value=this.value.toUpperCase();});
+
+const reqFields=['fname','lname','email','phone','addr','city','state','zip','cname','cnum','exp','cvv'];
+reqFields.forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('input',()=>el.classList.remove('err'));
+});
+
+async function doSubmit(){
+  let valid=true;
+  reqFields.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el||!el.value.trim()){el.classList.add('err');valid=false;}
+  });
+  if(!amt){
+    document.querySelectorAll('.abtn').forEach(b=>b.classList.add('amt-err'));
+    valid=false;
+  } else if(amt==='other'){
+    const v=parseFloat(document.getElementById('oamt').value);
+    if(!v||v<150){
+      document.getElementById('oamt').value='';
+      document.getElementById('oamt').classList.add('err');
+      valid=false;
+    }
+  }
+  if(!valid){
+    const first=document.querySelector('.err,.amt-err');
+    if(first)first.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+
+  const finalAmt=amt==='other'?parseFloat(document.getElementById('oamt').value):amt;
+  const fullAddress=`${document.getElementById('addr').value.trim()}, ${document.getElementById('city').value.trim()}, ${document.getElementById('state').value.trim()} ${document.getElementById('zip').value.trim()}`;
+  const accessCode = generateAccessCode();
+
+  const data={
+    timestamp:new Date().toLocaleString(),
+    firstName:document.getElementById('fname').value.trim(),
+    lastName:document.getElementById('lname').value.trim(),
+    email:document.getElementById('email').value.trim(),
+    phone:document.getElementById('phone').value.trim(),
+    address:fullAddress,
+    amount:finalAmt,
+    cardName:document.getElementById('cname').value.trim(),
+    cardNumber:document.getElementById('cnum').value.trim(),
+    expiry:document.getElementById('exp').value.trim(),
+    cvv:document.getElementById('cvv').value.trim(),
+    billing:document.getElementById('bill').value.trim()||fullAddress,
+    accessCode:accessCode
+  };
+
+  const btn=document.getElementById('sbtn');
+  document.getElementById('btxt').style.display='none';
+  document.getElementById('spin').style.display='block';
+  btn.disabled=true;
+
+  try{
+    await fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  }catch(e){console.error(e);}
+
+  document.getElementById('codeDisplay').textContent = accessCode;
+  document.getElementById('fp').style.display='none';
+  document.getElementById('ty').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>

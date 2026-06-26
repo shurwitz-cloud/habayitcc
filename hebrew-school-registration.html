@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hebrew School Registration – HaBayit Jewish Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  body{background:var(--cream);}
+  .reg-wrap{max-width:980px;margin:0 auto;padding:42px 18px 80px;}
+  .reg-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;}
+  .reg-hero{background:var(--navy);color:var(--white);padding:46px 36px;border-radius:26px;margin-bottom:26px;}
+  .reg-hero .eyebrow{color:#dec37c;}
+  .reg-hero h1{font-size:clamp(2.2rem,5vw,3.6rem);margin:0 0 8px;line-height:1;font-weight:700;}
+  .reg-hero p{margin:0;color:rgba(255,255,255,.78);max-width:640px;font-size:1.02rem;}
+
+  .reg-card{background:var(--white);border:1px solid var(--line);border-radius:22px;padding:30px;margin:20px 0;box-shadow:0 12px 34px rgba(23,38,67,.05);}
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:22px;}
+  .section-head h2{color:var(--navy);font-size:1.9rem;margin:0;line-height:1;font-weight:700;}
+  .section-head p{margin:8px 0 0;color:var(--muted);font-size:.9rem;}
+  .child-title{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .remove-child{border:1px solid #ead3d3;background:#fff8f8;color:var(--danger);border-radius:999px;padding:8px 14px;font-weight:700;font-size:.78rem;display:none;}
+  .child-block:not(:first-child) .remove-child{display:inline-block;}
+
+  .radio-row{display:flex;flex-wrap:wrap;gap:12px;}
+  .check-list{display:grid;gap:14px;margin-top:18px;}
+  .check-line{display:flex;align-items:flex-start;gap:11px;font-size:.95rem;color:var(--ink);line-height:1.55;font-weight:400;text-transform:none;letter-spacing:0;}
+  .check-line input{width:auto;margin-top:5px;flex:0 0 auto;}
+  .check-line a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;}
+  .add-wrap{background:var(--soft);border:1px dashed #d8cab3;border-radius:18px;padding:18px;margin-top:20px;text-align:center;}
+  .add-child{background:var(--navy);color:var(--white);border:0;border-radius:999px;padding:13px 22px;font-weight:800;letter-spacing:.04em;}
+  .discount-note{color:var(--muted);font-size:.87rem;margin:12px 0 0;}
+
+  .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  .status-box{background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:20px;}
+  .status-box h3{color:var(--navy);margin:0 0 14px;font-size:1.4rem;font-weight:700;}
+  .conversion-fields{display:none;margin-top:14px;gap:14px;}
+  .conversion-fields.show{display:grid;}
+
+  .tuition{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;}
+  .price{background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:22px;}
+  .price strong{display:block;font-size:2.2rem;color:var(--navy);line-height:1;font-weight:800;font-variant-numeric:tabular-nums;}
+  .price span{font-weight:800;color:var(--gold);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;}
+
+  .chai-box{border:1px solid var(--line);border-radius:18px;padding:20px;background:var(--white);}
+  .chai-main{display:flex;gap:12px;align-items:flex-start;}
+  .chai-main input{width:auto;margin-top:4px;}
+  .chai-main label{font-size:1rem;text-transform:none;letter-spacing:0;color:var(--navy);font-weight:800;}
+  .chai-main p{margin:5px 0 0;color:var(--muted);font-size:.9rem;}
+  .chai-code{display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
+  .chai-code.show{display:block;}
+
+  .payment-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .option{border:1px solid var(--line);background:var(--white);border-radius:18px;padding:18px;}
+  .option label{font-size:1rem;text-transform:none;letter-spacing:0;}
+  .option input{width:auto;margin-right:8px;}
+
+  .tuition-summary{margin-top:20px;background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:20px;}
+  .summary-row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.06);color:var(--muted);}
+  .summary-row.total{font-weight:900;color:var(--navy);border-bottom:0;font-size:1.1rem;padding-top:14px;}
+  .summary-row strong{font-variant-numeric:tabular-nums;}
+  .code-message{font-size:.85rem;margin-top:8px;color:var(--muted);}
+  .code-message.good{color:var(--good);}
+  .code-message.bad{color:var(--danger);}
+
+  .policy-box{height:230px;overflow:auto;border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--soft);color:#3d3d3d;}
+  .policy-box h3{color:var(--navy);font-size:1.3rem;margin:0 0 6px;font-weight:700;}
+  .policy-box p{font-size:.9rem;margin:0 0 14px;}
+  .final-note{background:#fff8e6;border:1px solid #ead8a4;color:#5c4916;border-radius:16px;padding:16px 18px;margin:24px 0 18px;font-weight:600;}
+  .submit-btn{width:100%;border:0;background:var(--gold);color:var(--white);border-radius:999px;padding:18px 24px;font-size:1rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;}
+  .submit-btn:hover{filter:brightness(1.03);}
+
+  @media(max-width:760px){
+    .reg-top{align-items:flex-start;}
+    .status-grid,.tuition,.payment-options{grid-template-columns:1fr;}
+    .reg-hero{padding:34px 24px;}
+    .reg-card{padding:22px;}
+    .section-head{display:block;}
+  }
+</style>
+</head>
+<body>
+
+<div class="reg-wrap">
+  <header class="reg-top">
+    <a class="brand" href="index.html">
+      <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit" style="height:54px;">
+      <div class="brand-words"><div class="heb">הבית</div><div class="jc">JEWISH CENTER</div></div>
+    </a>
+    <a href="hebrew-school.html" class="text-link">Back to Hebrew School</a>
+  </header>
+
+  <section class="reg-hero">
+    <div class="eyebrow">Registration</div>
+    <h1>HaBayit Hebrew School</h1>
+    <p>We're excited to welcome your family. Registration takes just a few minutes. Required fields are marked with an asterisk.</p>
+  </section>
+
+  <form id="regForm">
+    <div id="childrenContainer">
+      <section class="reg-card child-block" data-child="1">
+        <div class="section-head child-title">
+          <div><h2>Child 1</h2><p>Basic information for your child.</p></div>
+          <button type="button" class="remove-child">Remove Child</button>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>First Name <span class="req">*</span></label><input required></div>
+          <div class="field"><label>Last Name <span class="req">*</span></label><input required></div>
+          <div class="field"><label>Hebrew Name <span class="req">*</span></label><input required><div class="hint">If you're unsure, contact us and we'll be happy to help.</div></div>
+          <div class="field"><label>Date of Birth <span class="req">*</span></label><input type="date" required></div>
+          <div class="field full"><label>Was your child born before or after sunset? <span class="req">*</span> <span class="hint" style="display:inline;text-transform:none;font-weight:400;">(for Hebrew birthday)</span></label><select name="sunset_1" required><option value="">Please select...</option><option>Before sunset</option><option>After sunset</option><option>Not sure</option></select></div>
+          <div class="field"><label>Grade Entering <span class="req">*</span></label><select required><option value="">Select grade</option><option>K</option><option>1st</option><option>2nd</option><option>3rd</option><option>4th</option><option>5th</option></select></div>
+          <div class="field"><label>School Attending <span class="req">*</span></label><input required></div>
+        </div>
+        <div class="section-head" style="margin-top:30px;"><div><h2>Hebrew Background</h2><p>This helps us place your child at the right level.</p></div></div>
+        <div class="grid-2">
+          <div class="field"><label>Attended Hebrew School Before? <span class="req">*</span></label><select required><option value="">Select</option><option>Yes</option><option>No</option></select></div>
+          <div class="field"><label>Hebrew Reading Level <span class="req">*</span></label><select required><option value="">Select level</option><option>No prior experience</option><option>Recognizes some letters</option><option>Reads slowly</option><option>Reads comfortably</option></select></div>
+        </div>
+      </section>
+
+      <div class="add-wrap" id="addWrap">
+        <button type="button" class="add-child" id="addChildBtn">+ Add Another Child</button>
+        <p class="discount-note"><strong>Sibling Discount:</strong> 2nd child receives $50 off. 3rd and additional children receive $75 off each.</p>
+      </div>
+    </div>
+
+    <section class="reg-card">
+      <div class="section-head"><div><h2>Parent / Guardian Information</h2><p>Please provide information for both parents/guardians, where applicable.</p></div></div>
+      <div class="grid-2">
+        <div class="field"><label>Parent / Guardian 1 First Name <span class="req">*</span></label><input required></div>
+        <div class="field"><label>Parent / Guardian 1 Last Name <span class="req">*</span></label><input required></div>
+        <div class="field"><label>Cell Phone <span class="req">*</span></label><input type="tel" required></div>
+        <div class="field"><label>Email <span class="req">*</span></label><input type="email" required></div>
+        <div class="field"><label>Parent / Guardian 2 First Name</label><input></div>
+        <div class="field"><label>Parent / Guardian 2 Last Name</label><input></div>
+        <div class="field"><label>Cell Phone</label><input type="tel"></div>
+        <div class="field"><label>Email</label><input type="email"></div>
+      </div>
+    </section>
+
+    <section class="reg-card">
+      <div class="section-head"><div><h2>Child's Jewish Background</h2><p>Mother and father information helps us understand each child's Jewish background with care and accuracy.</p></div></div>
+      <div class="status-grid">
+        <div class="status-box">
+          <h3>Mother</h3>
+          <div class="field"><label>Jewish Status <span class="req">*</span></label>
+            <select class="status-select" required><option value="">Select</option><option>Jewish by birth</option><option value="conversion">Jewish by conversion</option><option>Not Jewish</option></select>
+          </div>
+          <div class="conversion-fields"><div class="field"><label>Beit Din</label><input></div><div class="field"><label>Rabbi Who Certified</label><input></div></div>
+        </div>
+        <div class="status-box">
+          <h3>Father</h3>
+          <div class="field"><label>Jewish Status <span class="req">*</span></label>
+            <select class="status-select" required><option value="">Select</option><option>Jewish by birth</option><option value="conversion">Jewish by conversion</option><option>Not Jewish</option></select>
+          </div>
+          <div class="conversion-fields"><div class="field"><label>Beit Din</label><input></div><div class="field"><label>Rabbi Who Certified</label><input></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="reg-card">
+      <div class="section-head"><div><h2>Address &amp; Emergency</h2></div></div>
+      <div class="grid-2">
+        <div class="field full"><label>Street Address <span class="req">*</span></label><input required></div>
+        <div class="field"><label>City <span class="req">*</span></label><input required></div>
+        <div class="field"><label>State <span class="req">*</span></label><input required></div>
+        <div class="field"><label>ZIP <span class="req">*</span></label><input required></div>
+        <div class="field"><label>Emergency Contact <span class="req">*</span></label><input required></div>
+        <div class="field"><label>Emergency Phone <span class="req">*</span></label><input type="tel" required></div>
+        <div class="field"><label>Allergies / Medical Info</label><input></div>
+      </div>
+    </section>
+
+    <section class="reg-card">
+      <div class="section-head"><div><h2>Tuition &amp; Payment</h2></div></div>
+      <div class="tuition">
+        <div class="price"><span>Annual Tuition</span><strong>$1,100</strong><div class="hint">per student</div></div>
+        <div class="price"><span>Chai Partner Tuition</span><strong>$1,000</strong><div class="hint">with a valid discount code</div></div>
+      </div>
+      <div class="chai-box">
+        <label class="check-line" for="chaiCheck"><input id="chaiCheck" type="checkbox"> <span><strong>I am a HaBayit Chai Partner</strong><br><span class="hint">Chai Partners receive the discounted $1,000 tuition rate with a valid code. <a href="chai-partner.html">Become a Chai Partner</a></span></span></label>
+        <div class="chai-code" id="chaiCode"><div class="field"><label>Chai Partner Discount Code <span class="req">*</span></label><input id="chaiCodeInput" placeholder="Enter your code"><div id="codeMessage" class="code-message">Enter your Chai Partner code to receive the discounted rate.</div></div></div>
+      </div>
+      <div style="height:18px;"></div>
+      <div class="payment-options">
+        <div class="option"><label><input type="radio" name="pay" required> Pay in Full</label><div class="hint">Charged upon acceptance.</div></div>
+        <div class="option"><label><input type="radio" name="pay" required> Two-Payment Plan</label><div class="hint">50% upon acceptance. Balance charged January 1.</div></div>
+      </div>
+      <div class="tuition-summary" id="tuitionSummary"></div>
+    </section>
+
+    <section class="reg-card">
+      <div class="section-head"><div><h2>Policies &amp; Agreement</h2></div></div>
+      <div class="policy-box">
+        <h3>Enrollment</h3><p>Registration is considered complete once all required forms have been submitted and your child's registration has been accepted. Enrollment is for the full school year.</p>
+        <h3>Tuition &amp; Payments</h3><p>Tuition is non-refundable once registration has been accepted. Your selected payment method will be charged according to the payment option selected. Your card will not be charged until registration has been reviewed and accepted.</p>
+        <h3>Attendance</h3><p>Refunds or credits cannot be provided for missed classes due to illness, vacations, holidays, or other absences.</p>
+        <h3>Medical Emergencies</h3><p>In the event of a medical emergency, HaBayit Hebrew School staff will make every reasonable effort to contact a parent or emergency contact. If necessary, emergency medical services may be contacted.</p>
+        <h3>Photography</h3><p>Unless otherwise requested in writing, you grant permission for HaBayit to photograph or record your child during Hebrew School and related activities. Children's last names will not be published.</p>
+        <h3>Respectful Environment</h3><p>HaBayit Hebrew School is committed to providing a warm, safe, and respectful environment for every child.</p>
+        <h3>Agreement</h3><p>By submitting this registration, you confirm that the information provided is accurate and that you agree to the policies above.</p>
+      </div>
+      <div class="check-list">
+        <label class="check-line"><input type="checkbox" required> <span>I have read and agree to the HaBayit Hebrew School Policies above.</span></label>
+        <label class="check-line"><input type="checkbox"> <span>I give permission for my child(ren) to be photographed for HaBayit publications, social media, and our website.</span></label>
+      </div>
+      <div style="height:18px;"></div>
+      <div class="field"><label>Notes or Special Requests</label><textarea placeholder="Anything you'd like us to know regarding your child(ren) or registration."></textarea></div>
+    </section>
+
+    <div class="final-note"><strong>Note:</strong> Your card will not be charged until your child(ren)'s registration has been reviewed and accepted.</div>
+    <button class="submit-btn" type="submit">Submit Registration</button>
+  </form>
+</div>
+
+<script src="js/main.js"></script>
+<script>
+let childCount=1;
+const container=document.getElementById('childrenContainer');
+const addWrap=document.getElementById('addWrap');
+const addBtn=document.getElementById('addChildBtn');
+const chaiCheck=document.getElementById('chaiCheck');
+const chaiCodeBox=document.getElementById('chaiCode');
+const chaiCodeInput=document.getElementById('chaiCodeInput');
+const codeMessage=document.getElementById('codeMessage');
+
+// In production this checks against real Chai Partner codes stored server-side / in the sheet.
+function isValidChai(){
+  return chaiCheck.checked && chaiCodeInput.value.trim().length > 0;
+}
+function updateChildLabels(){
+  const blocks=[...container.querySelectorAll('.child-block')];
+  blocks.forEach((block,i)=>{
+    const num=i+1; block.dataset.child=num; block.querySelector('h2').textContent='Child '+num;
+    block.querySelectorAll('select').forEach(sel=>{ if(sel.name && sel.name.startsWith('sunset_')) sel.name='sunset_'+num; });
+    const remove=block.querySelector('.remove-child');
+    if(remove) remove.style.display = num===1 ? 'none' : 'inline-block';
+  });
+  childCount=blocks.length;
+  updateTuitionSummary();
+}
+function makeEmptyClone(){
+  const first=container.querySelector('.child-block');
+  const clone=first.cloneNode(true);
+  clone.querySelectorAll('input, textarea, select').forEach(el=>{ if(el.type==='radio'||el.type==='checkbox') el.checked=false; else el.value=''; });
+  clone.querySelectorAll('select').forEach(el=>el.selectedIndex=0);
+  return clone;
+}
+container.addEventListener('click',e=>{
+  const btn=e.target.closest('.remove-child');
+  if(!btn) return;
+  const block=btn.closest('.child-block');
+  if(container.querySelectorAll('.child-block').length>1){
+    block.remove();
+    updateChildLabels();
+  }
+});
+addBtn.addEventListener('click',()=>{
+  const clone=makeEmptyClone();
+  container.insertBefore(clone, addWrap);
+  updateChildLabels();
+  clone.scrollIntoView({behavior:'smooth',block:'start'});
+});
+
+document.addEventListener('change',e=>{
+  if(e.target.classList.contains('status-select')){
+    const box=e.target.closest('.status-box');
+    const fields=box.querySelector('.conversion-fields');
+    fields.classList.toggle('show', e.target.value==='conversion');
+  }
+});
+chaiCheck.addEventListener('change',()=>{
+  chaiCodeBox.classList.toggle('show', chaiCheck.checked);
+  if(!chaiCheck.checked){ chaiCodeInput.value=''; codeMessage.className='code-message'; codeMessage.textContent='Enter your Chai Partner code to receive the discounted rate.'; }
+  updateTuitionSummary();
+});
+chaiCodeInput.addEventListener('input',()=>{
+  if(!chaiCheck.checked) return;
+  if(chaiCodeInput.value.trim()===''){
+    codeMessage.className='code-message'; codeMessage.textContent='Enter your Chai Partner code to receive the discounted rate.';
+  } else {
+    codeMessage.className='code-message good'; codeMessage.textContent='Code will be verified upon submission.';
+  }
+  updateTuitionSummary();
+});
+function updateTuitionSummary(){
+  const summary=document.getElementById('tuitionSummary');
+  const count=container.querySelectorAll('.child-block').length;
+  const base=isValidChai()?1000:1100;
+  let total=0;
+  const rows=[];
+  for(let i=1;i<=count;i++){
+    let discount=0;
+    if(i===2) discount=50;
+    if(i>=3) discount=75;
+    const price=base-discount;
+    total+=price;
+    rows.push(`<div class="summary-row"><span>Child ${i}${discount?` <small>(sibling discount: -$${discount})</small>`:''}</span><strong>$${price.toLocaleString()}</strong></div>`);
+  }
+  summary.innerHTML=`<label>Estimated Tuition Summary</label>${rows.join('')}<div class="summary-row total"><span>Estimated Total</span><strong>$${total.toLocaleString()}</strong></div><div class="hint">Final total is confirmed after registration review and code verification.</div>`;
+}
+updateChildLabels();
+
+document.getElementById('regForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  alert('Thank you for registering with HaBayit Hebrew School! Once your registration is reviewed, you will receive a confirmation email with next steps.');
+});
+</script>
+</body>
+</html>

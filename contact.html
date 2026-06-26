@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contact – HaBayit Jewish Center</title>
+<meta name="description" content="Get in touch with HaBayit Jewish Center in Cooper City, FL." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:42vh;}
+
+  .contact-section{background:var(--white);}
+  .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start;}
+  .contact-details{display:flex;flex-direction:column;gap:26px;}
+  .contact-item{display:flex;gap:16px;align-items:flex-start;}
+  .contact-icon{width:42px;height:42px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .contact-icon svg{width:18px;height:18px;stroke:var(--white);}
+  .contact-item-text strong{display:block;font-size:.74rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:4px;}
+  .contact-item-text span{font-size:.98rem;color:var(--ink);}
+
+  .contact-form{display:flex;flex-direction:column;gap:16px;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+  @media(max-width:860px){ .contact-grid{grid-template-columns:1fr;gap:40px;} .form-row{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-school.html">Hebrew School</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-school.html">Hebrew School</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <a href="donate.html">Donate</a>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">Get In Touch</div>
+      <h1>We'd Love to Hear From You</h1>
+      <p>Questions, RSVPs, or just want to say hello — reach out anytime.</p>
+    </div>
+  </section>
+
+  <section class="contact-section">
+    <div class="wrap contact-grid">
+      <div class="contact-details">
+        <div class="contact-item">
+          <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <div class="contact-item-text"><strong>Address</strong><span>3007 Bogota Ave<br>Cooper City, FL 33026</span></div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.91.69 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.33 1.85.56 2.81.69A2 2 0 0122 16.92z"/></svg></div>
+          <div class="contact-item-text"><strong>Phone</strong><span><a href="tel:6464621138">(646) 462-1138</a></span></div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z" style="display:none;"/><path d="M22 6c0-1.1-.9-2-2-2H4a2 2 0 00-2 2v12c0 1.1.9 2 2 2h16a2 2 0 002-2V6z"/><path d="M22 6l-10 7L2 6"/></svg></div>
+          <div class="contact-item-text"><strong>Email</strong><span><a href="mailto:info@habayitcc.org">info@habayitcc.org</a></span></div>
+        </div>
+      </div>
+
+      <form class="contact-form" onsubmit="handleContact(event)">
+        <div class="form-row">
+          <div class="field"><label>First Name</label><input type="text" required /></div>
+          <div class="field"><label>Last Name</label><input type="text" required /></div>
+        </div>
+        <div class="field"><label>Email</label><input type="email" required /></div>
+        <div class="field"><label>Phone</label><input type="tel" /></div>
+        <div class="field">
+          <label>I'm interested in...</label>
+          <select>
+            <option value="" disabled selected>Select one</option>
+            <option>Shabbat &amp; Synagogue</option>
+            <option>Hebrew School</option>
+            <option>Bar / Bat Mitzvah</option>
+            <option>Chai Partnership</option>
+            <option>General Information</option>
+          </select>
+        </div>
+        <div class="field"><label>Message</label><textarea placeholder="How can we help?"></textarea></div>
+        <button type="submit" class="btn gold" style="border:none;cursor:pointer;margin-top:8px;">Send Message</button>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-school.html">Hebrew School</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+<script>
+function handleContact(e){
+  e.preventDefault();
+  alert('Thank you! We will be in touch soon.');
+  e.target.reset();
+}
+</script>
+</body>
+</html>

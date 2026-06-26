@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bar &amp; Bat Mitzvah at HaBayit</title>
+<meta name="description" content="A meaningful journey toward Jewish adulthood. Explore HaBayit's Bar Mitzvah Experience and Bat Mitzvah Club." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:48vh;}
+
+  .intro-line{background:var(--white);text-align:center;padding-bottom:0;}
+
+  .panels{background:var(--white);}
+  .panels-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:8px;}
+  .panel{
+    position:relative;min-height:480px;border-radius:var(--radius);overflow:hidden;
+    display:flex;align-items:flex-end;padding:42px;color:var(--white);
+    transition:transform .25s ease, box-shadow .25s ease;
+  }
+  .panel:hover{transform:translateY(-4px);box-shadow:0 24px 56px rgba(23,38,67,.16);}
+  .panel.bar{background:linear-gradient(rgba(23,38,67,.55),rgba(23,38,67,.7)),linear-gradient(135deg,#5d7186,#b6a47c);}
+  .panel.bat{background:linear-gradient(rgba(23,38,67,.5),rgba(23,38,67,.68)),linear-gradient(135deg,#c79bab,#d9c08f);}
+  .panel-photo-note{position:absolute;top:24px;left:28px;font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.7);}
+  .panel-content{position:relative;z-index:1;}
+  .panel-program{font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:#f1d697;font-weight:700;margin-bottom:10px;}
+  .panel h2{font-size:clamp(2rem,3.4vw,2.7rem);font-weight:700;line-height:1.1;margin-bottom:8px;}
+  .panel .age-line{font-size:.95rem;color:rgba(255,255,255,.82);margin-bottom:16px;}
+  .panel .focus-line{font-size:.88rem;color:rgba(255,255,255,.78);}
+  .panel .panel-arrow{margin-top:22px;font-size:1.5rem;color:#f1d697;transition:transform .2s;}
+  .panel:hover .panel-arrow{transform:translateX(8px);}
+
+  @media(max-width:860px){
+    .panels-grid{grid-template-columns:1fr;}
+    .panel{min-height:380px;padding:32px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-school.html">Hebrew School</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-school.html">Hebrew School</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <a href="donate.html">Donate</a>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">Programs</div>
+      <h1>Bar &amp; Bat Mitzvah at HaBayit</h1>
+      <p>A meaningful journey toward Jewish adulthood.</p>
+    </div>
+    <div class="photo-note">Photo coming soon</div>
+  </section>
+
+  <section class="intro-line">
+    <div class="narrow">
+      <p class="lead">Two paths, each designed around what matters most at this age — pride, connection, and meaning.</p>
+    </div>
+  </section>
+
+  <section class="panels">
+    <div class="wrap panels-grid">
+
+      <a class="panel bar" href="bar-mitzvah.html">
+        <span class="panel-photo-note">Photo coming soon</span>
+        <div class="panel-content">
+          <div class="panel-program">HaBayit BMX</div>
+          <h2>Bar Mitzvah Experience</h2>
+          <div class="age-line">For 7th grade boys</div>
+          <div class="focus-line">Jewish pride · Mitzvah projects · Meaningful discussion</div>
+          <div class="panel-arrow">→</div>
+        </div>
+      </a>
+
+      <a class="panel bat" href="bat-mitzvah.html">
+        <span class="panel-photo-note">Photo coming soon</span>
+        <div class="panel-content">
+          <div class="panel-program">HaBayit Bloom</div>
+          <h2>Bat Mitzvah Club</h2>
+          <div class="age-line">For 6th grade girls</div>
+          <div class="focus-line">Meaningful conversations · Creativity · Mitzvah projects</div>
+          <div class="panel-arrow">→</div>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-school.html">Hebrew School</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

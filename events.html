@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Events – HaBayit Jewish Center</title>
+<meta name="description" content="Upcoming events at HaBayit Jewish Center — Shabbat dinners, holiday celebrations, classes, and community gatherings." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:42vh;}
+
+  .events-list{background:var(--white);}
+  .event-row{display:grid;grid-template-columns:120px 1fr auto;gap:28px;align-items:center;padding:28px 0;border-bottom:1px solid var(--line);}
+  .event-row:first-child{border-top:1px solid var(--line);}
+  .event-date-block{text-align:center;}
+  .event-date-block .month{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:700;}
+  .event-date-block .day{font-size:2.2rem;color:var(--navy);font-weight:700;line-height:1;}
+  .event-info h3{font-size:1.4rem;color:var(--navy);font-weight:700;margin-bottom:6px;}
+  .event-info .meta{font-size:.85rem;color:var(--gold);font-weight:600;margin-bottom:8px;}
+  .event-info p{color:var(--muted);font-size:.92rem;}
+
+  @media(max-width:700px){
+    .event-row{grid-template-columns:80px 1fr;}
+    .event-row > a{grid-column:1/-1;justify-self:start;margin-top:8px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-school.html">Hebrew School</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-school.html">Hebrew School</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <a href="donate.html">Donate</a>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">What's Happening</div>
+      <h1>Upcoming Events</h1>
+      <p>Shabbat dinners, holiday celebrations, classes, and community gatherings.</p>
+    </div>
+  </section>
+
+  <section class="events-list">
+    <div class="wrap" style="max-width:840px;">
+
+      <div class="event-row">
+        <div class="event-date-block"><div class="month">Jul</div><div class="day">18</div></div>
+        <div class="event-info">
+          <h3>Shabbat Dinner</h3>
+          <div class="meta">Friday · 6:30 PM · HaBayit Center</div>
+          <p>A warm, home-style Shabbat dinner. Beautiful blessings, delicious food, great company. All are welcome.</p>
+        </div>
+        <a href="contact.html" class="text-link">RSVP →</a>
+      </div>
+
+      <div class="event-row">
+        <div class="event-date-block"><div class="month">Jul</div><div class="day">25</div></div>
+        <div class="event-info">
+          <h3>Torah &amp; Coffee</h3>
+          <div class="meta">Sunday · 10:00 AM · HaBayit Center</div>
+          <p>A relaxed weekly class exploring timeless Torah wisdom with real-life relevance. Great coffee included.</p>
+        </div>
+        <a href="contact.html" class="text-link">RSVP →</a>
+      </div>
+
+      <div class="event-row">
+        <div class="event-date-block"><div class="month">Aug</div><div class="day">1</div></div>
+        <div class="event-info">
+          <h3>Family Shabbat</h3>
+          <div class="meta">Friday · 6:30 PM · HaBayit Center</div>
+          <p>A special Shabbat experience designed for families with young children. Songs, stories, candle lighting together.</p>
+        </div>
+        <a href="contact.html" class="text-link">RSVP →</a>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-school.html">Hebrew School</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

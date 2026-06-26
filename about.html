@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>About HaBayit – Jewish Center, Cooper City</title>
+<meta name="description" content="HaBayit was founded by Rabbi Shmuly and Devora Hurwitz to create a warm Jewish home where every individual and family feels welcome." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:50vh;}
+
+  .intro{background:var(--white);}
+  .intro-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:64px;align-items:center;}
+  .intro h2{font-size:clamp(2.1rem,3.6vw,3rem);line-height:1.1;color:var(--navy);font-weight:700;}
+  .intro p{font-size:1.05rem;color:var(--muted);margin-top:18px;}
+  .intro .photo-box{min-height:380px;}
+
+  .story{background:var(--cream);text-align:center;}
+  .story p{font-size:clamp(1.4rem,2.6vw,2.1rem);line-height:1.45;color:var(--navy);max-width:860px;margin:0 auto;}
+  .story p span{color:var(--gold);font-style:italic;}
+
+  .founders{background:var(--white);}
+  .founders-grid{display:grid;grid-template-columns:1fr 1.05fr;gap:60px;align-items:start;}
+  .bio-card{background:var(--soft);padding:44px;border-left:4px solid var(--gold);border-radius:0 var(--radius) var(--radius) 0;}
+  .bio-card p{color:var(--muted);margin-bottom:16px;}
+  .bio-card p:last-child{margin-bottom:0;}
+  .founder-photo .photo-box{min-height:520px;}
+  .caption{font-size:.8rem;color:var(--muted);margin-top:12px;text-align:center;}
+
+  .values{background:var(--soft);}
+  .values h2{text-align:center;margin-bottom:40px;font-size:clamp(2rem,3.5vw,2.8rem);color:var(--navy);font-weight:700;}
+  .values-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .value{background:var(--white);padding:32px 28px;min-height:175px;}
+  .value h3{font-size:1.45rem;color:var(--navy);font-weight:700;margin-bottom:8px;}
+  .value p{color:var(--muted);font-size:.92rem;}
+
+  .cta{background:var(--navy);color:var(--white);text-align:center;}
+  .cta h2{font-size:clamp(2.1rem,4vw,3.6rem);font-weight:700;}
+  .cta p{color:rgba(255,255,255,.7);margin-top:10px;}
+  .cta-row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:28px;}
+
+  @media(max-width:900px){
+    .intro-grid,.founders-grid{grid-template-columns:1fr;gap:36px;}
+    .values-grid{grid-template-columns:1fr 1fr;}
+    .intro .photo-box,.founder-photo .photo-box{min-height:280px;}
+  }
+  @media(max-width:600px){
+    .values-grid{grid-template-columns:1fr;}
+    .bio-card{padding:30px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-school.html">Hebrew School</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-school.html">Hebrew School</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <a href="donate.html">Donate</a>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">About HaBayit</div>
+      <h1>A Jewish home built with heart.</h1>
+      <p>HaBayit was created to help every Jew feel welcome, connected, and at home.</p>
+    </div>
+  </section>
+
+  <section class="intro">
+    <div class="wrap intro-grid">
+      <div>
+        <div class="eyebrow">Our Mission</div>
+        <h2>Every Jew deserves a place to feel at home.</h2>
+        <p>At HaBayit, Jewish life is celebrated with warmth, meaningful learning, genuine friendships, and a deep sense of belonging.</p>
+      </div>
+      <div class="photo-box"></div>
+    </div>
+  </section>
+
+  <section class="story">
+    <div class="wrap">
+      <p>Inspired by the Lubavitcher Rebbe's call to reach every Jew with <span>love, warmth, and meaningful Jewish life</span>, HaBayit welcomes Jews of every background and level of observance while embracing the unique spirit of the Israeli community.</p>
+    </div>
+  </section>
+
+  <section class="founders">
+    <div class="wrap founders-grid">
+      <div class="founder-photo">
+        <div class="photo-box"></div>
+        <div class="caption">Family photo coming soon</div>
+      </div>
+      <div class="bio-card">
+        <div class="eyebrow">The Founders</div>
+        <h2 style="font-size:clamp(1.8rem,3vw,2.4rem);color:var(--navy);font-weight:700;margin-bottom:18px;">Rabbi Shmuly &amp; Devora Hurwitz</h2>
+        <p>HaBayit was founded by Rabbi Shmuly and Devora Hurwitz with a simple vision: to create a warm Jewish home where every individual and family feels welcome, connected, and inspired.</p>
+        <p>Rabbi Shmuly grew up in Brooklyn, New York, and studied in leading yeshivot in Brooklyn before serving in outreach yeshivot in Frankfurt, Germany, and Sydney, Australia. He later continued his studies at the Central Lubavitch Yeshiva (770) in Crown Heights, where he received his rabbinic ordination.</p>
+        <p>In addition to his community work, Rabbi Shmuly is the Senior Editor of JEM's weekly Living Torah film series, bringing the Rebbe's teachings and inspiration to audiences around the world.</p>
+        <p>Devora grew up in Melbourne, Australia, and is a Board Certified Behavior Analyst (BCBA). She combines her professional expertise with a passion for Jewish education, helping create meaningful programs and personal connections for children, teens, women, and families.</p>
+        <p>Together with their children, Rabbi Shmuly and Devora have opened their home and hearts to the community through Shabbat meals, holiday celebrations, educational programs, youth activities, and genuine personal relationships.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="values">
+    <div class="wrap">
+      <h2>What HaBayit Stands For</h2>
+      <div class="values-grid">
+        <div class="value"><h3>Belonging</h3><p>Every Jew is welcomed with warmth and respect.</p></div>
+        <div class="value"><h3>Joy</h3><p>Jewish life should be meaningful, alive, and full of joy.</p></div>
+        <div class="value"><h3>Family</h3><p>Children, parents, and grandparents all have a place here.</p></div>
+        <div class="value"><h3>Connection</h3><p>Community is built through real relationships.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap">
+      <h2>We'd love to welcome you.</h2>
+      <p>Join us for Shabbat, explore a program, or reach out to learn more.</p>
+      <div class="cta-row">
+        <a class="btn gold" href="hebrew-school.html">Explore Programs</a>
+        <a class="btn outline-light" href="contact.html">Contact Us</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-school.html">Hebrew School</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

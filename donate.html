@@ -18,6 +18,8 @@
   .toggle{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:5px;}
   .toggle button{border:none;background:none;padding:12px 30px;border-radius:999px;font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:all .2s;}
   .toggle button.active{background:var(--navy);color:var(--white);}
+  .toggle-link{border:none;background:none;padding:12px 30px;border-radius:999px;font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:inline-block;transition:all .2s;}
+  .toggle-link:hover{color:var(--gold);}
 
   .amt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:680px;margin:0 auto 16px;}
   .amt-btn{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:22px 10px;text-align:center;font-size:1.5rem;font-weight:800;color:var(--navy);transition:all .2s;cursor:pointer;}
@@ -31,24 +33,11 @@
 
   .give-cta{text-align:center;}
   .give-cta .btn{font-size:.85rem;padding:16px 44px;border:none;cursor:pointer;}
-
-  .chai-feature{
-    max-width:760px;margin:64px auto 0;background:var(--navy);border-radius:var(--radius);
-    padding:50px 50px;text-align:center;color:var(--white);
-    border:2px solid var(--gold);box-shadow:0 24px 60px rgba(23,38,67,.25);
-  }
-  .chai-feature .eyebrow{color:#f1d697;justify-content:center;display:flex;font-size:.78rem;}
-  .chai-feature h2{font-size:clamp(1.8rem,3.2vw,2.4rem);font-weight:700;margin-bottom:14px;color:var(--white);}
-  .chai-feature p{color:rgba(255,255,255,.78);font-size:.98rem;line-height:1.7;max-width:520px;margin:0 auto 32px;}
-  .chai-feature .btn{
-    font-size:.86rem;background:var(--white);color:var(--navy);border-color:var(--white);
-    padding:17px 40px;font-weight:800;
-  }
-  .chai-feature .btn:hover{background:#f1d697;border-color:#f1d697;color:var(--navy);}
+  .chai-prompt{font-size:.94rem;color:var(--muted);margin:32px 0 14px;}
 
   @media(max-width:700px){
     .amt-grid{grid-template-columns:repeat(2,1fr);}
-    .chai-feature{padding:36px 28px;}
+    .toggle-wrap{flex-wrap:wrap;}
   }
 </style>
 </head>
@@ -73,7 +62,7 @@
     <div class="nav-item"><a href="events.html">Events</a></div>
     <div class="nav-item"><a href="contact.html">Contact</a></div>
     <div class="nav-item">
-      <button class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <a href="donate.html" class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></a>
       <div class="dropdown">
         <a href="donate.html">Make a Donation</a>
         <a href="chai-partner.html">Become a Chai Partner</a>
@@ -123,15 +112,13 @@
 
       <div class="amt-grid" id="amtGrid">
         <div class="amt-btn" data-amt="72">$72</div>
-        <div class="amt-btn" data-amt="100">$100</div>
         <div class="amt-btn" data-amt="180">$180</div>
         <div class="amt-btn" data-amt="360">$360</div>
         <div class="amt-btn" data-amt="770">$770</div>
         <div class="amt-btn" data-amt="1800">$1,800</div>
-      </div>
-      <div class="amt-grid" style="grid-template-columns:1fr;max-width:220px;">
         <div class="amt-btn" data-amt="other">Other</div>
       </div>
+
 
       <div class="other-row" id="otherRow">
         <span>$</span>
@@ -140,17 +127,14 @@
 
       <div class="give-cta">
         <button class="btn gold" id="giveBtn" type="button">Donate Now</button>
-      </div>
-
-      <div class="chai-feature">
-        <div class="eyebrow">Monthly Partnership</div>
-        <h2>Considering a monthly gift of $150 or more?</h2>
-        <p>Become a HaBayit Chai Partner. Chai Partners help sustain HaBayit throughout the year and receive exclusive partner benefits, including member pricing for select HaBayit programs.</p>
-        <a href="chai-partner.html" class="btn gold">Become a Chai Partner →</a>
+        <p class="chai-prompt">Considering a monthly gift of $150 or more?</p>
+        <a href="chai-partner.html" class="btn gold">Become a Chai Partner</a>
       </div>
 
     </div>
   </section>
+
+
 
 </main>
 

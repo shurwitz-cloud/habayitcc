@@ -4,34 +4,47 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Donate – HaBayit Jewish Center</title>
-<meta name="description" content="Support HaBayit through one-time giving, monthly Chai Partnership, or sponsorship opportunities." />
+<meta name="description" content="Support HaBayit through one-time or monthly giving. Every gift helps strengthen Jewish life in our community." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 <style>
-  .hero{min-height:42vh;}
+  .hero{min-height:40vh;}
 
-  .tabs-wrap{background:var(--white);}
-  .tabs{display:flex;justify-content:center;gap:10px;margin-bottom:48px;flex-wrap:wrap;}
-  .tab-btn{background:var(--soft);border:1px solid var(--line);padding:13px 26px;border-radius:999px;font-size:.82rem;font-weight:600;color:var(--navy);transition:all .2s;}
-  .tab-btn.active{background:var(--navy);border-color:var(--navy);color:var(--white);}
+  .give{background:var(--white);}
 
-  .tab-panel{display:none;}
-  .tab-panel.active{display:block;}
+  .toggle-wrap{display:flex;justify-content:center;margin-bottom:48px;}
+  .toggle{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:5px;}
+  .toggle button{border:none;background:none;padding:12px 30px;border-radius:999px;font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:all .2s;}
+  .toggle button.active{background:var(--navy);color:var(--white);}
 
-  .amt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:680px;margin:0 auto 28px;}
-  .amt-btn{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:18px;text-align:center;font-size:1.3rem;font-weight:700;color:var(--navy);transition:all .2s;cursor:pointer;}
-  .amt-btn:hover,.amt-btn.active{border-color:var(--gold);background:var(--white);box-shadow:0 0 0 2px var(--gold);}
+  .amt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:680px;margin:0 auto 16px;}
+  .amt-btn{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:22px 10px;text-align:center;font-size:1.5rem;font-weight:800;color:var(--navy);transition:all .2s;cursor:pointer;}
+  .amt-btn:hover{border-color:var(--gold);}
+  .amt-btn.active{border-color:var(--gold);background:var(--white);box-shadow:0 0 0 2px var(--gold);}
 
-  .one-time-card,.sponsor-card{max-width:680px;margin:0 auto;text-align:center;}
-  .sponsor-card{padding:50px 30px;background:var(--soft);border:1px dashed var(--line);border-radius:var(--radius);}
-  .sponsor-card h3{font-size:1.6rem;color:var(--navy);font-weight:700;margin-bottom:10px;}
-  .sponsor-card p{color:var(--muted);}
+  .other-row{display:none;max-width:280px;margin:0 auto 32px;position:relative;}
+  .other-row.show{display:block;}
+  .other-row span{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:600;}
+  .other-row input{padding-left:30px;text-align:left;}
 
-  .chai-redirect{max-width:680px;margin:0 auto;text-align:center;padding:50px 30px;background:var(--navy);border-radius:var(--radius);color:var(--white);}
-  .chai-redirect h3{font-size:1.8rem;font-weight:700;margin-bottom:10px;}
-  .chai-redirect p{color:rgba(255,255,255,.7);margin-bottom:26px;}
+  .give-cta{text-align:center;}
+  .give-cta .btn{font-size:.85rem;padding:16px 44px;border:none;cursor:pointer;}
+
+  .chai-feature{
+    max-width:760px;margin:64px auto 0;background:var(--navy);border-radius:var(--radius);
+    padding:46px 50px;text-align:center;color:var(--white);
+  }
+  .chai-feature .eyebrow{color:#dec37c;justify-content:center;display:flex;}
+  .chai-feature h2{font-size:clamp(1.7rem,3vw,2.2rem);font-weight:700;margin-bottom:12px;}
+  .chai-feature p{color:rgba(255,255,255,.72);font-size:.96rem;line-height:1.7;max-width:520px;margin:0 auto 28px;}
+  .chai-feature .btn{font-size:.8rem;}
+
+  @media(max-width:700px){
+    .amt-grid{grid-template-columns:repeat(2,1fr);}
+    .chai-feature{padding:36px 28px;}
+  }
 </style>
 </head>
 <body>
@@ -54,7 +67,13 @@
     <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
     <div class="nav-item"><a href="events.html">Events</a></div>
     <div class="nav-item"><a href="contact.html">Contact</a></div>
-    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
   </nav>
   <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
 </header>
@@ -62,7 +81,7 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="index.html">Home</a>
   <a href="about.html">About</a>
-  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
   <div class="mobile-sub" id="mobileSub">
     <a href="hebrew-school.html">Hebrew School</a>
     <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
@@ -70,7 +89,11 @@
   <a href="synagogue.html">Synagogue</a>
   <a href="events.html">Events</a>
   <a href="contact.html">Contact</a>
-  <a href="donate.html">Donate</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
 </div>
 
 <main>
@@ -78,49 +101,47 @@
   <section class="hero">
     <div class="hero-inner">
       <div class="kicker">Support HaBayit</div>
-      <h1>Your Gift Builds Our Home</h1>
-      <p>Every contribution helps us keep our doors open and our community growing.</p>
+      <h1>Support HaBayit</h1>
+      <p>Every gift helps strengthen Jewish life in our community.</p>
     </div>
   </section>
 
-  <section class="tabs-wrap">
-    <div class="wrap">
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="onetime">One-Time Giving</button>
-        <button class="tab-btn" data-tab="chai">Chai Partner (Monthly)</button>
-        <button class="tab-btn" data-tab="sponsor">Other Sponsorship</button>
-      </div>
+  <section class="give">
+    <div class="wrap" style="max-width:900px;">
 
-      <div class="tab-panel active" id="panel-onetime">
-        <div class="one-time-card">
-          <div class="amt-grid">
-            <div class="amt-btn">$36</div>
-            <div class="amt-btn">$54</div>
-            <div class="amt-btn">$72</div>
-            <div class="amt-btn">$180</div>
-            <div class="amt-btn">$360</div>
-            <div class="amt-btn">Other</div>
-          </div>
-          <button class="btn gold" style="border:none;cursor:pointer;" onclick="alert('This will connect to secure payment processing.')">Give Now</button>
+      <div class="toggle-wrap">
+        <div class="toggle" id="modeToggle">
+          <button class="active" data-mode="onetime">One-Time</button>
+          <button data-mode="monthly">Monthly</button>
         </div>
       </div>
 
-      <div class="tab-panel" id="panel-chai">
-        <div class="chai-redirect">
-          <h3>Become a Chai Partner</h3>
-          <p>Join our monthly giving circle starting at $150/month and help sustain everything HaBayit makes possible — plus receive member pricing on select programs.</p>
-          <a class="btn gold" href="chai-partner.html">Explore Chai Partnership</a>
-        </div>
+      <div class="amt-grid" id="amtGrid">
+        <div class="amt-btn" data-amt="72">$72</div>
+        <div class="amt-btn" data-amt="100">$100</div>
+        <div class="amt-btn" data-amt="180">$180</div>
+        <div class="amt-btn" data-amt="360">$360</div>
+        <div class="amt-btn" data-amt="770">$770</div>
+        <div class="amt-btn" data-amt="1800">$1,800</div>
+      </div>
+      <div class="amt-grid" style="grid-template-columns:1fr;max-width:220px;">
+        <div class="amt-btn" data-amt="other">Other</div>
       </div>
 
-      <div class="tab-panel" id="panel-sponsor">
-        <div class="sponsor-card">
-          <h3>Sponsorship Opportunities</h3>
-          <p>Sponsor a Shabbat dinner, holiday celebration, or program in honor or memory of someone special. Details coming soon — reach out to discuss options.</p>
-          <div style="margin-top:24px;">
-            <a class="btn outline-navy" href="contact.html">Contact Us</a>
-          </div>
-        </div>
+      <div class="other-row" id="otherRow">
+        <span>$</span>
+        <input type="number" id="otherAmt" min="1" placeholder="Enter amount">
+      </div>
+
+      <div class="give-cta">
+        <button class="btn gold" id="giveBtn" type="button">Donate Now</button>
+      </div>
+
+      <div class="chai-feature">
+        <div class="eyebrow">Monthly Partnership</div>
+        <h2>Considering a monthly gift of $150 or more?</h2>
+        <p>Become a HaBayit Chai Partner. Chai Partners help sustain HaBayit throughout the year and receive exclusive partner benefits, including member pricing for select HaBayit programs.</p>
+        <a href="chai-partner.html" class="btn gold">Become a Chai Partner →</a>
       </div>
 
     </div>
@@ -155,30 +176,62 @@
     </div>
   </div>
   <div class="footer-bottom">
-    <span>© 2026 HaBayit Jewish Center</span>
+    <span>2026 HaBayit Jewish Center</span>
     <span>501(c)(3) Nonprofit Organization</span>
   </div>
 </footer>
 
 <script src="js/main.js"></script>
 <script>
-const tabBtns = document.querySelectorAll('.tab-btn');
-const panels = document.querySelectorAll('.tab-panel');
-tabBtns.forEach(btn => {
+let mode = 'onetime';
+let selectedAmt = null;
+
+const modeBtns = document.querySelectorAll('#modeToggle button');
+modeBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    tabBtns.forEach(b => b.classList.remove('active'));
-    panels.forEach(p => p.classList.remove('active'));
+    modeBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    mode = btn.dataset.mode;
+    updateButtonLabel();
   });
 });
+
 const amtBtns = document.querySelectorAll('.amt-btn');
+const otherRow = document.getElementById('otherRow');
+const otherInput = document.getElementById('otherAmt');
+
 amtBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     amtBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    selectedAmt = btn.dataset.amt;
+    if(selectedAmt === 'other'){
+      otherRow.classList.add('show');
+      setTimeout(() => otherInput.focus(), 50);
+    } else {
+      otherRow.classList.remove('show');
+      otherInput.value = '';
+    }
   });
 });
+
+function updateButtonLabel(){
+  document.getElementById('giveBtn').textContent = mode === 'monthly' ? 'Start Monthly Giving' : 'Donate Now';
+}
+updateButtonLabel();
+
+document.getElementById('giveBtn').addEventListener('click', () => {
+  let amt = selectedAmt === 'other' ? otherInput.value : selectedAmt;
+  if(!amt){
+    alert('Please select or enter a donation amount.');
+    return;
+  }
+  alert('This will connect to secure payment processing for a ' + (mode === 'monthly' ? 'monthly' : 'one-time') + ' gift of $' + amt + '.');
+});
+
+function toggleMobileSub(id){
+  document.getElementById(id).classList.toggle('open');
+}
 </script>
 </body>
 </html>

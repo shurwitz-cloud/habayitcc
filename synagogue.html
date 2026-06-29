@@ -70,7 +70,13 @@
     <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
     <div class="nav-item"><a href="events.html">Events</a></div>
     <div class="nav-item"><a href="contact.html">Contact</a></div>
-    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
   </nav>
   <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
 </header>
@@ -78,7 +84,7 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="index.html">Home</a>
   <a href="about.html">About</a>
-  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
   <div class="mobile-sub" id="mobileSub">
     <a href="hebrew-school.html">Hebrew School</a>
     <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
@@ -86,7 +92,11 @@
   <a href="synagogue.html">Synagogue</a>
   <a href="events.html">Events</a>
   <a href="contact.html">Contact</a>
-  <a href="donate.html">Donate</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
 </div>
 
 <main>

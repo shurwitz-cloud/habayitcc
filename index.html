@@ -27,11 +27,14 @@
   .tile .arrow{font-size:1.6rem;color:var(--gold);margin-top:22px;transition:transform .2s;}
   .tile:hover .arrow{transform:translateX(8px);}
 
-  .split{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px;}
+  .split{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;margin-bottom:24px;}
   .small-tile{
     min-height:300px;display:flex;align-items:flex-end;padding:36px;color:var(--white);
     position:relative;overflow:hidden;border-radius:var(--radius);transition:transform .25s ease;
     background:linear-gradient(rgba(23,38,67,.4),rgba(23,38,67,.55)),linear-gradient(135deg,#b6bfc6,#d8c59a);
+  }
+  .small-tile.chai-tile{
+    background:linear-gradient(135deg, var(--navy) 0%, #2a3d6b 100%);
   }
   .small-tile:hover{transform:translateY(-3px);}
   .small-tile h3{font-size:2.3rem;line-height:1.05;font-weight:700;}
@@ -63,7 +66,8 @@
     .tile.reverse .tile-img{order:0;}
     .tile-img{min-height:220px;}
     .tile-body{padding:32px;}
-    .split,.events-row{grid-template-columns:1fr;}
+    .split{grid-template-columns:1fr;}
+  .events-row{grid-template-columns:1fr;}
     .event{border-right:0;border-bottom:1px solid var(--line);}
     .event:last-child{border-bottom:0;}
   }
@@ -92,7 +96,13 @@
     <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
     <div class="nav-item"><a href="events.html">Events</a></div>
     <div class="nav-item"><a href="contact.html">Contact</a></div>
-    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
   </nav>
   <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
 </header>
@@ -100,7 +110,7 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="index.html">Home</a>
   <a href="about.html">About</a>
-  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
   <div class="mobile-sub" id="mobileSub">
     <a href="hebrew-school.html">Hebrew School</a>
     <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
@@ -108,7 +118,11 @@
   <a href="synagogue.html">Synagogue</a>
   <a href="events.html">Events</a>
   <a href="contact.html">Contact</a>
-  <a href="donate.html">Donate</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
 </div>
 
 <main>
@@ -141,6 +155,7 @@
       <div class="split">
         <a class="small-tile" href="bar-mitzvah.html"><div><h3>Bar Mitzvah</h3><p>Meaningful preparation for boys entering Jewish adulthood.</p></div></a>
         <a class="small-tile" href="bat-mitzvah.html"><div><h3>Bat Mitzvah</h3><p>A warm and inspiring experience for girls celebrating this milestone.</p></div></a>
+        <a class="small-tile chai-tile" href="chai-partner.html"><div><h3>Chai Partner</h3><p>Help sustain HaBayit through monthly partnership and become part of building our community.</p></div></a>
       </div>
 
       <a class="tile reverse" href="synagogue.html">

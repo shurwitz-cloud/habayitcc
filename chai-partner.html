@@ -12,30 +12,38 @@
 <style>
   .hero{min-height:42vh;}
   .partner{background:var(--white);}
-  .intro-copy{max-width:760px;margin:0 auto 56px;text-align:center;color:var(--muted);font-size:1rem;line-height:1.8;}
-  .slabel{font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:36px 0 14px;}
-  .form-card{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:30px;max-width:760px;margin:0 auto;}
-  .amt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-  .amt-btn{background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:20px 10px;text-align:center;cursor:pointer;transition:all .2s;}
-  .amt-btn .n{display:block;font-size:1.5rem;font-weight:800;color:var(--navy);}
-  .amt-btn .s{display:block;font-size:.74rem;color:var(--muted);margin-top:2px;}
+  .intro-copy{max-width:680px;margin:0 auto 56px;text-align:center;color:var(--muted);font-size:1rem;line-height:1.8;}
+
+  .slabel{font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:36px 0 14px;text-align:center;}
+
+  .amt-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;max-width:760px;margin:0 auto;}
+  .amt-btn{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:18px 8px;text-align:center;cursor:pointer;transition:all .2s;}
+  .amt-btn .n{display:block;font-size:1.3rem;font-weight:800;color:var(--navy);}
+  .amt-btn .s{display:block;font-size:.68rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em;}
   .amt-btn:hover{border-color:var(--gold);}
   .amt-btn.sel{border-color:var(--gold);background:var(--cream);box-shadow:0 0 0 2px var(--gold);}
   .amt-btn.amt-err{border-color:var(--danger);}
-  .other-row{display:none;align-items:center;gap:8px;margin-top:16px;}
-  .other-row.show{display:flex;}
-  .other-row label{font-size:1.1rem;color:var(--navy);font-weight:700;}
-  .other-row input{flex:1;}
+
+  .other-row{display:none;max-width:300px;margin:18px auto 0;text-align:center;}
+  .other-row.show{display:block;}
+  .other-row .hint{font-size:.78rem;color:var(--muted);margin-top:8px;}
+  .other-row input{text-align:center;}
+
+  .below-note{max-width:560px;margin:36px auto 0;text-align:center;font-size:.9rem;color:var(--muted);line-height:1.7;}
+  .below-note a{color:var(--gold);font-weight:600;border-bottom:1px solid var(--gold);}
+
+  .form-card{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:30px;max-width:680px;margin:48px auto 0;}
   .err{border-color:var(--danger)!important;background:#fff8f8;}
-  .note-card{margin-top:32px;padding:26px 28px;border:1px solid var(--line);border-radius:var(--radius);background:var(--cream);font-size:.92rem;color:var(--ink);line-height:1.7;max-width:760px;margin-left:auto;margin-right:auto;}
+
+  .note-card{margin-top:32px;padding:24px 28px;border:1px solid var(--line);border-radius:var(--radius);background:var(--cream);font-size:.9rem;color:var(--ink);line-height:1.7;max-width:680px;margin-left:auto;margin-right:auto;}
   .note-card strong{color:var(--navy);}
-  .note-card .link{margin-top:12px;color:var(--navy);}
-  .note-card .link a{color:var(--gold);font-weight:600;}
-  .submit-wrap{max-width:760px;margin:36px auto 0;}
+
+  .submit-wrap{max-width:680px;margin:32px auto 0;}
   .submit-btn{width:100%;border:0;background:var(--gold);color:var(--white);border-radius:999px;padding:18px 24px;font-size:1rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;}
   .submit-btn:hover{filter:brightness(1.03);}
   .spin{display:none;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
+
   #thankyou{display:none;text-align:center;max-width:600px;margin:0 auto;}
   .chai-mark{font-family:'Frank Ruhl Libre',serif;font-size:2.6rem;color:var(--gold);display:block;margin-bottom:18px;}
   #thankyou h2{font-size:2.2rem;color:var(--navy);font-weight:700;}
@@ -44,7 +52,11 @@
   .code-box p:first-child{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
   #codeDisplay{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:700;color:var(--gold);letter-spacing:.04em;margin-bottom:8px;}
   .code-box p:last-child{font-size:.8rem;color:var(--muted);}
-  @media(max-width:700px){ .amt-grid{grid-template-columns:repeat(2,1fr);} .form-card{padding:22px;} }
+
+  @media(max-width:700px){
+    .amt-grid{grid-template-columns:repeat(2,1fr);}
+    .form-card{padding:22px;}
+  }
 </style>
 </head>
 <body>
@@ -67,7 +79,13 @@
     <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
     <div class="nav-item"><a href="events.html">Events</a></div>
     <div class="nav-item"><a href="contact.html">Contact</a></div>
-    <div class="nav-item"><a href="donate.html" class="nav-donate">Donate</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
   </nav>
   <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
 </header>
@@ -75,7 +93,7 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="index.html">Home</a>
   <a href="about.html">About</a>
-  <button class="m-trigger" onclick="toggleMobileSub()">Programs ▾</button>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
   <div class="mobile-sub" id="mobileSub">
     <a href="hebrew-school.html">Hebrew School</a>
     <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
@@ -83,14 +101,18 @@
   <a href="synagogue.html">Synagogue</a>
   <a href="events.html">Events</a>
   <a href="contact.html">Contact</a>
-  <a href="donate.html">Donate</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
 </div>
 
 <main>
 
   <section class="hero">
     <div class="hero-inner">
-      <div class="kicker">Monthly Giving</div>
+      <div class="kicker">Monthly Partnership</div>
       <h1>Become a HaBayit Chai Partner</h1>
       <p>Help build a warm Jewish home for our community through ongoing monthly partnership.</p>
     </div>
@@ -100,9 +122,28 @@
     <div class="wrap">
 
       <div id="formView">
-        <p class="intro-copy">The Chai Partnership is our community's monthly giving program. By joining, you become a partner in everything we do, from Shabbat and holiday programs to educational opportunities, community events, and meaningful Jewish experiences for all ages. More than a donation, it's a partnership in building a warm, vibrant Jewish home for today and for future generations.</p>
 
-        <div class="slabel">Your Information</div>
+        <div class="slabel">Monthly Partnership Amount</div>
+        <div class="amt-grid" id="amtGrid">
+          <div class="amt-btn" data-amt="150"><span class="n">$150</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="180"><span class="n">$180</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="300"><span class="n">$300</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="500"><span class="n">$500</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="770"><span class="n">$770</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="1000"><span class="n">$1,000</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="1800"><span class="n">$1,800</span><span class="s">/ month</span></div>
+          <div class="amt-btn" data-amt="other"><span class="n">Other</span><span class="s">/ month</span></div>
+        </div>
+
+        <div class="other-row" id="otherRow">
+          <input type="number" id="oamt" min="150" placeholder="Enter your monthly amount">
+          <div class="hint">Minimum $150/month</div>
+        </div>
+
+        <div class="below-note">
+          Monthly gifts of any amount are always appreciated. For monthly gifts below $150, please visit our <a href="donate.html">Donate page</a>.
+        </div>
+
         <div class="form-card">
           <div class="grid-2">
             <div class="field"><label>First Name <span class="req">*</span></label><input type="text" id="fname" autocomplete="given-name"></div>
@@ -121,24 +162,6 @@
           </div>
         </div>
 
-        <div class="slabel">Monthly Partnership Amount <span class="req">*</span></div>
-        <div class="form-card">
-          <div class="amt-grid" id="amtGrid">
-            <div class="amt-btn" data-amt="150"><span class="n">$150</span><span class="s">/ month</span></div>
-            <div class="amt-btn" data-amt="180"><span class="n">$180</span><span class="s">/ month</span></div>
-            <div class="amt-btn" data-amt="300"><span class="n">$300</span><span class="s">/ month</span></div>
-            <div class="amt-btn" data-amt="500"><span class="n">$500</span><span class="s">/ month</span></div>
-            <div class="amt-btn" data-amt="770"><span class="n">$770</span><span class="s">/ month</span></div>
-            <div class="amt-btn" data-amt="1000"><span class="n">$1,000</span><span class="s">/ month</span></div>
-          </div>
-          <div class="amt-btn" data-amt="other" id="otherBtn" style="margin-top:14px;"><span class="n">Other</span><span class="s">$150 minimum / month</span></div>
-          <div class="other-row" id="otherRow">
-            <label>$</label>
-            <input type="number" id="oamt" min="150" placeholder="Enter amount (150 or more)">
-          </div>
-        </div>
-
-        <div class="slabel">Payment Information</div>
         <div class="form-card">
           <div class="field"><label>Name on Card <span class="req">*</span></label><input type="text" id="cname" autocomplete="cc-name"></div>
           <div class="grid-3" style="margin-top:18px;">
@@ -153,12 +176,11 @@
 
         <div class="note-card">
           <strong>Chai Partners</strong> play a vital role in sustaining HaBayit's ongoing programs and helping our community grow. As a thank you, Chai Partners also receive exclusive benefits, including member pricing on select HaBayit programs.
-          <div class="link">Looking to make a monthly gift below $150? <a href="donate.html">Visit our General Giving page.</a></div>
         </div>
 
         <div class="submit-wrap">
           <button class="submit-btn" id="submitBtn" type="button">
-            <span id="btnText">Join the Chai Partnership</span>
+            <span id="btnText">Become a Chai Partner</span>
             <div class="spin" id="spinner"></div>
           </button>
         </div>

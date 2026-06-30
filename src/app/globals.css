@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* ============================================================
+   HaBayit Design Tokens
+   Mirrors the color palette and type system used in the
+   original static site (css/styles.css) so the visual identity
+   carries over exactly into the Next.js rebuild.
+   ============================================================ */
+
+:root {
+  --color-navy: #172643;
+  --color-navy-deep: #0d2949;
+  --color-gold: #b8902a;
+  --color-gold-light: #d4a843;
+  --color-cream: #f7f3ea;
+  --color-soft: #fbfaf6;
+  --color-white: #ffffff;
+  --color-ink: #282828;
+  --color-muted: #6f6a60;
+  --color-line: #e4ded2;
+  --color-danger: #9b2d2d;
+  --color-good: #237348;
+
+  --nav-height: 88px;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --max-width: 1180px;
+
+  --font-display: var(--font-cormorant), serif;
+  --font-body: var(--font-inter), Arial, sans-serif;
+  --font-hebrew: var(--font-frank-ruhl), serif;
+}
+
+@theme inline {
+  --color-navy: var(--color-navy);
+  --color-navy-deep: var(--color-navy-deep);
+  --color-gold: var(--color-gold);
+  --color-gold-light: var(--color-gold-light);
+  --color-cream: var(--color-cream);
+  --color-soft: var(--color-soft);
+  --color-ink: var(--color-ink);
+  --color-muted: var(--color-muted);
+  --color-line: var(--color-line);
+  --color-danger: var(--color-danger);
+  --color-good: var(--color-good);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-hebrew: var(--font-hebrew);
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  line-height: 1.65;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+.heb {
+  font-family: var(--font-hebrew);
+  direction: rtl;
+}
+
+/* Form field base styles — Tailwind v4 preflight strips browser borders */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+select,
+textarea {
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-white);
+  color: var(--color-ink);
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-navy);
+  box-shadow: 0 0 0 3px rgba(23, 38, 67, 0.08);
+}

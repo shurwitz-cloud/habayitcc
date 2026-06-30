@@ -102,9 +102,10 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   const supabase = createAdminClient();
   const amountDollars = invoice.amount_paid / 100;
 
-  const subscriptionId = typeof invoice.subscription === 'string'
-    ? invoice.subscription
-    : (invoice.subscription as Stripe.Subscription | null)?.id ?? null;
+  const subRef = invoice.parent?.subscription_details?.subscription;
+  const subscriptionId = typeof subRef === 'string'
+    ? subRef
+    : (subRef as Stripe.Subscription | null)?.id ?? null;
 
   if (!subscriptionId) return;
 

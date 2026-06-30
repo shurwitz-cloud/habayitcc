@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
         ? 'HaBayit Chai Partner — Monthly Gift'
         : 'HaBayit Monthly Donation';
 
+    const product = await stripe.products.create({ name: productName });
+
     const customer = await stripe.customers.create({
       name: `${donorFirstName} ${donorLastName}`.trim(),
       email: donorEmail,
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
         {
           price_data: {
             currency: 'usd',
-            product_data: { name: productName },
+            product: product.id,
             unit_amount: amountCents,
             recurring: { interval: 'month' },
           },

@@ -139,7 +139,7 @@ function NavDropdown({
           <DropdownArrow />
         </Link>
       ) : (
-        <button className="flex items-center gap-1.5 hover:text-gold bg-transparent">
+        <button className="flex items-center gap-1.5 hover:text-gold bg-transparent uppercase tracking-wider">
           {label}
           <DropdownArrow />
         </button>

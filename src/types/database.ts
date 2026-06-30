@@ -7,6 +7,7 @@
 // ============================================================
 
 export interface Family {
+  [key: string]: unknown;
   id: string;
   family_name: string;
   street_address: string | null;
@@ -21,6 +22,7 @@ export interface Family {
 export type JewishStatus = 'jewish_by_birth' | 'jewish_by_conversion' | 'not_jewish';
 
 export interface Parent {
+  [key: string]: unknown;
   id: string;
   family_id: string;
   first_name: string;
@@ -37,6 +39,7 @@ export interface Parent {
 }
 
 export interface Child {
+  [key: string]: unknown;
   id: string;
   family_id: string;
   first_name: string;
@@ -54,6 +57,7 @@ export interface Child {
 }
 
 export interface Program {
+  [key: string]: unknown;
   id: string;
   slug: string;
   name: string;
@@ -67,6 +71,7 @@ export type RegistrationStatus = 'pending' | 'accepted' | 'active' | 'withdrawn'
 export type PaymentPlan = 'full' | 'two_installments' | 'custom';
 
 export interface ProgramRegistration {
+  [key: string]: unknown;
   id: string;
   program_id: string;
   child_id: string;
@@ -83,6 +88,7 @@ export interface ProgramRegistration {
 }
 
 export interface Event {
+  [key: string]: unknown;
   id: string;
   title: string;
   description: string | null;
@@ -95,6 +101,7 @@ export interface Event {
 }
 
 export interface EventRegistration {
+  [key: string]: unknown;
   id: string;
   event_id: string;
   family_id: string | null;
@@ -111,6 +118,7 @@ export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export type DedicationType = 'honor' | 'memory';
 
 export interface Donation {
+  [key: string]: unknown;
   id: string;
   family_id: string | null;
   first_name: string;
@@ -128,6 +136,7 @@ export interface Donation {
 export type ChaiPartnerStatus = 'active' | 'paused' | 'cancelled';
 
 export interface ChaiPartner {
+  [key: string]: unknown;
   id: string;
   family_id: string | null;
   first_name: string;
@@ -150,6 +159,7 @@ export interface ChaiPartner {
 export type PaymentSourceType = 'donation' | 'chai_partner' | 'program_registration';
 
 export interface Payment {
+  [key: string]: unknown;
   id: string;
   source_type: PaymentSourceType;
   source_id: string;
@@ -162,6 +172,7 @@ export interface Payment {
 }
 
 export interface Contact {
+  [key: string]: unknown;
   id: string;
   first_name: string;
   last_name: string;
@@ -174,6 +185,7 @@ export interface Contact {
 }
 
 export interface EmailSubscriber {
+  [key: string]: unknown;
   id: string;
   email: string;
   first_name: string | null;
@@ -184,6 +196,7 @@ export interface EmailSubscriber {
 }
 
 export interface StaffNote {
+  [key: string]: unknown;
   id: string;
   notable_type: string;
   notable_id: string;
@@ -193,6 +206,7 @@ export interface StaffNote {
 }
 
 export interface Attendance {
+  [key: string]: unknown;
   id: string;
   program_registration_id: string | null;
   event_registration_id: string | null;
@@ -203,6 +217,7 @@ export interface Attendance {
 }
 
 export interface Waiver {
+  [key: string]: unknown;
   id: string;
   family_id: string | null;
   child_id: string | null;
@@ -213,6 +228,7 @@ export interface Waiver {
 }
 
 export interface Sponsor {
+  [key: string]: unknown;
   id: string;
   name: string;
   contact_email: string | null;
@@ -225,38 +241,62 @@ export interface Sponsor {
 // ============================================================
 // Supabase Database type — used to type the Supabase client.
 // Extend this as tables are added.
+//
+// Note: Insert types omit server-generated fields (id, created_at,
+// updated_at) since those should never be supplied by calling code.
 // ============================================================
+type Insertable<T> = Omit<T, 'id' | 'created_at' | 'updated_at'>;
+
 export interface Database {
+  __InternalSupabase: {
+    PostgrestVersion: '13';
+  };
   public: {
     Tables: {
-      families: { Row: Family; Insert: Partial<Family>; Update: Partial<Family> };
-      parents: { Row: Parent; Insert: Partial<Parent>; Update: Partial<Parent> };
-      children: { Row: Child; Insert: Partial<Child>; Update: Partial<Child> };
-      programs: { Row: Program; Insert: Partial<Program>; Update: Partial<Program> };
+      families: { Row: Family; Insert: Insertable<Family>; Update: Partial<Insertable<Family>> };
+      parents: { Row: Parent; Insert: Insertable<Parent>; Update: Partial<Insertable<Parent>> };
+      children: { Row: Child; Insert: Insertable<Child>; Update: Partial<Insertable<Child>> };
+      programs: { Row: Program; Insert: Insertable<Program>; Update: Partial<Insertable<Program>> };
       program_registrations: {
         Row: ProgramRegistration;
-        Insert: Partial<ProgramRegistration>;
-        Update: Partial<ProgramRegistration>;
+        Insert: Insertable<ProgramRegistration>;
+        Update: Partial<Insertable<ProgramRegistration>>;
       };
-      events: { Row: Event; Insert: Partial<Event>; Update: Partial<Event> };
+      events: { Row: Event; Insert: Insertable<Event>; Update: Partial<Insertable<Event>> };
       event_registrations: {
         Row: EventRegistration;
-        Insert: Partial<EventRegistration>;
-        Update: Partial<EventRegistration>;
+        Insert: Insertable<EventRegistration>;
+        Update: Partial<Insertable<EventRegistration>>;
       };
-      donations: { Row: Donation; Insert: Partial<Donation>; Update: Partial<Donation> };
-      chai_partners: { Row: ChaiPartner; Insert: Partial<ChaiPartner>; Update: Partial<ChaiPartner> };
-      payments: { Row: Payment; Insert: Partial<Payment>; Update: Partial<Payment> };
-      contacts: { Row: Contact; Insert: Partial<Contact>; Update: Partial<Contact> };
+      donations: { Row: Donation; Insert: Insertable<Donation>; Update: Partial<Insertable<Donation>> };
+      chai_partners: {
+        Row: ChaiPartner;
+        Insert: Insertable<ChaiPartner>;
+        Update: Partial<Insertable<ChaiPartner>>;
+      };
+      payments: { Row: Payment; Insert: Insertable<Payment>; Update: Partial<Insertable<Payment>> };
+      contacts: { Row: Contact; Insert: Insertable<Contact>; Update: Partial<Insertable<Contact>> };
       email_subscribers: {
         Row: EmailSubscriber;
-        Insert: Partial<EmailSubscriber>;
-        Update: Partial<EmailSubscriber>;
+        Insert: Insertable<EmailSubscriber>;
+        Update: Partial<Insertable<EmailSubscriber>>;
       };
-      staff_notes: { Row: StaffNote; Insert: Partial<StaffNote>; Update: Partial<StaffNote> };
-      attendance: { Row: Attendance; Insert: Partial<Attendance>; Update: Partial<Attendance> };
-      waivers: { Row: Waiver; Insert: Partial<Waiver>; Update: Partial<Waiver> };
-      sponsors: { Row: Sponsor; Insert: Partial<Sponsor>; Update: Partial<Sponsor> };
+      staff_notes: {
+        Row: StaffNote;
+        Insert: Insertable<StaffNote>;
+        Update: Partial<Insertable<StaffNote>>;
+      };
+      attendance: {
+        Row: Attendance;
+        Insert: Insertable<Attendance>;
+        Update: Partial<Insertable<Attendance>>;
+      };
+      waivers: { Row: Waiver; Insert: Insertable<Waiver>; Update: Partial<Insertable<Waiver>> };
+      sponsors: { Row: Sponsor; Insert: Insertable<Sponsor>; Update: Partial<Insertable<Sponsor>> };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

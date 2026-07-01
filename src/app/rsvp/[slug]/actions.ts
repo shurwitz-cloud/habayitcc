@@ -4,9 +4,9 @@ import { getOpenHouseEvent } from '@/lib/events/config';
 import { appendRsvpToTab } from '@/lib/google/sheets';
 
 const SHEET_IDS: Record<string, string | undefined> = {
-  'hebrew-adventure-aug4': process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
-  'achim-jul28':           process.env.GOOGLE_SHEETS_ACHIM_ID,
-  'bloom-aug6':            process.env.GOOGLE_SHEETS_BLOOM_ID,
+  'hebrew-adventure': process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
+  'achim':            process.env.GOOGLE_SHEETS_ACHIM_ID,
+  'bloom':            process.env.GOOGLE_SHEETS_BLOOM_ID,
 };
 
 export interface RsvpInput {

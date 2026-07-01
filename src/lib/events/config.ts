@@ -18,7 +18,7 @@ export interface EventConfig {
 
 export const OPEN_HOUSE_EVENTS: EventConfig[] = [
   {
-    slug: 'hebrew-adventure-aug4',
+    slug: 'hebrew-adventure',
     title: 'HaBayit Hebrew Adventure',
     program: 'Hebrew School',
     month: 'Aug',
@@ -33,7 +33,7 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     flyer: '/flyers/hebrew-adventure.png',
   },
   {
-    slug: 'achim-jul28',
+    slug: 'achim',
     title: 'HaBayit Achim',
     program: 'Achim — 6th Grade Boys',
     month: 'Jul',
@@ -48,7 +48,7 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     flyer: '/flyers/achim.png',
   },
   {
-    slug: 'bloom-aug6',
+    slug: 'bloom',
     title: 'HaBayit Bloom',
     program: 'Bloom — Bat Mitzvah Program, 6th Grade Girls',
     month: 'Aug',

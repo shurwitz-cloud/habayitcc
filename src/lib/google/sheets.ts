@@ -6,6 +6,8 @@ const IDS = {
   donations:    process.env.GOOGLE_SHEETS_DONATIONS_ID,
   chaiPartners: process.env.GOOGLE_SHEETS_CHAI_PARTNERS_ID,
   hebrewSchool: process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
+  achim:        process.env.GOOGLE_SHEETS_ACHIM_ID,
+  bloom:        process.env.GOOGLE_SHEETS_BLOOM_ID,
 } as const;
 
 const TAB = 'Responses'; // single tab in each spreadsheet
@@ -206,6 +208,93 @@ export function chaiPartnerRow(data: {
     data.accessCode, data.subscriptionId, data.customerId,
   ]);
 }
+
+// ── RSVP — auto-creates tab on first submission ──────────────────────────────
+
+const RSVP_HEADERS = ['Timestamp', 'First Name', 'Last Name', 'Email', 'Phone', '# Attending', 'Notes'];
+
+/**
+ * Appends an RSVP row to a named tab inside a spreadsheet.
+ * If the tab doesn't exist yet it is created with a header row automatically.
+ */
+export async function appendRsvpToTab(
+  spreadsheetId: string,
+  tabName: string,
+  data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    attending: number;
+    notes: string;
+  }
+): Promise<void> {
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+
+    // Try to create the tab — silently skip if it already exists
+    try {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+      });
+      // Tab was just created — write headers + freeze row
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${tabName}'!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [RSVP_HEADERS] },
+      });
+      const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
+      const sheetId = meta.data.sheets?.find(
+        (s) => s.properties?.title === tabName
+      )?.properties?.sheetId ?? 0;
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              repeatCell: {
+                range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+                cell: { userEnteredFormat: { textFormat: { bold: true } } },
+                fields: 'userEnteredFormat.textFormat.bold',
+              },
+            },
+            {
+              updateSheetProperties: {
+                properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+                fields: 'gridProperties.frozenRowCount',
+              },
+            },
+          ],
+        },
+      });
+    } catch { /* tab already existed */ }
+
+    // Append the RSVP row
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `'${tabName}'!A1`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: [[
+          nowET(),
+          data.firstName,
+          data.lastName,
+          data.email,
+          data.phone,
+          String(data.attending),
+          data.notes,
+        ]],
+      },
+    });
+  } catch (err) {
+    console.error('[Sheets] RSVP append failed:', err);
+  }
+}
+
+export { IDS as SHEET_IDS };
 
 export function hebrewSchoolRow(data: {
   parent1First: string; parent1Last: string; parent1Email: string; parent1Phone: string;

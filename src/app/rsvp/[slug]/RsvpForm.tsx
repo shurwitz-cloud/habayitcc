@@ -76,25 +76,27 @@ export function RsvpForm({ event }: { event: EventConfig }) {
         </Field>
       </div>
 
-      <Field label="Email" required>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="your@email.com"
-          required
-        />
-      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Email" required>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your@email.com"
+            required
+          />
+        </Field>
 
-      <Field label="Phone" required>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="(555) 555-5555"
-          required
-        />
-      </Field>
+        <Field label="Phone" required>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="(555) 555-5555"
+            required
+          />
+        </Field>
+      </div>
 
       <Field label="Number of people attending" required>
         <div className="flex items-center gap-3">

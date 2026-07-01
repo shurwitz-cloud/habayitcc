@@ -12,6 +12,7 @@ export interface EventConfig {
   description: string;
   locationPrivate: boolean; // true = "Location provided upon registration"
   tabName: string;          // Google Sheet tab name auto-created on first RSVP
+  rsvpLabel: string;        // e.g. "Meet & Greet", "Open House" — used in form heading
   flyer?: string;           // path relative to /public, e.g. "/flyers/achim.png"
 }
 
@@ -28,6 +29,7 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
       'Meet & greet and Q&A for parents. Come discover our Hebrew School program for the upcoming year.',
     locationPrivate: true,
     tabName: 'Hebrew Adventure - Aug 4',
+    rsvpLabel: 'Meet & Greet',
     flyer: '/flyers/hebrew-adventure.png',
   },
   {
@@ -42,6 +44,7 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
       'Open House and program for the boys. An exciting evening for 6th grade boys to experience what HaBayit Achim is all about.',
     locationPrivate: false,
     tabName: 'Open House - Jul 28',
+    rsvpLabel: 'Open House',
     flyer: '/flyers/achim.png',
   },
   {
@@ -56,6 +59,7 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
       'Open House and program for the girls. An exciting evening for 6th grade girls to experience what HaBayit Bloom is all about.',
     locationPrivate: true,
     tabName: 'Open House - Aug 6',
+    rsvpLabel: 'Open House',
     flyer: '/flyers/bloom.png',
   },
 ];

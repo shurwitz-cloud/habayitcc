@@ -50,18 +50,24 @@ export default async function RsvpPage({ params }: { params: Promise<{ slug: str
         </div>
 
         <Section background="soft">
-          <div className="max-w-[700px] mx-auto">
-            {event.flyer && (
-              <div className="mb-8 flex justify-center">
-                <img
-                  src={event.flyer}
-                  alt={`${event.title} flyer`}
-                  className="rounded-2xl shadow-md max-w-[320px] w-full"
-                />
-              </div>
-            )}
+          <div className="max-w-[560px] mx-auto">
             <div className="bg-white border border-line rounded-[22px] p-8 md:p-10 shadow-sm">
-              <h2 className="text-[1.6rem] text-navy font-bold mb-6 text-center">Reserve Your Spot</h2>
+              <h2 className="text-[1.6rem] text-navy font-bold mb-1 text-center leading-snug">
+                Reserve Your Spot at the {event.rsvpLabel}
+              </h2>
+              {event.flyer && (
+                <p className="text-center mb-6">
+                  <a
+                    href={event.flyer}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[0.82rem] text-muted hover:text-gold transition-colors"
+                  >
+                    View event flyer →
+                  </a>
+                </p>
+              )}
+              {!event.flyer && <div className="mb-6" />}
               <RsvpForm event={event} />
             </div>
           </div>

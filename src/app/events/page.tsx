@@ -50,8 +50,9 @@ const ALL_EVENTS = [
     description: e.description,
     rsvpHref: `/rsvp/${e.slug}`,
     highlight: true,
+    flyer: e.flyer,
   })),
-  ...GENERAL_EVENTS.map((e) => ({ ...e, highlight: false })),
+  ...GENERAL_EVENTS.map((e) => ({ ...e, highlight: false, flyer: undefined })),
 ].sort((a, b) => {
   const monthOrder: Record<string, number> = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
   const ma = monthOrder[a.month] ?? 0;
@@ -78,27 +79,40 @@ export default function EventsPage() {
             {ALL_EVENTS.map((event, i) => (
               <div
                 key={`${event.title}-${i}`}
-                className={`grid grid-cols-[80px_1fr] md:grid-cols-[120px_1fr_auto] gap-5 md:gap-7 items-center py-7 border-b border-line ${
-                  i === 0 ? 'border-t' : ''
-                } ${event.highlight ? 'bg-[#fffbf2] -mx-4 px-4 rounded-xl' : ''}`}
+                className={`py-7 border-b border-line ${i === 0 ? 'border-t' : ''} ${
+                  event.highlight ? 'bg-[#fffbf2] -mx-4 px-4 rounded-xl' : ''
+                }`}
               >
-                <div className="text-center">
-                  <div className="text-[0.7rem] tracking-[0.12em] uppercase text-gold font-bold">
-                    {event.month}
+                <div className="grid grid-cols-[80px_1fr] md:grid-cols-[120px_1fr_auto] gap-5 md:gap-7 items-center">
+                  <div className="text-center">
+                    <div className="text-[0.7rem] tracking-[0.12em] uppercase text-gold font-bold">
+                      {event.month}
+                    </div>
+                    <div className="text-[2.2rem] text-navy font-bold leading-none">{event.day}</div>
                   </div>
-                  <div className="text-[2.2rem] text-navy font-bold leading-none">{event.day}</div>
+                  <div className="col-span-2 md:col-span-1">
+                    <h3 className="text-[1.4rem] text-navy font-bold mb-1.5">{event.title}</h3>
+                    <div className="text-[0.85rem] text-gold font-semibold mb-2">{event.meta}</div>
+                    <p className="text-muted text-[0.92rem]">{event.description}</p>
+                  </div>
+                  <a
+                    href={event.rsvpHref}
+                    className="col-span-2 md:col-span-1 justify-self-start md:justify-self-auto text-[0.78rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-1 hover:text-gold mt-2 md:mt-0"
+                  >
+                    RSVP &rarr;
+                  </a>
                 </div>
-                <div className="col-span-2 md:col-span-1">
-                  <h3 className="text-[1.4rem] text-navy font-bold mb-1.5">{event.title}</h3>
-                  <div className="text-[0.85rem] text-gold font-semibold mb-2">{event.meta}</div>
-                  <p className="text-muted text-[0.92rem]">{event.description}</p>
-                </div>
-                <a
-                  href={event.rsvpHref}
-                  className="col-span-2 md:col-span-1 justify-self-start md:justify-self-auto text-[0.78rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-1 hover:text-gold mt-2 md:mt-0"
-                >
-                  RSVP &rarr;
-                </a>
+                {event.flyer && (
+                  <div className="mt-5 ml-[100px] md:ml-[148px]">
+                    <a href={event.rsvpHref}>
+                      <img
+                        src={event.flyer}
+                        alt={`${event.title} flyer`}
+                        className="rounded-xl shadow-sm max-w-[220px] w-full hover:opacity-90 transition-opacity"
+                      />
+                    </a>
+                  </div>
+                )}
               </div>
             ))}
           </div>

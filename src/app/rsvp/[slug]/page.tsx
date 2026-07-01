@@ -33,27 +33,37 @@ export default async function RsvpPage({ params }: { params: Promise<{ slug: str
           <h1 className="font-display text-[2.6rem] md:text-[3.2rem] font-bold leading-tight mb-4">
             {event.title}
           </h1>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-[1rem] text-white/80">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-[1rem] text-white/80 mb-5">
             <span>{event.dateLabel}</span>
             <span>·</span>
             <span>{event.time}</span>
             {event.locationPrivate && (
               <>
                 <span>·</span>
-                <span className="text-gold font-semibold">Location provided upon registration</span>
+                <span className="text-white/70">Location provided upon registration</span>
               </>
             )}
           </div>
+          <p className="text-white/80 text-[1rem] max-w-[520px] mx-auto leading-relaxed">
+            {event.description}
+          </p>
         </div>
 
         <Section background="soft">
-          <p className="text-center text-muted text-[1rem] max-w-[520px] mx-auto mb-10 leading-relaxed">
-            {event.description}
-          </p>
-
-          <div className="bg-white border border-line rounded-[22px] p-8 md:p-10 max-w-[560px] mx-auto shadow-sm">
-            <h2 className="text-[1.6rem] text-navy font-bold mb-6 text-center">Reserve Your Spot</h2>
-            <RsvpForm event={event} />
+          <div className="max-w-[700px] mx-auto">
+            {event.flyer && (
+              <div className="mb-8 flex justify-center">
+                <img
+                  src={event.flyer}
+                  alt={`${event.title} flyer`}
+                  className="rounded-2xl shadow-md max-w-[320px] w-full"
+                />
+              </div>
+            )}
+            <div className="bg-white border border-line rounded-[22px] p-8 md:p-10 shadow-sm">
+              <h2 className="text-[1.6rem] text-navy font-bold mb-6 text-center">Reserve Your Spot</h2>
+              <RsvpForm event={event} />
+            </div>
           </div>
         </Section>
       </main>

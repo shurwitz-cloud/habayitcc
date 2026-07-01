@@ -86,27 +86,36 @@ export function RsvpForm({ event }: { event: EventConfig }) {
         />
       </Field>
 
-      <Field label="Phone">
+      <Field label="Phone" required>
         <input
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="(555) 555-5555"
+          required
         />
       </Field>
 
       <Field label="Number of people attending" required>
-        <select
-          value={attending}
-          onChange={(e) => setAttending(Number(e.target.value))}
-          required
-        >
-          {[1, 2, 3, 4, 5, 6].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAttending((n) => Math.max(1, n - 1))}
+            className="w-10 h-10 rounded-full border border-line bg-soft text-navy font-bold text-xl flex items-center justify-center hover:bg-[#ede8e0] transition-colors"
+          >
+            −
+          </button>
+          <span className="text-[1.4rem] font-bold text-navy w-8 text-center tabular-nums">
+            {attending}
+          </span>
+          <button
+            type="button"
+            onClick={() => setAttending((n) => n + 1)}
+            className="w-10 h-10 rounded-full border border-line bg-soft text-navy font-bold text-xl flex items-center justify-center hover:bg-[#ede8e0] transition-colors"
+          >
+            +
+          </button>
+        </div>
       </Field>
 
       <Field label="Notes or Questions">
@@ -119,8 +128,8 @@ export function RsvpForm({ event }: { event: EventConfig }) {
       </Field>
 
       {event.locationPrivate && (
-        <div className="bg-[#fff8e6] border border-[#ead8a4] text-[#5c4916] rounded-2xl px-5 py-3.5 text-[0.9rem]">
-          <strong>Location note:</strong> The venue address will be sent to your email address upon registration.
+        <div className="bg-soft border border-line text-muted rounded-2xl px-5 py-3.5 text-[0.9rem]">
+          <strong className="text-navy">Location note:</strong> The venue address will be sent to your email address upon registration.
         </div>
       )}
 

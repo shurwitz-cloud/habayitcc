@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         payment_method_types: ['card'],
         save_default_payment_method: 'on_subscription',
       },
-      expand: ['latest_invoice'],
+      expand: ['latest_invoice.confirmation_secret'],
       metadata: {
         type,
         donor_name: `${donorFirstName} ${donorLastName}`.trim(),
@@ -99,7 +99,14 @@ export async function POST(req: NextRequest) {
     // In Stripe API 2026-06-24.dahlia, the client_secret lives on
     // invoice.confirmation_secret.client_secret (not invoice.payment_intent)
     const invoice = subscription.latest_invoice as Stripe.Invoice | null;
-    const clientSecret = invoice?.confirmation_secret?.client_secret ?? null;
+    let clientSecret = invoice?.confirmation_secret?.client_secret ?? null;
+
+    if (!clientSecret && invoice?.id) {
+      const retrieved = await stripe.invoices.retrieve(invoice.id, {
+        expand: ['confirmation_secret'],
+      });
+      clientSecret = retrieved.confirmation_secret?.client_secret ?? null;
+    }
 
     if (!clientSecret) {
       throw new Error('No client_secret returned from subscription invoice.');

@@ -68,6 +68,14 @@ export async function confirmChaiPartnerPayment(
       .maybeSingle();
 
     if (existing?.access_code) {
+      void sendChaiPartnerWelcomeEmail({
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phone: input.phone,
+        monthlyAmount: input.monthlyAmount,
+        accessCode: existing.access_code,
+      });
       return { success: true, accessCode: existing.access_code };
     }
 
@@ -131,6 +139,8 @@ export async function confirmChaiPartnerPayment(
       phone: input.phone,
       monthlyAmount: input.monthlyAmount,
       accessCode,
+    }).catch((err) => {
+      console.error('Chai Partner welcome email failed:', err);
     });
 
     return { success: true, accessCode };

@@ -8,6 +8,10 @@ export interface SubscriptionRequestBody {
   donorLastName: string;
   donorEmail: string;
   donorPhone?: string;
+  memo?: string;
+  campaign?: string;
+  dedicationName?: string;
+  dedicationType?: 'honor' | 'memory';
   type: 'monthly_donation' | 'chai_partner';
   // Additional fields for chai_partner type
   street?: string;
@@ -19,7 +23,18 @@ export interface SubscriptionRequestBody {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as SubscriptionRequestBody;
-    const { amountCents, donorFirstName, donorLastName, donorEmail, donorPhone, type } = body;
+    const {
+      amountCents,
+      donorFirstName,
+      donorLastName,
+      donorEmail,
+      donorPhone,
+      memo,
+      campaign,
+      dedicationName,
+      dedicationType,
+      type,
+    } = body;
 
     if (!amountCents || amountCents < 100) {
       return NextResponse.json({ error: 'Invalid amount.' }, { status: 400 });
@@ -74,6 +89,10 @@ export async function POST(req: NextRequest) {
         type,
         donor_name: `${donorFirstName} ${donorLastName}`.trim(),
         donor_email: donorEmail,
+        ...(memo && { memo }),
+        ...(campaign && { campaign }),
+        ...(dedicationName && { dedication_name: dedicationName }),
+        ...(dedicationType && { dedication_type: dedicationType }),
       },
     });
 

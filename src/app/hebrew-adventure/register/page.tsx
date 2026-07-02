@@ -3,9 +3,10 @@ import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section } from '@/components/sections/Section';
 import { RegistrationForm } from './RegistrationForm';
+import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 export const metadata = {
-  title: 'Hebrew School Registration – HaBayit Jewish Center',
+  title: `${HEBREW_ADVENTURE_NAME} Registration – HaBayit Jewish Center`,
 };
 
 export default function HebrewSchoolRegisterPage() {
@@ -19,7 +20,7 @@ export default function HebrewSchoolRegisterPage() {
           minHeight="min-h-[40vh]"
           subtitle="We're excited to welcome your family. Registration takes just a few minutes."
         >
-          HaBayit Hebrew School
+          {HEBREW_ADVENTURE_NAME}
         </Hero>
 
         <Section background="cream">

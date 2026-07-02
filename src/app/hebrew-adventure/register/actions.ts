@@ -1,7 +1,8 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
-import { hebrewSchoolRow } from '@/lib/google/sheets';
+import { hebrewAdventureRow } from '@/lib/google/sheets';
+import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 
 export interface ChildInput {
   firstName: string;
@@ -52,7 +53,7 @@ export interface RegistrationResult {
 }
 
 /**
- * Submits a Hebrew School registration. Validates the Chai Partner
+ * Submits a HaBayit Hebrew Adventure registration. Validates the Chai Partner
  * access code against the chai_partners table before applying the
  * discounted rate, then writes a family + parents + children +
  * program_registrations record set to Supabase.
@@ -131,11 +132,11 @@ export async function submitHebrewSchoolRegistration(
     }
     await supabase.from('parents').insert(parentRows);
 
-    // Look up the Hebrew School program
+    // Look up the program by slug
     const { data: program } = await supabase
       .from('programs')
       .select('id')
-      .eq('slug', 'hebrew-school')
+      .eq('slug', HEBREW_ADVENTURE_SLUG)
       .single();
 
     // Create child + registration records
@@ -186,7 +187,7 @@ export async function submitHebrewSchoolRegistration(
     });
 
     // Append to Google Sheets (best-effort)
-    void hebrewSchoolRow({
+    void hebrewAdventureRow({
       parent1First: input.parent1FirstName,
       parent1Last: input.parent1LastName,
       parent1Email: input.parent1Email,
@@ -219,7 +220,7 @@ export async function submitHebrewSchoolRegistration(
 
     return { success: true };
   } catch (err) {
-    console.error('Hebrew School registration error:', err);
+    console.error('HaBayit Hebrew Adventure registration error:', err);
     return { success: false, error: 'Something went wrong. Please try again.' };
   }
 }

@@ -1,9 +1,9 @@
 /**
- * Habayit Hebrew School Registration — Google Apps Script
+ * Habayit HaBayit Hebrew Adventure Registration — Google Apps Script
  *
  * SETUP:
  * 1. Go to https://sheets.google.com and create a new blank spreadsheet
- * 2. Name it "Hebrew School Registrations"
+ * 2. Name it "HaBayit Hebrew Adventure Registrations"
  * 3. Click Extensions → Apps Script
  * 4. Delete any existing code and paste this entire file
  * 5. Click Save (Ctrl+S)
@@ -11,7 +11,7 @@
  * 7. Click the gear icon next to "Select type" → choose "Web app"
  * 8. Set: Execute as = Me, Who has access = Anyone
  * 9. Click Deploy, authorize access
- * 10. Copy the Web app URL and paste it into hebrew-school.html
+ * 10. Copy the Web app URL and paste it into hebrew-adventure.html
  *     where it says GOOGLE_SCRIPT_URL
  */
 

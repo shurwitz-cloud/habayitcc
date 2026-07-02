@@ -5,7 +5,7 @@ const SHEET_TITLES: Record<string, string> = {
   contact:      'HaBayit Contact',
   donations:    'HaBayit Donations',
   chaiPartners: 'HaBayit Chai Partners',
-  hebrewSchool: 'HaBayit Hebrew School',
+  hebrewAdventure: 'HaBayit Hebrew Adventure',
 };
 
 /**

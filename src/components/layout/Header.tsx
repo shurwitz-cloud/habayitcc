@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
+import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 const PROGRAMS_LINKS = [
-  { href: '/hebrew-school', label: 'Hebrew School' },
+  { href: HEBREW_ADVENTURE_PATH, label: HEBREW_ADVENTURE_NAME },
   { href: '/bar-bat-mitzvah', label: 'Bar & Bat Mitzvah' },
 ];
 

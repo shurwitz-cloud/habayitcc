@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { contactRow } from '@/lib/google/sheets';
+import { sendContactEmails } from '@/lib/email/contact';
 
 export interface ContactInput {
   firstName: string;
@@ -42,7 +43,7 @@ export async function submitContactForm(
       message: input.message,
     });
 
-    // TODO (Phase 3): trigger Resend confirmation email + admin notification here.
+    void sendContactEmails(input);
 
     return { success: true };
   } catch (err) {

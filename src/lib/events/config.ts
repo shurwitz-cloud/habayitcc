@@ -1,6 +1,8 @@
 // Public event display data — safe to import in client or server components.
 // Sheet IDs live in actions.ts only (server-side).
 
+import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+
 export interface EventConfig {
   slug: string;
   title: string;
@@ -19,16 +21,16 @@ export interface EventConfig {
 export const OPEN_HOUSE_EVENTS: EventConfig[] = [
   {
     slug: 'hebrew-adventure',
-    title: 'HaBayit Hebrew Adventure',
-    program: 'Hebrew School',
+    title: HEBREW_ADVENTURE_NAME,
+    program: HEBREW_ADVENTURE_NAME,
     month: 'Aug',
     day: '4',
     dateLabel: 'Monday, August 4th',
     time: '8:30 PM',
     description:
-      'Meet & greet and Q&A for parents. Come discover our Hebrew School program for the upcoming year.',
+      `Meet & greet and Q&A for parents. Come discover ${HEBREW_ADVENTURE_NAME} for the upcoming year.`,
     locationPrivate: true,
-    tabName: 'Hebrew Adventure - Aug 4',
+    tabName: 'HaBayit Hebrew Adventure - Aug 4',
     rsvpLabel: 'Meet & Greet',
     flyer: '/flyers/hebrew-adventure.png',
   },

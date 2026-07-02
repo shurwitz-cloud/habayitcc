@@ -10,7 +10,7 @@ interface ProgramCardProps {
 
 /**
  * ProgramCard — the clickable tile pattern used for "ways to get
- * involved" (Hebrew School, Bar/Bat Mitzvah, Chai Partner). The
+ * involved" (HaBayit Hebrew Adventure, Bar/Bat Mitzvah, Chai Partner). The
  * entire card is the link — no separate "Learn More" button, per
  * the site's design direction of minimizing redundant CTAs.
  */
@@ -53,7 +53,7 @@ export function ProgramCard({
 
 /**
  * ProgramTile — the larger, two-column "tile" pattern used for
- * Hebrew School and Synagogue & Community on the homepage. Includes
+ * HaBayit Hebrew Adventure and Synagogue & Community on the homepage. Includes
  * an explicit arrow affordance since these tiles read more like
  * feature sections than simple cards.
  */

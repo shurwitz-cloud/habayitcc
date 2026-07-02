@@ -1,15 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
+import { DEFAULT_DONATION_MEMO, resolveDonationMemo } from '@/lib/donations/memo';
+import { buildReceiptUrl } from '@/lib/donations/receipt-url';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section } from '@/components/sections/Section';
 import { recordDonation } from './actions';
+import type { DedicationType } from '@/types/database';
 
 const AMOUNTS = [72, 180, 360, 770, 1800];
 
@@ -42,7 +46,9 @@ export default function DonatePage() {
         <Section background="white">
           {/* Elements mounts once — CardElement works without a clientSecret upfront */}
           <Elements stripe={stripePromise}>
-            <DonateForm />
+            <Suspense fallback={<DonateFormSkeleton />}>
+              <DonateForm />
+            </Suspense>
           </Elements>
         </Section>
       </main>
@@ -53,6 +59,13 @@ export default function DonatePage() {
 
 // DonateForm lives inside <Elements> so it can call useStripe + useElements
 function DonateForm() {
+  const searchParams = useSearchParams();
+  const campaignSlug = searchParams.get('campaign');
+  const donationMemo = useMemo(
+    () => resolveDonationMemo(campaignSlug),
+    [campaignSlug]
+  );
+
   const stripe = useStripe();
   const elements = useElements();
 
@@ -63,11 +76,14 @@ function DonateForm() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [dedicationName, setDedicationName] = useState('');
+  const [dedicationType, setDedicationType] = useState<DedicationType | ''>('');
 
   const [coverFee, setCoverFee] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState('');
 
   const resolvedAmount = selectedAmt === 'other' ? parseFloat(otherAmt) : selectedAmt;
   const fee = resolvedAmount ? Math.round(resolvedAmount * 0.03 * 100) / 100 : 0;
@@ -95,6 +111,13 @@ function DonateForm() {
 
     try {
       const amountCents = Math.round(finalAmount! * 100);
+      const trimmedDedication = dedicationName.trim();
+      const dedicationPayload = trimmedDedication
+        ? {
+            dedicationName: trimmedDedication,
+            dedicationType: (dedicationType || 'honor') as DedicationType,
+          }
+        : {};
       let clientSecret: string;
 
       if (mode === 'onetime') {
@@ -105,6 +128,9 @@ function DonateForm() {
             amountCents,
             donorName: `${firstName} ${lastName}`,
             donorEmail: email,
+            memo: donationMemo,
+            campaign: campaignSlug ?? undefined,
+            ...dedicationPayload,
           }),
         });
         const data = await res.json() as { clientSecret?: string; error?: string };
@@ -120,6 +146,9 @@ function DonateForm() {
             donorLastName: lastName,
             donorEmail: email,
             donorPhone: phone,
+            memo: donationMemo,
+            campaign: campaignSlug ?? undefined,
+            ...dedicationPayload,
             type: 'monthly_donation',
           }),
         });
@@ -152,8 +181,22 @@ function DonateForm() {
           firstName,
           lastName,
           email,
+          phone,
           donationType: mode === 'monthly' ? 'Monthly' : 'One-Time',
+          memo: donationMemo,
+          campaign: campaignSlug,
+          ...dedicationPayload,
         });
+        setReceiptUrl(
+          buildReceiptUrl({
+            name: `${firstName} ${lastName}`.trim(),
+            amount: finalAmount!,
+            campaign: campaignSlug,
+            dedicationName: dedicationPayload.dedicationName,
+            dedicationType: dedicationPayload.dedicationType,
+            method: mode === 'monthly' ? 'Credit Card (Monthly)' : 'Credit Card',
+          })
+        );
         setSuccess(true);
       }
     } catch (err) {
@@ -169,8 +212,21 @@ function DonateForm() {
         <h2 className="text-[2.2rem] text-navy font-bold mb-3">Thank you!</h2>
         <p className="text-muted max-w-[440px] mx-auto">
           {mode === 'monthly'
-            ? `Your monthly gift of $${finalAmount?.toLocaleString()} has been set up. A receipt will be sent to ${email}.`
-            : `Your gift of $${finalAmount?.toLocaleString()} has been received. A receipt will be sent to ${email}.`}
+            ? `Your monthly gift of $${finalAmount?.toLocaleString()} has been set up.`
+            : `Your gift of $${finalAmount?.toLocaleString()} has been received.`}
+        </p>
+        {receiptUrl && (
+          <Link
+            href={receiptUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-6 bg-gold text-white rounded-full px-10 py-4 font-bold uppercase tracking-wider text-[0.84rem]"
+          >
+            View &amp; Print Tax Receipt
+          </Link>
+        )}
+        <p className="text-muted text-[0.85rem] mt-4 max-w-[440px] mx-auto">
+          A tax receipt link has also been sent to {email}.
         </p>
         <Link
           href="/"
@@ -184,6 +240,13 @@ function DonateForm() {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-[600px] mx-auto">
+      {donationMemo !== DEFAULT_DONATION_MEMO && (
+        <p className="text-center text-muted text-[0.92rem] mb-5">
+          Your gift supports:{' '}
+          <span className="font-semibold text-navy">{donationMemo}</span>
+        </p>
+      )}
+
       {/* ── One-Time / Monthly toggle ── */}
       <div className="flex justify-center mb-7">
         <div className="inline-flex bg-soft border border-line rounded-full p-1.5">
@@ -276,6 +339,42 @@ function DonateForm() {
               onChange={(e) => setPhone(e.target.value)}
               autoComplete="tel"
             />
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-line space-y-3">
+          <p className="text-[0.78rem] font-bold uppercase tracking-wide text-navy">
+            Dedication{' '}
+            <span className="text-muted font-normal normal-case tracking-normal">(optional)</span>
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="sr-only" htmlFor="dedication-type">
+                Dedication type
+              </label>
+              <select
+                id="dedication-type"
+                value={dedicationType}
+                onChange={(e) =>
+                  setDedicationType(e.target.value as DedicationType | '')
+                }
+              >
+                <option value="">Select…</option>
+                <option value="honor">In honor of</option>
+                <option value="memory">In memory of</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="sr-only" htmlFor="dedication-name">
+                Dedication name
+              </label>
+              <input
+                id="dedication-name"
+                value={dedicationName}
+                onChange={(e) => setDedicationName(e.target.value)}
+                placeholder="Name"
+              />
+            </div>
           </div>
         </div>
 
@@ -381,5 +480,13 @@ function AmountButton({ active, onClick, children }: {
     >
       {children}
     </button>
+  );
+}
+
+function DonateFormSkeleton() {
+  return (
+    <div className="max-w-[600px] mx-auto py-12 text-center text-muted">
+      Loading donation form…
+    </div>
   );
 }

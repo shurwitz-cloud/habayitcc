@@ -5,7 +5,7 @@ const IDS = {
   contact:      process.env.GOOGLE_SHEETS_CONTACT_ID,
   donations:    process.env.GOOGLE_SHEETS_DONATIONS_ID,
   chaiPartners: process.env.GOOGLE_SHEETS_CHAI_PARTNERS_ID,
-  hebrewSchool: process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
+  hebrewAdventure: process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
   achim:        process.env.GOOGLE_SHEETS_ACHIM_ID,
   bloom:        process.env.GOOGLE_SHEETS_BLOOM_ID,
 } as const;
@@ -141,7 +141,10 @@ export const SHEET_CONFIGS = {
   },
   donations: {
     id: IDS.donations,
-    headers: ['Timestamp', 'First Name', 'Last Name', 'Email', 'Amount', 'Type', 'Stripe Payment Intent ID'],
+    headers: [
+      'Timestamp', 'First Name', 'Last Name', 'Email', 'Phone', 'Amount',
+      'Memo', 'Notes', 'Monthly', 'Stripe Payment Intent ID',
+    ],
   },
   chaiPartners: {
     id: IDS.chaiPartners,
@@ -151,8 +154,8 @@ export const SHEET_CONFIGS = {
       'Access Code', 'Stripe Subscription ID', 'Stripe Customer ID',
     ],
   },
-  hebrewSchool: {
-    id: IDS.hebrewSchool,
+  hebrewAdventure: {
+    id: IDS.hebrewAdventure,
     headers: [
       'Timestamp',
       'Parent 1 First', 'Parent 1 Last', 'Parent 1 Email', 'Parent 1 Phone',
@@ -183,14 +186,34 @@ export function contactRow(data: {
   ]);
 }
 
+function formatDonationNotes(
+  dedicationName?: string,
+  dedicationType?: string
+): string {
+  const name = dedicationName?.trim();
+  if (!name) return '';
+  const prefix = dedicationType === 'memory' ? 'In memory of' : 'In honor of';
+  return `${prefix} ${name}`;
+}
+
 export function donationRow(data: {
-  firstName: string; lastName: string; email: string;
-  amount: number; type: string; paymentIntentId: string;
+  firstName: string; lastName: string; email: string; phone?: string;
+  amount: number; paymentIntentId: string;
+  memo?: string; dedicationName?: string; dedicationType?: string;
+  donationType: 'One-Time' | 'Monthly';
 }) {
   if (!IDS.donations) return;
   return appendRow(IDS.donations, [
-    nowET(), data.firstName, data.lastName, data.email,
-    `$${data.amount.toFixed(2)}`, data.type, data.paymentIntentId,
+    nowET(),
+    data.firstName,
+    data.lastName,
+    data.email,
+    data.phone ?? '',
+    `$${data.amount.toFixed(2)}`,
+    data.memo ?? '',
+    formatDonationNotes(data.dedicationName, data.dedicationType),
+    data.donationType === 'Monthly' ? 'monthly' : '',
+    data.paymentIntentId,
   ]);
 }
 
@@ -296,7 +319,7 @@ export async function appendRsvpToTab(
 
 export { IDS as SHEET_IDS };
 
-export function hebrewSchoolRow(data: {
+export function hebrewAdventureRow(data: {
   parent1First: string; parent1Last: string; parent1Email: string; parent1Phone: string;
   parent2First: string; parent2Last: string; parent2Email: string; parent2Phone: string;
   street: string; city: string; state: string; zip: string;
@@ -307,7 +330,7 @@ export function hebrewSchoolRow(data: {
     grade: string; schoolAttending: string; hebrewLevel: string; allergies: string;
   }>;
 }) {
-  if (!IDS.hebrewSchool) return;
+  if (!IDS.hebrewAdventure) return;
 
   const childCols: string[] = [];
   for (let i = 0; i < 3; i++) {
@@ -320,7 +343,7 @@ export function hebrewSchoolRow(data: {
     }
   }
 
-  return appendRow(IDS.hebrewSchool, [
+  return appendRow(IDS.hebrewAdventure, [
     nowET(),
     data.parent1First, data.parent1Last, data.parent1Email, data.parent1Phone,
     data.parent2First, data.parent2Last, data.parent2Email, data.parent2Phone,

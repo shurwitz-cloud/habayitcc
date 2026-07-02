@@ -9,6 +9,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section } from '@/components/sections/Section';
 import { confirmChaiPartnerPayment } from './actions';
+import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 const AMOUNTS = [150, 180, 300, 500, 770, 1000, 1800];
 
@@ -197,7 +198,7 @@ function ChaiPartnerForm() {
             {accessCode}
           </p>
           <p className="text-[0.8rem] text-muted">
-            Save this code — you&apos;ll need it for member pricing on programs like Hebrew School.
+            Save this code — you&apos;ll need it for member pricing on programs like {HEBREW_ADVENTURE_NAME}.
           </p>
         </div>
       </div>

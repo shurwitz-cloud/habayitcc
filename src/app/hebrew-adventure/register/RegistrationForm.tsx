@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { submitHebrewSchoolRegistration, type ChildInput, type RegistrationInput } from './actions';
+import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 const emptyChild: ChildInput = {
   firstName: '',
@@ -124,7 +125,7 @@ export function RegistrationForm() {
       <div className="max-w-[600px] mx-auto text-center py-20">
         <h2 className="text-[2.2rem] text-navy font-bold mb-4">Thank you!</h2>
         <p className="text-muted">
-          Your Hebrew School registration has been submitted. Once it&apos;s reviewed, you&apos;ll
+          Your {HEBREW_ADVENTURE_NAME} registration has been submitted. Once it&apos;s reviewed, you&apos;ll
           receive a confirmation email with next steps, including payment.
         </p>
       </div>
@@ -226,7 +227,7 @@ export function RegistrationForm() {
             <h4 className="font-display text-[1.25rem] text-navy font-bold mb-1">Hebrew Background</h4>
             <p className="text-muted text-[0.88rem] mb-4">This helps us place your child at the right level.</p>
             <div className="grid md:grid-cols-2 gap-4 mb-4">
-              <Field label="Attended Hebrew School Before?" required>
+              <Field label={`Attended ${HEBREW_ADVENTURE_NAME} Before?`} required>
                 <select
                   value={child.attendedBefore}
                   onChange={(e) => updateChild(i, 'attendedBefore', e.target.value)}
@@ -461,13 +462,13 @@ export function RegistrationForm() {
             holidays, or other absences.
           </PolicyBlock>
           <PolicyBlock title="Medical Emergencies">
-            In the event of a medical emergency, HaBayit Hebrew School staff will make every
+            In the event of a medical emergency, {HEBREW_ADVENTURE_NAME} staff will make every
             reasonable effort to contact a parent or emergency contact. If necessary, emergency
             medical services may be contacted.
           </PolicyBlock>
           <PolicyBlock title="Photography">
             Unless otherwise requested in writing, you grant permission for HaBayit to photograph
-            or record your child during Hebrew School and related activities. Children&apos;s
+            or record your child during {HEBREW_ADVENTURE_NAME} and related activities. Children&apos;s
             last names will not be published.
           </PolicyBlock>
         </div>
@@ -481,7 +482,7 @@ export function RegistrationForm() {
               className="mt-1"
               required
             />
-            I have read and agree to the HaBayit Hebrew School Policies above.
+            I have read and agree to the {HEBREW_ADVENTURE_NAME} Policies above.
           </label>
           <label className="flex items-start gap-2.5 text-[0.95rem]">
             <input

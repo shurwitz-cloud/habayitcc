@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter, Frank_Ruhl_Libre } from "next/font/google";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  defaultOpenGraph,
+  DEFAULT_OG_IMAGE,
+} from "@/lib/site-metadata";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -21,9 +28,20 @@ const frankRuhl = Frank_Ruhl_Libre({
 });
 
 export const metadata: Metadata = {
-  title: "HaBayit Jewish Center – Cooper City, FL",
-  description:
-    "A warm Jewish home with an Israeli spirit. Hebrew School, Bar & Bat Mitzvah programs, Shabbat services, and a community where everyone belongs.",
+  metadataBase: new URL(SITE_URL),
+  title: `${SITE_NAME} – Cooper City, FL`,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    ...defaultOpenGraph,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 export default function RootLayout({

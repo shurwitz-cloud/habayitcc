@@ -1,0 +1,191 @@
+.receipt-root {
+  background: #e8e8e8;
+  font-family: Helvetica, Arial, sans-serif;
+  padding: 30px 16px 50px;
+  min-height: 100vh;
+  overflow-x: auto;
+}
+
+.receipt-print-bar {
+  width: 8.5in;
+  min-width: 8.5in;
+  margin: 0 auto 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.receipt-print-btn {
+  background: #172643;
+  color: #fff;
+  border: none;
+  padding: 10px 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.receipt-page {
+  width: 8.5in;
+  min-width: 8.5in;
+  min-height: 11in;
+  background: #fff;
+  margin: 0 auto;
+  position: relative;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+  --receipt-gold: #b8902a;
+  flex-shrink: 0;
+}
+
+.receipt-letterhead {
+  position: relative;
+  padding: 0.78in 0 0;
+}
+
+.receipt-bh {
+  position: absolute;
+  top: 0.78in;
+  right: 1.422in;
+  font-family: var(--font-frank-ruhl), 'Frank Ruhl Libre', 'David Libre', 'Times New Roman', serif;
+  font-size: 13pt;
+  font-weight: 500;
+  color: #172643;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.receipt-letterhead-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-left: 1.429in;
+  margin-right: 1.422in;
+  padding-bottom: 0.18in;
+}
+
+.receipt-letterhead-inner img {
+  width: 72px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.receipt-letterhead-name {
+  display: block;
+  font-size: 15pt;
+  color: #172643;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.receipt-letterhead-rule {
+  border: none;
+  border-bottom: 2px solid var(--receipt-gold);
+  margin: 0 1.422in 0 1.429in;
+}
+
+.receipt-body {
+  margin-left: 1.429in;
+  margin-right: 1.422in;
+  padding-top: 0.5in;
+  padding-bottom: 1.85in;
+  color: #000;
+}
+
+.receipt-date {
+  font-size: 11pt;
+  margin-bottom: 0.16in;
+}
+
+.receipt-salutation {
+  font-size: 11pt;
+  margin-bottom: 0.14in;
+  line-height: 1.5;
+}
+
+.receipt-body-text {
+  font-size: 11pt;
+  line-height: 1.55;
+  margin-bottom: 0.14in;
+}
+
+.receipt-signoff {
+  font-size: 11pt;
+  line-height: 1.6;
+  margin-bottom: 0.34in;
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11pt;
+  margin-top: 0.08in;
+  margin-bottom: 0.55in;
+}
+
+.receipt-table th {
+  font-weight: bold;
+  text-align: left;
+  padding: 0 6px 3px;
+  border: none;
+  white-space: nowrap;
+}
+
+.receipt-table td {
+  padding: 3px 6px;
+  border-top: 1px solid var(--receipt-gold);
+  border-bottom: 1px solid var(--receipt-gold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.receipt-table .amount {
+  text-align: right;
+}
+
+.receipt-disclaimer {
+  text-align: center;
+  font-size: 9.5pt;
+  color: #333;
+  line-height: 1.8;
+}
+
+.receipt-footer {
+  position: absolute;
+  bottom: 0.738in;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10pt;
+  color: #172643;
+  line-height: 1.7;
+}
+
+@media print {
+  .receipt-root {
+    background: none;
+    padding: 0;
+  }
+
+  .receipt-print-bar {
+    display: none;
+  }
+
+  .receipt-page {
+    box-shadow: none;
+    width: 100%;
+    min-height: auto;
+  }
+
+  .receipt-footer {
+    position: fixed;
+    bottom: 0.738in;
+    left: 0;
+    right: 0;
+  }
+
+  @page {
+    size: letter portrait;
+    margin: 0;
+  }
+}

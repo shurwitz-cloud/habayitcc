@@ -2,7 +2,7 @@
 
 import { getOpenHouseEvent } from '@/lib/events/config';
 import { appendRsvpToTab } from '@/lib/google/sheets';
-
+import { sendRsvpConfirmationEmail } from '@/lib/email/rsvp-confirmation';
 const SHEET_IDS: Record<string, string | undefined> = {
   'hebrew-adventure': process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
   'achim':            process.env.GOOGLE_SHEETS_ACHIM_ID,
@@ -44,8 +44,17 @@ export async function submitRsvp(input: RsvpInput): Promise<RsvpResult> {
       });
     }
 
-    return { success: true };
-  } catch (err) {
+    void sendRsvpConfirmationEmail({
+      event,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      attending: input.attending,
+      notes: input.notes,
+    });
+
+    return { success: true };  } catch (err) {
     console.error('[RSVP] submission error:', err);
     return { success: false, error: 'Something went wrong. Please try again.' };
   }

@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section, SectionTitle } from '@/components/sections/Section';
+import { HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 export const metadata = {
   title: 'About HaBayit – Jewish Center, Cooper City',
@@ -138,7 +139,7 @@ export default function AboutPage() {
             </p>
             <div className="flex justify-center gap-3.5 flex-wrap mt-7">
               <Link
-                href="/hebrew-school"
+                href={HEBREW_ADVENTURE_PATH}
                 className="px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
               >
                 Explore Programs

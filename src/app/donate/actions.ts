@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { donationRow } from '@/lib/google/sheets';
+import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
 
 export interface RecordDonationInput {
   paymentIntentId: string;
@@ -9,7 +10,12 @@ export interface RecordDonationInput {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   donationType: 'One-Time' | 'Monthly';
+  memo?: string;
+  campaign?: string | null;
+  dedicationName?: string;
+  dedicationType?: 'honor' | 'memory';
 }
 
 export interface RecordDonationResult {
@@ -49,9 +55,9 @@ export async function recordDonation(
         stripe_payment_intent_id: input.paymentIntentId,
         status: 'succeeded',
         family_id: null,
-        phone: null,
-        dedication_name: null,
-        dedication_type: null,
+        phone: input.phone?.trim() || null,
+        dedication_name: input.dedicationName?.trim() || null,
+        dedication_type: input.dedicationType ?? null,
       })
       .select('id')
       .single();
@@ -76,12 +82,25 @@ export async function recordDonation(
       firstName: input.firstName,
       lastName: input.lastName,
       email: input.email,
+      phone: input.phone,
       amount: input.amountDollars,
-      type: input.donationType,
       paymentIntentId: input.paymentIntentId,
+      memo: input.memo,
+      dedicationName: input.dedicationName,
+      dedicationType: input.dedicationType,
+      donationType: input.donationType,
     });
 
-    // TODO (Phase 3): send Resend confirmation email to donor
+    void sendDonationReceiptEmailFromRecord({
+      email: input.email,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      amountDollars: input.amountDollars,
+      campaign: input.campaign,
+      dedicationName: input.dedicationName,
+      dedicationType: input.dedicationType,
+      donationType: input.donationType,
+    });
 
     return { success: true };
   } catch (err) {

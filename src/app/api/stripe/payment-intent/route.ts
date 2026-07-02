@@ -3,11 +3,16 @@ import { stripe } from '@/lib/stripe/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { amountCents, donorName, donorEmail } = await req.json() as {
-      amountCents: number;
-      donorName: string;
-      donorEmail: string;
-    };
+    const { amountCents, donorName, donorEmail, memo, campaign, dedicationName, dedicationType } =
+      await req.json() as {
+        amountCents: number;
+        donorName: string;
+        donorEmail: string;
+        memo?: string;
+        campaign?: string;
+        dedicationName?: string;
+        dedicationType?: 'honor' | 'memory';
+      };
 
     if (!amountCents || amountCents < 100) {
       return NextResponse.json({ error: 'Invalid amount.' }, { status: 400 });
@@ -24,6 +29,10 @@ export async function POST(req: NextRequest) {
         donation_type: 'one_time',
         donor_name: donorName,
         donor_email: donorEmail,
+        ...(memo && { memo }),
+        ...(campaign && { campaign }),
+        ...(dedicationName && { dedication_name: dedicationName }),
+        ...(dedicationType && { dedication_type: dedicationType }),
       },
     });
 

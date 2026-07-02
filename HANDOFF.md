@@ -37,7 +37,7 @@ Color variables: `--color-navy: #172643`, `--color-gold: #b8902a`, `--color-crea
 Cormorant Garamond (display/headings), Inter (body), Frank Ruhl Libre (Hebrew accents, used sparingly per design direction — no large decorative Hebrew blocks).
 
 ### Reusable components (`src/components/`)
-- `layout/Header.tsx` — nav with Programs dropdown (Hebrew School, Bar & Bat Mitzvah) and Donate dropdown (Make a Donation, Become a Chai Partner), mobile menu
+- `layout/Header.tsx` — nav with Programs dropdown (HaBayit Hebrew Adventure, Bar & Bat Mitzvah) and Donate dropdown (Make a Donation, Become a Chai Partner), mobile menu
 - `layout/Footer.tsx` — Explore/Programs/Contact columns
 - `sections/Hero.tsx` — reusable page-top banner
 - `sections/Section.tsx` — `Section` + `SectionTitle`, consistent spacing rhythm
@@ -47,11 +47,11 @@ Cormorant Garamond (display/headings), Inter (body), Frank Ruhl Libre (Hebrew ac
 ### Pages built (all in `src/app/`)
 | Route | Status | Notes |
 |---|---|---|
-| `/` (homepage) | ✅ Done | Hero, Explore grid (Hebrew School tile, Bar/Bat Mitzvah/Chai Partner cards, Synagogue tile), mission statement, events teaser, contact strip |
+| `/` (homepage) | ✅ Done | Hero, Explore grid (HaBayit Hebrew Adventure tile, Bar/Bat Mitzvah/Chai Partner cards, Synagogue tile), mission statement, events teaser, contact strip |
 | `/about` | ✅ Done | Mission, founders' story (Rabbi Shmuly & Devora Hurwitz bios), values grid |
 | `/synagogue` | ✅ Done | Shabbat schedule (Friday L'chaim/Kabbalat Shabbat, Saturday Shacharit/Kiddush/Mincha), what to expect |
-| `/hebrew-school` | ✅ Done | Program overview, 3 pillars, pricing ($1,100 standard / $1,000 Chai Partner), links to `/hebrew-school/register` |
-| `/hebrew-school/register` | ✅ Done | Full multi-child registration form — see "Registration Form Details" below |
+| `/hebrew-adventure` | ✅ Done | Program overview, 3 pillars, pricing ($1,100 standard / $1,000 Chai Partner), links to `/hebrew-adventure/register` |
+| `/hebrew-adventure/register` | ✅ Done | Full multi-child registration form — see "Registration Form Details" below |
 | `/bar-bat-mitzvah` | ✅ Done | Landing page with two clickable panels (whole panel is the link, no separate buttons) |
 | `/bar-mitzvah` | ✅ Done | HaBayit BMX placeholder — 7th grade boys, 3 pillars |
 | `/bat-mitzvah` | ✅ Done | HaBayit Bloom placeholder — 6th grade girls, 3 pillars |
@@ -64,7 +64,7 @@ Cormorant Garamond (display/headings), Inter (body), Frank Ruhl Libre (Hebrew ac
 15 tables: `families`, `parents`, `children`, `programs`, `program_registrations`, `events`, `event_registrations`, `donations`, `chai_partners`, `payments`, `contacts`, `email_subscribers`, `staff_notes`, `attendance`, `waivers`, `sponsors`.
 
 Key design decisions:
-- `programs` is generic (Hebrew School, Bar Mitzvah Club, Bat Mitzvah Club are *rows*, not separate tables) so future programs don't need schema changes
+- `programs` is generic (HaBayit Hebrew Adventure, Bar Mitzvah Club, Bat Mitzvah Club are *rows*, not separate tables) so future programs don't need schema changes
 - `donations` and `chai_partners` are separate (one-time vs. recurring lifecycle)
 - `payments` is a unified ledger across all payment sources
 - `waivers` and `staff_notes` use generic `notable_type`/`notable_id` pattern
@@ -77,7 +77,7 @@ Hand-written types mirroring the schema. **Important quirk resolved:** every int
 - `client.ts` — browser client for Client Components
 - `server.ts` — `createClient()` for Server Components (cookie-based, ready for future auth), `createAdminClient()` using the service role key for Server Actions that need to write data without a user session (e.g. public form submissions)
 
-### Registration Form Details (`/hebrew-school/register`)
+### Registration Form Details (`/hebrew-adventure/register`)
 This is the most complex page. Built as:
 - `page.tsx` — wrapper with Hero + Section
 - `RegistrationForm.tsx` — client component, all form state, supports adding/removing children dynamically, sibling discount calculation ($50 off 2nd child, $75 off 3rd+), Jewish status + conversion org/rabbi fields per parent, Chai Partner code field (shown conditionally), payment plan selection, policy agreement checkboxes
@@ -89,7 +89,7 @@ This is the most complex page. Built as:
 - `page.tsx` — full client component, amount selection + form + generates a unique access code (format `HABAYIT-XXXXXX`) shown on success
 - `actions.ts` — Server Action `submitChaiPartnerSignup()` — inserts into `chai_partners` table with `status: 'active'`
 
-**This access code is the bridge between Chai Partner and Hebrew School discounts** — when someone registers for Hebrew School and checks "I am a Chai Partner," they enter this code, and the registration action verifies it against the `chai_partners.access_code` column before applying the discounted rate.
+**This access code is the bridge between Chai Partner and HaBayit Hebrew Adventure discounts** — when someone registers for HaBayit Hebrew Adventure and checks "I am a Chai Partner," they enter this code, and the registration action verifies it against the `chai_partners.access_code` column before applying the discounted rate.
 
 ### Contact form (`/contact`)
 Simple Server Action writing to the `contacts` table. No email sent yet (that's Phase 3).
@@ -134,7 +134,7 @@ Simple Server Action writing to the `contacts` table. No email sent yet (that's 
 - Warm, clean, premium — not corporate, not cluttered
 - Mostly cream/white/navy with subtle gold accents
 - Minimal, tasteful Hebrew (small accent text, never large decorative blocks)
-- No emoji icons (one exception: a 📅 calendar emoji on the Hebrew School page schedule note — flagged here in case it should be replaced with an icon component later)
+- No emoji icons (one exception: a 📅 calendar emoji on the HaBayit Hebrew Adventure page schedule note — flagged here in case it should be replaced with an icon component later)
 - Real photography placeholders throughout (gradient + "Photography Coming Soon" label) — site owner will provide real photos later
 - Logo: `הבית` (Hebrew) stacked above "JEWISH CENTER" in the header brand mark
 - Every Chai Partner link site-wide should go directly to `/chai-partner` — no intermediate landing pages

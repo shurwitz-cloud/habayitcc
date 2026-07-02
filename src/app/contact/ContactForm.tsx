@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { submitContactForm } from './actions';
+import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 export function ContactForm() {
   const [form, setForm] = useState({
@@ -78,7 +79,7 @@ export function ContactForm() {
           I&apos;m interested in...
         </option>
         <option>Shabbat &amp; Synagogue</option>
-        <option>Hebrew School</option>
+        <option>{HEBREW_ADVENTURE_NAME}</option>
         <option>Bar / Bat Mitzvah</option>
         <option>Chai Partnership</option>
         <option>General Information</option>

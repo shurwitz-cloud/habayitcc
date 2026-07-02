@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
 import type Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,15 @@ export async function POST(req: NextRequest) {
 // ——— One-time donation payment intents ———
 
 async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
-  const { type, donation_type, donor_name, donor_email } = pi.metadata ?? {};
+  const {
+    type,
+    donation_type,
+    donor_name,
+    donor_email,
+    dedication_name,
+    dedication_type,
+    campaign,
+  } = pi.metadata ?? {};
 
   if (type !== 'donation' || donation_type !== 'one_time') return;
 
@@ -71,8 +80,11 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
       status: 'succeeded',
       family_id: null,
       phone: null,
-      dedication_name: null,
-      dedication_type: null,
+      dedication_name: dedication_name || null,
+      dedication_type:
+        dedication_type === 'honor' || dedication_type === 'memory'
+          ? dedication_type
+          : null,
     })
     .select('id')
     .single();
@@ -90,6 +102,20 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
     stripe_charge_id: typeof pi.latest_charge === 'string' ? pi.latest_charge : null,
     status: 'succeeded',
     paid_at: new Date().toISOString(),
+  });
+
+  void sendDonationReceiptEmailFromRecord({
+    email: donor_email ?? '',
+    firstName: firstName ?? '',
+    lastName: lastName ?? '',
+    amountDollars,
+    campaign: campaign || null,
+    dedicationName: dedication_name || null,
+    dedicationType:
+      dedication_type === 'honor' || dedication_type === 'memory'
+        ? dedication_type
+        : null,
+    donationType: 'One-Time',
   });
 }
 

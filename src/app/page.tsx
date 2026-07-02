@@ -4,6 +4,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { ProgramCard, ProgramTile } from '@/components/sections/ProgramCard';
+import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 export default function HomePage() {
   return (
@@ -16,15 +17,15 @@ export default function HomePage() {
         <Section background="white">
           <SectionTitle
             eyebrow=""
-            description="Whether you're looking for Hebrew School, preparing for a Bar or Bat Mitzvah, joining us for Shabbat, or simply searching for community, there's a place for you here."
+            description={`Whether you're looking for ${HEBREW_ADVENTURE_NAME}, preparing for a Bar or Bat Mitzvah, joining us for Shabbat, or simply searching for community, there's a place for you here.`}
           >
             Explore HaBayit
           </SectionTitle>
 
           <ProgramTile
-            href="/hebrew-school"
+            href={HEBREW_ADVENTURE_PATH}
             kicker="For Children & Families"
-            title="Hebrew School"
+            title={HEBREW_ADVENTURE_NAME}
             description="Joyful Jewish learning where children build skills, confidence, identity, and a love for being Jewish."
           />
 
@@ -73,9 +74,10 @@ export default function HomePage() {
           <SectionTitle eyebrow="">Upcoming at HaBayit</SectionTitle>
           <div className="grid md:grid-cols-3 border-t border-b border-line">
             <EventPreview
-              date="Coming Soon"
-              title="Hebrew School Open House"
+              date="Aug 4"
+              title={`${HEBREW_ADVENTURE_NAME} Meet & Greet`}
               description="Meet the team and learn about the year ahead."
+              href="/rsvp/hebrew-adventure"
             />
             <EventPreview
               date="Weekly"

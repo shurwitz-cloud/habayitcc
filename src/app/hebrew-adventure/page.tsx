@@ -3,11 +3,12 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section, SectionTitle } from '@/components/sections/Section';
+import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_REGISTER_PATH } from '@/lib/programs/names';
 
 export const metadata = {
-  title: 'Hebrew School – HaBayit Jewish Center',
+  title: `${HEBREW_ADVENTURE_NAME} – HaBayit Jewish Center`,
   description:
-    'Joyful Jewish education for children. HaBayit Hebrew School builds Hebrew literacy, holiday knowledge, and lifelong Jewish identity.',
+    `Joyful Jewish education for children. ${HEBREW_ADVENTURE_NAME} builds Hebrew literacy, holiday knowledge, and lifelong Jewish identity.`,
 };
 
 const PILLARS = [
@@ -23,7 +24,7 @@ export default function HebrewSchoolPage() {
 
       <main className="flex-1">
         <Hero kicker="Programs" minHeight="min-h-[56vh]" subtitle="Joyful Jewish learning where children build skills, confidence, and identity.">
-          Hebrew School
+          {HEBREW_ADVENTURE_NAME}
         </Hero>
 
         <Section background="white">
@@ -36,7 +37,7 @@ export default function HebrewSchoolPage() {
                 A place to learn, belong, and grow.
               </h2>
               <p className="mt-4 text-muted text-[1.02rem]">
-                HaBayit Hebrew School offers children a meaningful, age-appropriate Jewish
+                {HEBREW_ADVENTURE_NAME} offers children a meaningful, age-appropriate Jewish
                 education in a warm and supportive environment — Hebrew reading, holidays and
                 values, and genuine friendship, taught by caring, experienced educators.
               </p>
@@ -113,7 +114,7 @@ export default function HebrewSchoolPage() {
             <h2 className="text-[clamp(2.1rem,4vw,3.4rem)] font-bold">Ready to register?</h2>
             <p className="mt-2.5 text-white/70">Registration takes just a few minutes.</p>
             <Link
-              href="/hebrew-school/register"
+              href={HEBREW_ADVENTURE_REGISTER_PATH}
               className="inline-block mt-7 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
             >
               Begin Registration

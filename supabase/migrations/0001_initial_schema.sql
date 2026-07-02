@@ -315,6 +315,6 @@ create index idx_staff_notes_notable on staff_notes(notable_type, notable_id);
 -- SEED DATA: initial program records
 -- ============================================================
 insert into programs (slug, name, description) values
-  ('hebrew-school', 'Hebrew School', 'Joyful Jewish education for children, Sundays 10am-12pm'),
+  ('hebrew-adventure', 'HaBayit Hebrew Adventure', 'Joyful Jewish education for children, Sundays 10am-12pm'),
   ('bar-mitzvah-club', 'Bar Mitzvah Club (HaBayit BMX)', 'For 7th grade boys'),
   ('bat-mitzvah-club', 'Bat Mitzvah Club (HaBayit Bloom)', 'For 6th grade girls');

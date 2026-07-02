@@ -44,8 +44,14 @@ export async function POST(req: NextRequest) {
 // ——— One-time donation payment intents ———
 
 async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
+  const { type } = pi.metadata ?? {};
+
+  if (type === 'hebrew_adventure_tuition') {
+    await handleHebrewAdventureTuitionPayment(pi);
+    return;
+  }
+
   const {
-    type,
     donation_type,
     donor_name,
     donor_email,
@@ -117,6 +123,53 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
         : null,
     donationType: 'One-Time',
   });
+}
+
+async function handleHebrewAdventureTuitionPayment(pi: Stripe.PaymentIntent) {
+  const supabase = createAdminClient();
+  const installment = pi.metadata?.installment;
+  const familyId = pi.metadata?.family_id;
+
+  if (!installment || !familyId) return;
+
+  const amountDollars = pi.amount / 100;
+  const paidAt = new Date().toISOString();
+
+  await supabase
+    .from('tuition_installments')
+    .update({
+      status: 'paid',
+      stripe_payment_intent_id: pi.id,
+      paid_at: paidAt,
+    })
+    .eq('family_id', familyId)
+    .eq('installment_number', parseInt(installment, 10));
+
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('stripe_payment_intent_id', pi.id);
+
+  if (payments?.length) return;
+
+  const { data: reg } = await supabase
+    .from('program_registrations')
+    .select('id')
+    .eq('family_id', familyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (reg) {
+    await supabase.from('payments').insert({
+      source_type: 'program_registration',
+      source_id: reg.id,
+      amount: amountDollars,
+      stripe_payment_intent_id: pi.id,
+      stripe_charge_id: typeof pi.latest_charge === 'string' ? pi.latest_charge : null,
+      status: 'succeeded',
+      paid_at: paidAt,
+    });
+  }
 }
 
 // ——— Recurring subscription payments ———

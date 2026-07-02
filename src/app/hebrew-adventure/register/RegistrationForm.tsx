@@ -1,8 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { submitHebrewSchoolRegistration, type ChildInput, type RegistrationInput } from './actions';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+import {
+  HebrewAdventurePaymentSetup,
+  type HebrewAdventurePaymentSetupHandle,
+} from '@/components/stripe/HebrewAdventurePaymentSetup';
+import {
+  getHebrewAdventureSessionTuition,
+  getHebrewAdventureSiblingDiscount,
+  getHebrewAdventureCardProcessingFee,
+  getHebrewAdventureGrandTotal,
+  getHebrewAdventureInstallmentAmounts,
+  HEBREW_ADVENTURE_CHAI_DISCOUNT,
+  HEBREW_ADVENTURE_MONTHLY_TUITION,
+  HEBREW_ADVENTURE_SESSION_MONTHS,
+  HEBREW_ADVENTURE_CARD_PROCESSING_RATE,
+  type HebrewAdventurePaymentPlan,
+  type HebrewAdventurePaymentMethod,
+} from '@/lib/programs/hebrew-adventure-tuition';
 
 const emptyChild: ChildInput = {
   firstName: '',
@@ -33,14 +50,19 @@ export function RegistrationForm() {
   const [emergency, setEmergency] = useState({ contact: '', phone: '' });
   const [isChaiPartner, setIsChaiPartner] = useState(false);
   const [chaiCode, setChaiCode] = useState('');
-  const [paymentPlan, setPaymentPlan] = useState<'full' | 'two_installments' | ''>('');
+  const [paymentPlan, setPaymentPlan] = useState<HebrewAdventurePaymentPlan | ''>('');
+  const [paymentMethod, setPaymentMethod] = useState<HebrewAdventurePaymentMethod | ''>('');
   const [agreedPolicies, setAgreedPolicies] = useState(false);
-  const [agreedPhoto, setAgreedPhoto] = useState(false);
   const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const paymentSetupRef = useRef<HebrewAdventurePaymentSetupHandle>(null);
+
+  const handlePaymentSetupError = useCallback((message: string) => {
+    setSubmitError(message);
+  }, []);
 
   function updateChild(index: number, field: keyof ChildInput, value: string) {
     setChildren((prev) => {
@@ -58,12 +80,18 @@ export function RegistrationForm() {
     setChildren((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function calculateTuitionSubtotal() {
+    const base = getHebrewAdventureSessionTuition(isChaiPartner);
+    return children.reduce((total, _, i) => total + (base - getHebrewAdventureSiblingDiscount(i)), 0);
+  }
+
   function calculateTotal() {
-    const base = isChaiPartner ? 1000 : 1100;
-    return children.reduce((total, _, i) => {
-      const discount = i === 1 ? 50 : i >= 2 ? 75 : 0;
-      return total + (base - discount);
-    }, 0);
+    if (!paymentMethod) return calculateTuitionSubtotal();
+    return getHebrewAdventureGrandTotal(calculateTuitionSubtotal(), paymentMethod);
+  }
+
+  function formatCurrency(amount: number) {
+    return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -76,6 +104,36 @@ export function RegistrationForm() {
     }
     if (!paymentPlan) {
       setSubmitError('Please select a payment plan.');
+      return;
+    }
+    if (!paymentMethod) {
+      setSubmitError('Please select a payment method.');
+      return;
+    }
+    if (!parent1.email.trim()) {
+      setSubmitError('Please enter Parent / Guardian 1 email.');
+      return;
+    }
+    if (
+      motherStatus === 'jewish_by_conversion' &&
+      (!motherConversionOrg.trim() || !motherConversionRabbi.trim())
+    ) {
+      setSubmitError('Please enter the mother\'s conversion Beit Din / organization and certifying rabbi.');
+      return;
+    }
+    if (
+      fatherStatus === 'jewish_by_conversion' &&
+      (!fatherConversionOrg.trim() || !fatherConversionRabbi.trim())
+    ) {
+      setSubmitError('Please enter the father\'s conversion Beit Din / organization and certifying rabbi.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    const stripeSetupIntentId = await paymentSetupRef.current?.confirmSetup();
+    if (!stripeSetupIntentId) {
+      setSubmitting(false);
       return;
     }
 
@@ -104,12 +162,12 @@ export function RegistrationForm() {
       isChaiPartner,
       chaiPartnerCode: chaiCode,
       paymentPlan,
+      paymentMethod,
+      stripeSetupIntentId,
       agreedToPolicies: agreedPolicies,
-      agreedToPhotoPermission: agreedPhoto,
       notes,
     };
 
-    setSubmitting(true);
     const result = await submitHebrewSchoolRegistration(input);
     setSubmitting(false);
 
@@ -125,8 +183,8 @@ export function RegistrationForm() {
       <div className="max-w-[600px] mx-auto text-center py-20">
         <h2 className="text-[2.2rem] text-navy font-bold mb-4">Thank you!</h2>
         <p className="text-muted">
-          Your {HEBREW_ADVENTURE_NAME} registration has been submitted. Once it&apos;s reviewed, you&apos;ll
-          receive a confirmation email with next steps, including payment.
+          Your {HEBREW_ADVENTURE_NAME} registration has been submitted. Your payment method is on
+          file — you will not be charged until your registration is reviewed and accepted.
         </p>
       </div>
     );
@@ -184,7 +242,11 @@ export function RegistrationForm() {
             </Field>
           </div>
           <div className="mb-4">
-            <Field label="Was your child born before or after sunset?" hint="(for Hebrew birthday)" required>
+            <Field
+              label="Was your child born before or after sunset?"
+              hint="Jewish days begin at sunset — needed for an accurate Hebrew birthday"
+              required
+            >
               <select
                 value={child.bornBeforeSunset}
                 onChange={(e) =>
@@ -360,17 +422,30 @@ export function RegistrationForm() {
         <div className="grid md:grid-cols-2 gap-4.5 mb-5">
           <div className="bg-soft border border-line rounded-[18px] p-5.5">
             <span className="text-gold text-[0.74rem] font-extrabold uppercase tracking-wider">
-              Annual Tuition
+              Tuition
             </span>
-            <div className="text-[2.2rem] text-navy font-extrabold leading-none">$1,100</div>
-            <div className="text-muted text-[0.85rem]">per student</div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-[2.2rem] text-navy font-extrabold leading-none">
+                ${HEBREW_ADVENTURE_MONTHLY_TUITION}
+              </span>
+              <span className="text-[1rem] font-bold text-gold uppercase tracking-[0.12em] leading-none">
+                / month
+              </span>
+            </div>
+            <div className="text-muted text-[0.85rem] mt-2">
+              {HEBREW_ADVENTURE_SESSION_MONTHS}-month program
+            </div>
           </div>
-          <div className="bg-soft border border-line rounded-[18px] p-5.5">
+          <div className="bg-soft border border-gold rounded-[18px] p-5.5">
             <span className="text-gold text-[0.74rem] font-extrabold uppercase tracking-wider">
-              Chai Partner Tuition
+              Chai Partner Benefit
             </span>
-            <div className="text-[2.2rem] text-navy font-extrabold leading-none">$1,000</div>
-            <div className="text-muted text-[0.85rem]">with a valid discount code</div>
+            <div className="text-[2.2rem] text-navy font-extrabold leading-none">
+              ${HEBREW_ADVENTURE_CHAI_DISCOUNT} off
+            </div>
+            <div className="text-muted text-[0.85rem]">
+              for HaBayit Chai Partners with a valid code
+            </div>
           </div>
         </div>
 
@@ -385,7 +460,7 @@ export function RegistrationForm() {
             <span className="text-[1rem] font-bold text-navy">
               I am a HaBayit Chai Partner
               <span className="block text-muted text-[0.9rem] font-normal mt-0.5">
-                Chai Partners receive the discounted $1,000 tuition rate with a valid code.{' '}
+                HaBayit Chai Partners receive ${HEBREW_ADVENTURE_CHAI_DISCOUNT} off with a valid code.{' '}
                 <a href="/chai-partner" className="text-gold font-semibold">
                   Become a Chai Partner
                 </a>
@@ -405,7 +480,7 @@ export function RegistrationForm() {
           )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4 mt-5">
+        <div className="grid md:grid-cols-3 gap-4 mt-5">
           <PaymentOption
             selected={paymentPlan === 'full'}
             onSelect={() => setPaymentPlan('full')}
@@ -416,7 +491,35 @@ export function RegistrationForm() {
             selected={paymentPlan === 'two_installments'}
             onSelect={() => setPaymentPlan('two_installments')}
             title="Two-Payment Plan"
-            description="50% upon acceptance. Balance charged January 1."
+            description="Upon acceptance and December 1."
+          />
+          <PaymentOption
+            selected={paymentPlan === 'three_installments'}
+            onSelect={() => setPaymentPlan('three_installments')}
+            title="Three-Payment Plan"
+            description="Upon acceptance, November 1, and December 1."
+          />
+        </div>
+
+        <p className="text-[0.78rem] font-bold uppercase tracking-wide text-navy mt-6 mb-3">
+          Payment Method
+        </p>
+        <p className="text-muted text-[0.85rem] mb-3">
+          Choose bank or card below — the matching secure Stripe fields appear right away. Nothing
+          is charged until your registration is accepted.
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <PaymentOption
+            selected={paymentMethod === 'bank'}
+            onSelect={() => setPaymentMethod('bank')}
+            title="Bank Account (ACH)"
+            description="No extra fee. Pay directly from your bank via Stripe."
+          />
+          <PaymentOption
+            selected={paymentMethod === 'card'}
+            onSelect={() => setPaymentMethod('card')}
+            title="Credit Card"
+            description={`${HEBREW_ADVENTURE_CARD_PROCESSING_RATE * 100}% processing fee added to tuition.`}
           />
         </div>
 
@@ -425,8 +528,8 @@ export function RegistrationForm() {
             Estimated Tuition Summary
           </p>
           {children.map((_, i) => {
-            const base = isChaiPartner ? 1000 : 1100;
-            const discount = i === 1 ? 50 : i >= 2 ? 75 : 0;
+            const base = getHebrewAdventureSessionTuition(isChaiPartner);
+            const discount = getHebrewAdventureSiblingDiscount(i);
             return (
               <div key={i} className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
                 <span>
@@ -437,16 +540,65 @@ export function RegistrationForm() {
               </div>
             );
           })}
+          {paymentMethod === 'card' && (
+            <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
+              <span>Card processing fee ({HEBREW_ADVENTURE_CARD_PROCESSING_RATE * 100}%)</span>
+              <strong className="tabular-nums">
+                +${formatCurrency(getHebrewAdventureCardProcessingFee(calculateTuitionSubtotal(), 'card'))}
+              </strong>
+            </div>
+          )}
+          {paymentPlan && paymentMethod && (
+            <div className="py-2.5 border-b border-black/[0.06] text-muted text-[0.88rem]">
+              <span className="block font-semibold text-navy mb-1.5">Payment schedule</span>
+              {getHebrewAdventureInstallmentAmounts(
+                calculateTuitionSubtotal(),
+                paymentMethod,
+                paymentPlan
+              ).map((amount, i, arr) => (
+                <div key={i} className="flex justify-between py-0.5">
+                  <span>
+                    Payment {i + 1} of {arr.length}
+                    {paymentPlan === 'full'
+                      ? ' — upon acceptance'
+                      : i === 0
+                        ? ' — upon acceptance'
+                        : paymentPlan === 'two_installments'
+                          ? ' — December 1'
+                          : i === 1
+                            ? ' — November 1'
+                            : ' — December 1'}
+                  </span>
+                  <strong className="tabular-nums">${formatCurrency(amount)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex justify-between pt-3.5 font-black text-navy text-[1.1rem]">
-            <span>Estimated Total</span>
-            <strong className="tabular-nums">${calculateTotal().toLocaleString()}</strong>
+            <span>{paymentMethod === 'card' ? 'Estimated Total (incl. fee)' : 'Estimated Total'}</span>
+            <strong className="tabular-nums">${formatCurrency(calculateTotal())}</strong>
           </div>
         </div>
+
+        {paymentMethod && (
+          <div className="mt-5 border border-line rounded-[18px] p-5 bg-white">
+            <HebrewAdventurePaymentSetup
+              ref={paymentSetupRef}
+              email={parent1.email}
+              name={`${parent1.firstName} ${parent1.lastName}`.trim()}
+              paymentMethod={paymentMethod}
+              onError={handlePaymentSetupError}
+            />
+            <p className="text-center text-[0.75rem] text-muted mt-4">
+              Secured by Stripe. HaBayit never stores your full account or card numbers.
+            </p>
+          </div>
+        )}
       </FormSection>
 
       {/* Policies */}
       <FormSection title="Policies & Agreement">
-        <div className="h-[230px] overflow-auto border border-line rounded-2xl p-4.5 bg-soft text-[0.9rem] space-y-3.5">
+        <div className="border border-line rounded-2xl p-4.5 bg-soft text-[0.9rem] space-y-3.5">
           <PolicyBlock title="Enrollment">
             Registration is considered complete once all required forms have been submitted and
             your child&apos;s registration has been accepted. Enrollment is for the full school
@@ -454,7 +606,9 @@ export function RegistrationForm() {
           </PolicyBlock>
           <PolicyBlock title="Tuition & Payments">
             Tuition is non-refundable once registration has been accepted. Your selected payment
-            method will be charged according to the payment option selected. Your card will not be
+            method (credit card or bank account) will be charged according to the payment plan
+            selected. A {HEBREW_ADVENTURE_CARD_PROCESSING_RATE * 100}% processing fee applies to
+            credit card payments only; bank (ACH) payments have no extra fee. You will not be
             charged until registration has been reviewed and accepted.
           </PolicyBlock>
           <PolicyBlock title="Attendance">
@@ -473,7 +627,7 @@ export function RegistrationForm() {
           </PolicyBlock>
         </div>
 
-        <div className="space-y-3.5 mt-5">
+        <div className="mt-5">
           <label className="flex items-start gap-2.5 text-[0.95rem]">
             <input
               type="checkbox"
@@ -483,16 +637,6 @@ export function RegistrationForm() {
               required
             />
             I have read and agree to the {HEBREW_ADVENTURE_NAME} Policies above.
-          </label>
-          <label className="flex items-start gap-2.5 text-[0.95rem]">
-            <input
-              type="checkbox"
-              checked={agreedPhoto}
-              onChange={(e) => setAgreedPhoto(e.target.checked)}
-              className="mt-1"
-            />
-            I give permission for my child(ren) to be photographed for HaBayit publications,
-            social media, and our website.
           </label>
         </div>
 
@@ -508,9 +652,9 @@ export function RegistrationForm() {
         </div>
       </FormSection>
 
-      <div className="bg-[#fff8e6] border border-[#ead8a4] text-[#5c4916] rounded-2xl px-5 py-4 font-semibold">
-        <strong>Note:</strong> Payment collection will be set up once Stripe is connected — your
-        registration is fully recorded now and you&apos;ll be contacted with payment details.
+      <div className="bg-soft border border-line text-muted rounded-2xl px-5 py-4 text-[0.9rem]">
+        Complete the payment section above, then submit. Stripe saves your card or bank account
+        securely; charges begin only after we accept your registration.
       </div>
 
       {submitError && (
@@ -604,11 +748,11 @@ function StatusBox({
       </Field>
       {status === 'jewish_by_conversion' && (
         <div className="mt-3.5 space-y-3.5">
-          <Field label="Beit Din">
-            <input value={org} onChange={(e) => onOrgChange(e.target.value)} />
+          <Field label="Conversion Beit Din / Organization" required>
+            <input value={org} onChange={(e) => onOrgChange(e.target.value)} required />
           </Field>
-          <Field label="Rabbi Who Certified">
-            <input value={rabbi} onChange={(e) => onRabbiChange(e.target.value)} />
+          <Field label="Certifying Rabbi" required>
+            <input value={rabbi} onChange={(e) => onRabbiChange(e.target.value)} required />
           </Field>
         </div>
       )}

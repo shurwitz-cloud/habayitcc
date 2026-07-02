@@ -4,6 +4,11 @@ import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_REGISTER_PATH } from '@/lib/programs/names';
+import {
+  HEBREW_ADVENTURE_CHAI_DISCOUNT,
+  HEBREW_ADVENTURE_MONTHLY_TUITION,
+  HEBREW_ADVENTURE_SESSION_MONTHS,
+} from '@/lib/programs/hebrew-adventure-tuition';
 
 export const metadata = {
   title: `${HEBREW_ADVENTURE_NAME} – HaBayit Jewish Center`,
@@ -44,14 +49,19 @@ export default function HebrewSchoolPage() {
               <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
                 📅 Classes meet every Sunday, 10:00 AM – 12:00 PM.
               </div>
+              <Link
+                href={HEBREW_ADVENTURE_REGISTER_PATH}
+                className="inline-block mt-8 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
+              >
+                Begin Registration
+              </Link>
             </div>
-            <div
-              className="relative min-h-[340px] rounded-[18px] overflow-hidden"
-              style={{ background: 'linear-gradient(135deg,#d8c9a8,#8aa0b0)' }}
-            >
-              <span className="absolute inset-0 grid place-items-center text-white/85 text-[0.72rem] tracking-[0.2em] uppercase font-bold">
-                Photography Coming Soon
-              </span>
+            <div className="rounded-[18px] overflow-hidden border border-line shadow-sm bg-black">
+              <img
+                src="/flyers/hebrew-adventure.png"
+                alt={`${HEBREW_ADVENTURE_NAME} program flyer`}
+                className="w-full h-auto block"
+              />
             </div>
           </div>
         </Section>
@@ -73,9 +83,17 @@ export default function HebrewSchoolPage() {
           <div className="grid md:grid-cols-2 gap-6.5">
             <div className="bg-soft border border-line rounded-[18px] p-8.5">
               <h3 className="text-[1.25rem] text-navy font-bold">Standard Tuition</h3>
-              <div className="text-[2.6rem] font-extrabold text-navy mt-3.5 mb-1">
-                $1,100<span className="text-[0.95rem] text-muted font-medium"> / year</span>
+              <div className="flex items-baseline gap-2.5 mt-3.5 mb-1">
+                <span className="text-[2.6rem] font-extrabold text-navy leading-none">
+                  ${HEBREW_ADVENTURE_MONTHLY_TUITION}
+                </span>
+                <span className="text-[1.15rem] font-bold text-gold uppercase tracking-[0.12em] leading-none">
+                  / month
+                </span>
               </div>
+              <p className="text-muted text-[0.88rem] mb-4">
+                {HEBREW_ADVENTURE_SESSION_MONTHS}-month program per student
+              </p>
               <ul className="mt-4 space-y-2">
                 <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">
                   Full school year of classes
@@ -87,12 +105,15 @@ export default function HebrewSchoolPage() {
             </div>
             <div className="bg-soft border border-gold rounded-[18px] p-8.5 relative">
               <span className="absolute -top-3 left-7 bg-gold text-white text-[0.62rem] font-bold tracking-wider px-3.5 py-1 rounded-full">
-                CHAI PARTNER RATE
+                CHAI PARTNER BENEFIT
               </span>
-              <h3 className="text-[1.25rem] text-navy font-bold">Chai Partner Tuition</h3>
+              <h3 className="text-[1.25rem] text-navy font-bold">HaBayit Chai Partners</h3>
               <div className="text-[2.6rem] font-extrabold text-navy mt-3.5 mb-1">
-                $1,000<span className="text-[0.95rem] text-muted font-medium"> / year</span>
+                ${HEBREW_ADVENTURE_CHAI_DISCOUNT} off
               </div>
+              <p className="text-muted text-[0.88rem] mb-4">
+                with a valid HaBayit Chai Partner code
+              </p>
               <ul className="mt-4 space-y-2">
                 <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">
                   Full school year of classes
@@ -106,19 +127,6 @@ export default function HebrewSchoolPage() {
           <div className="bg-cream border-l-[3px] border-gold rounded-r-[12px] p-4.5 mt-6 text-[0.88rem] text-muted">
             Sibling discount: 2nd child receives $50 off, 3rd and additional children receive $75
             off each.
-          </div>
-        </Section>
-
-        <Section background="navy">
-          <div className="text-center">
-            <h2 className="text-[clamp(2.1rem,4vw,3.4rem)] font-bold">Ready to register?</h2>
-            <p className="mt-2.5 text-white/70">Registration takes just a few minutes.</p>
-            <Link
-              href={HEBREW_ADVENTURE_REGISTER_PATH}
-              className="inline-block mt-7 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
-            >
-              Begin Registration
-            </Link>
           </div>
         </Section>
       </main>

@@ -12,9 +12,14 @@ export default function HomePage() {
       <Header />
 
       <main className="flex-1">
-        <Hero minHeight="min-h-[78vh]">Welcome to HaBayit</Hero>
+        <Hero
+          minHeight="min-h-[78vh]"
+          subtitle="A warm Jewish home in Cooper City with an Israeli spirit."
+        >
+          Welcome to HaBayit
+        </Hero>
 
-        <Section background="white">
+        <Section id="programs" background="white" className="scroll-mt-[88px]">
           <SectionTitle
             eyebrow=""
             description={`Whether you're looking for ${HEBREW_ADVENTURE_NAME}, preparing for a Bar or Bat Mitzvah, joining us for Shabbat, or simply searching for community, there's a place for you here.`}

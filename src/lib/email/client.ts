@@ -24,8 +24,7 @@ export function getAdminEmail(): string {
 export function getSiteUrl(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (url) return url.replace(/\/$/, '');
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
+  return 'https://habayitcc.org';
 }
 
 export interface SendEmailInput {
@@ -63,6 +62,24 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   }
 }
 
+function emailHeaderHtml(): string {
+  const logoUrl = `${getSiteUrl()}/logos/habayit-logo-white.png`;
+
+  return `<table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="80" align="left" valign="middle" style="padding:0;">
+              <img src="${logoUrl}" alt="HaBayit" width="64" height="56" style="display:block;width:64px;height:56px;border:0;" />
+            </td>
+            <td align="center" valign="middle" style="color:#b8902a;font-size:12px;font-weight:bold;letter-spacing:0.14em;text-transform:uppercase;line-height:1.4;padding:10px 8px 0 8px;">
+              HaBayit Israeli Jewish Center
+            </td>
+            <td width="72" align="right" valign="top" style="color:#b8902a;font-size:15px;font-family:Georgia,'Times New Roman',serif;line-height:1;padding:0;">
+              ב&quot;ה
+            </td>
+          </tr>
+        </table>`;
+}
+
 function emailShell(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -71,8 +88,8 @@ function emailShell(content: string): string {
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f3ea;padding:32px 16px;">
     <tr><td align="center">
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e4ded2;border-radius:12px;overflow:hidden;">
-        <tr><td style="background:#172643;padding:20px 28px;">
-          <div style="color:#b8902a;font-size:11px;font-weight:bold;letter-spacing:0.14em;text-transform:uppercase;">HaBayit Israeli Jewish Center</div>
+        <tr><td style="background:#172643;padding:18px 24px;">
+          ${emailHeaderHtml()}
         </td></tr>
         <tr><td style="padding:28px;">${content}</td></tr>
         <tr><td style="padding:16px 28px 24px;border-top:1px solid #e4ded2;text-align:center;font-size:12px;color:#6f6a60;line-height:1.6;">

@@ -3,6 +3,13 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { hebrewAdventureRow } from '@/lib/google/sheets';
 import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
+import { stripe } from '@/lib/stripe/server';
+import {
+  getHebrewAdventureSessionTuition,
+  getHebrewAdventureSiblingDiscount,
+  type HebrewAdventurePaymentPlan,
+  type HebrewAdventurePaymentMethod,
+} from '@/lib/programs/hebrew-adventure-tuition';
 
 export interface ChildInput {
   firstName: string;
@@ -41,9 +48,10 @@ export interface RegistrationInput {
   children: ChildInput[];
   isChaiPartner: boolean;
   chaiPartnerCode: string;
-  paymentPlan: 'full' | 'two_installments' | '';
+  paymentPlan: HebrewAdventurePaymentPlan | '';
+  paymentMethod: HebrewAdventurePaymentMethod | '';
+  stripeSetupIntentId: string;
   agreedToPolicies: boolean;
-  agreedToPhotoPermission: boolean;
   notes: string;
 }
 
@@ -54,16 +62,8 @@ export interface RegistrationResult {
 
 /**
  * Submits a HaBayit Hebrew Adventure registration. Validates the Chai Partner
- * access code against the chai_partners table before applying the
- * discounted rate, then writes a family + parents + children +
- * program_registrations record set to Supabase.
- *
- * NOTE: card collection is intentionally NOT handled here. Per the
- * architecture decision to use embedded Stripe Elements, actual
- * payment collection will be wired in a follow-up phase once Stripe
- * is connected. This action currently records the registration and
- * payment *intent* (plan selected, tuition calculated) so the
- * registration flow is fully testable before Stripe goes live.
+ * access code, verifies a saved Stripe payment method (SetupIntent), then
+ * writes family + registration records. Tuition is charged upon acceptance.
  */
 export async function submitHebrewSchoolRegistration(
   input: RegistrationInput
@@ -84,6 +84,94 @@ export async function submitHebrewSchoolRegistration(
       }
     }
 
+    if (
+      input.motherStatus === 'jewish_by_conversion' &&
+      (!input.motherConversionOrg.trim() || !input.motherConversionRabbi.trim())
+    ) {
+      return {
+        success: false,
+        error: 'Please enter the mother\'s conversion Beit Din / organization and certifying rabbi.',
+      };
+    }
+
+    if (
+      input.fatherStatus === 'jewish_by_conversion' &&
+      (!input.fatherConversionOrg.trim() || !input.fatherConversionRabbi.trim())
+    ) {
+      return {
+        success: false,
+        error: 'Please enter the father\'s conversion Beit Din / organization and certifying rabbi.',
+      };
+    }
+
+    if (!input.paymentPlan) {
+      return { success: false, error: 'Please select a payment plan.' };
+    }
+    if (!input.paymentMethod) {
+      return { success: false, error: 'Please select a payment method.' };
+    }
+    if (!input.stripeSetupIntentId?.trim()) {
+      return { success: false, error: 'Please enter your payment details.' };
+    }
+
+    const setupIntent = await stripe.setupIntents.retrieve(input.stripeSetupIntentId);
+    if (setupIntent.status !== 'succeeded') {
+      return { success: false, error: 'Payment method was not saved. Please try again.' };
+    }
+
+    const parentEmail = input.parent1Email.trim().toLowerCase();
+    if (!parentEmail) {
+      return { success: false, error: 'Parent email is required.' };
+    }
+
+    const setupEmail = setupIntent.metadata?.email?.toLowerCase();
+    if (setupEmail && setupEmail !== parentEmail) {
+      return { success: false, error: 'Payment verification failed. Please try again.' };
+    }
+
+    const stripePaymentMethodId =
+      typeof setupIntent.payment_method === 'string'
+        ? setupIntent.payment_method
+        : setupIntent.payment_method?.id ?? null;
+
+    if (!stripePaymentMethodId) {
+      return { success: false, error: 'Payment method could not be verified.' };
+    }
+
+    let stripeCustomerId =
+      typeof setupIntent.customer === 'string'
+        ? setupIntent.customer
+        : setupIntent.customer?.id ?? null;
+
+    const customerMetadata = {
+      source: 'hebrew_adventure_registration',
+      payment_plan: input.paymentPlan,
+      payment_method_preference: input.paymentMethod,
+    };
+    const customerName = `${input.parent1FirstName} ${input.parent1LastName}`.trim() || undefined;
+
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: parentEmail,
+        name: customerName,
+        metadata: customerMetadata,
+      });
+      stripeCustomerId = customer.id;
+      await stripe.paymentMethods.attach(stripePaymentMethodId, { customer: stripeCustomerId });
+    }
+
+    await stripe.customers.update(stripeCustomerId, {
+      email: parentEmail,
+      name: customerName,
+      invoice_settings: { default_payment_method: stripePaymentMethodId },
+      metadata: customerMetadata,
+    });
+
+    const paymentMethodNote =
+      input.paymentMethod === 'card'
+        ? 'Payment method: Credit card (+3% processing fee)'
+        : 'Payment method: Bank account (ACH, no fee)';
+
     // Create the family record
     const { data: family, error: familyError } = await supabase
       .from('families')
@@ -93,6 +181,9 @@ export async function submitHebrewSchoolRegistration(
         city: input.city,
         state: input.state,
         zip: input.zip,
+        stripe_customer_id: stripeCustomerId,
+        stripe_payment_method_id: stripePaymentMethodId,
+        payment_method_preference: input.paymentMethod,
       })
       .select()
       .single();
@@ -161,8 +252,8 @@ export async function submitHebrewSchoolRegistration(
 
       if (childError || !childRow) continue;
 
-      const baseTuition = input.isChaiPartner ? 1000 : 1100;
-      const discount = i === 1 ? 50 : i >= 2 ? 75 : 0;
+      const baseTuition = getHebrewAdventureSessionTuition(input.isChaiPartner);
+      const discount = getHebrewAdventureSiblingDiscount(i);
       const tuitionTotal = baseTuition - discount;
 
       await supabase.from('program_registrations').insert({
@@ -175,6 +266,7 @@ export async function submitHebrewSchoolRegistration(
         chai_partner_code_used: input.isChaiPartner ? input.chaiPartnerCode : null,
         payment_plan: input.paymentPlan || 'full',
         tuition_total: tuitionTotal,
+        notes: paymentMethodNote,
       });
     }
 
@@ -204,8 +296,8 @@ export async function submitHebrewSchoolRegistration(
       emergencyPhone: input.emergencyPhone,
       isChaiPartner: input.isChaiPartner,
       chaiCode: input.chaiPartnerCode,
-      paymentPlan: input.paymentPlan,
-      notes: input.notes,
+      paymentPlan: `${input.paymentPlan} (${input.paymentMethod === 'card' ? 'card +3%' : 'bank'})`,
+      notes: [paymentMethodNote, input.notes].filter(Boolean).join('\n\n'),
       children: input.children.map((c) => ({
         firstName: c.firstName,
         lastName: c.lastName,

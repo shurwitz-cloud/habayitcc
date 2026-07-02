@@ -5,6 +5,7 @@ interface SectionProps {
   className?: string;
   background?: 'cream' | 'white' | 'soft' | 'navy';
   narrow?: boolean;
+  id?: string;
 }
 
 const backgroundClasses = {
@@ -25,9 +26,10 @@ export function Section({
   className = '',
   background = 'cream',
   narrow = false,
+  id,
 }: SectionProps) {
   return (
-    <section className={`py-16 md:py-[88px] px-[5.5vw] ${backgroundClasses[background]} ${className}`}>
+    <section id={id} className={`py-16 md:py-[88px] px-[5.5vw] ${backgroundClasses[background]} ${className}`}>
       <div className={narrow ? 'max-w-[780px] mx-auto text-center' : 'max-w-[1180px] mx-auto'}>
         {children}
       </div>

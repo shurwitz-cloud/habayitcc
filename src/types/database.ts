@@ -15,6 +15,9 @@ export interface Family {
   state: string | null;
   zip: string | null;
   notes: string | null;
+  stripe_customer_id: string | null;
+  stripe_payment_method_id: string | null;
+  payment_method_preference: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,7 +71,7 @@ export interface Program {
 }
 
 export type RegistrationStatus = 'pending' | 'accepted' | 'active' | 'withdrawn';
-export type PaymentPlan = 'full' | 'two_installments' | 'custom';
+export type PaymentPlan = 'full' | 'two_installments' | 'three_installments' | 'custom';
 
 export interface ProgramRegistration {
   [key: string]: unknown;
@@ -167,6 +170,19 @@ export interface Payment {
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
   status: PaymentStatus;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export interface TuitionInstallment {
+  [key: string]: unknown;
+  id: string;
+  family_id: string;
+  installment_number: number;
+  amount: number;
+  due_date: string;
+  status: string;
+  stripe_payment_intent_id: string | null;
   paid_at: string | null;
   created_at: string;
 }
@@ -275,6 +291,11 @@ export interface Database {
         Update: Partial<Insertable<ChaiPartner>>;
       };
       payments: { Row: Payment; Insert: Insertable<Payment>; Update: Partial<Insertable<Payment>> };
+      tuition_installments: {
+        Row: TuitionInstallment;
+        Insert: Insertable<TuitionInstallment>;
+        Update: Partial<Insertable<TuitionInstallment>>;
+      };
       contacts: { Row: Contact; Insert: Insertable<Contact>; Update: Partial<Insertable<Contact>> };
       email_subscribers: {
         Row: EmailSubscriber;

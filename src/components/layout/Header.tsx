@@ -27,26 +27,29 @@ export function Header() {
           <Image
             src="/logos/habayit-logo-blue.png"
             alt="HaBayit logo"
-            width={58}
+            width={66}
             height={58}
             className="h-[58px] w-auto"
           />
-          <div className="flex flex-col leading-tight">
-            <span className="heb text-[1.45rem] font-bold text-navy">הבית</span>
-            <span className="text-[0.68rem] tracking-[0.2em] uppercase text-gold font-bold">
+          <div className="flex flex-col items-center text-center leading-[1.1]">
+            <span className="heb text-[1.36rem] font-bold text-navy">הבית</span>
+            <span className="text-[0.64rem] tracking-[0.16em] uppercase text-gold font-bold">
+              Israeli
+            </span>
+            <span className="text-[0.64rem] tracking-[0.16em] uppercase text-navy font-bold whitespace-nowrap">
               Jewish Center
             </span>
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-[30px] text-[0.78rem] uppercase tracking-wider text-navy font-semibold">
+        <nav className="hidden md:flex items-center gap-[30px] pt-1.5 text-[0.78rem] uppercase tracking-wider text-navy font-semibold">
           <Link href="/" className="hover:text-gold">
             Home
           </Link>
           <Link href="/about" className="hover:text-gold">
             About
           </Link>
-          <NavDropdown label="Programs" links={PROGRAMS_LINKS} />
+          <NavDropdown label="Programs" links={PROGRAMS_LINKS} href="/#programs" />
           <Link href="/synagogue" className="hover:text-gold">
             Synagogue
           </Link>
@@ -56,18 +59,34 @@ export function Header() {
           <Link href="/contact" className="hover:text-gold">
             Contact
           </Link>
-          <NavDropdown label="Donate" links={DONATE_LINKS} href="/donate" />
+          <div className="relative">
+            <span
+              className="heb absolute -top-4 right-0 text-[0.92rem] font-bold text-gold leading-none normal-case tracking-normal"
+              aria-hidden="true"
+            >
+              ב״ה
+            </span>
+            <NavDropdown label="Donate" links={DONATE_LINKS} href="/donate" />
+          </div>
         </nav>
 
-        <button
-          className="md:hidden flex flex-col gap-1.5 p-1.5"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Menu"
-        >
-          <span className="block w-6 h-0.5 bg-navy" />
-          <span className="block w-6 h-0.5 bg-navy" />
-          <span className="block w-6 h-0.5 bg-navy" />
-        </button>
+        <div className="md:hidden inline-flex flex-col items-center gap-0.5 pt-1.5">
+          <span
+            className="heb text-[0.92rem] font-bold text-gold leading-none text-center"
+            aria-hidden="true"
+          >
+            ב״ה
+          </span>
+          <button
+            className="flex flex-col items-center gap-1.5 p-1.5"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Menu"
+          >
+            <span className="block w-6 h-0.5 bg-navy" />
+            <span className="block w-6 h-0.5 bg-navy" />
+            <span className="block w-6 h-0.5 bg-navy" />
+          </button>
+        </div>
       </header>
 
       {mobileOpen && (
@@ -78,12 +97,24 @@ export function Header() {
           <Link href="/about" className="py-4 border-b border-line font-semibold text-navy">
             About
           </Link>
-          <button
-            className="py-4 border-b border-line font-semibold text-navy text-left"
-            onClick={() => setMobileProgramsOpen(!mobileProgramsOpen)}
-          >
-            Programs &#9662;
-          </button>
+          <div className="flex items-center border-b border-line">
+            <Link
+              href="/#programs"
+              className="flex-1 py-4 font-semibold text-navy"
+              onClick={() => setMobileOpen(false)}
+            >
+              Programs
+            </Link>
+            <button
+              type="button"
+              className="px-4 py-4 text-navy"
+              onClick={() => setMobileProgramsOpen(!mobileProgramsOpen)}
+              aria-label="Toggle programs menu"
+              aria-expanded={mobileProgramsOpen}
+            >
+              &#9662;
+            </button>
+          </div>
           {mobileProgramsOpen && (
             <div className="pl-4">
               {PROGRAMS_LINKS.map((link) => (

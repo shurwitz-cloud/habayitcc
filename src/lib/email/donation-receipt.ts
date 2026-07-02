@@ -17,12 +17,16 @@ export async function sendDonationTaxReceiptEmail(
   const receiptUrl = buildAbsoluteReceiptUrl(input);
   const name = input.name.trim() || `${input.firstName}`.trim();
   const amount = `$${input.amount.toFixed(2)}`;
+  const isMonthly = input.method?.includes('Monthly');
+
+  const intro = isMonthly
+    ? `Thank you for your generous monthly gift of <strong>${amount}/month</strong>. Your recurring support means the world to HaBayit. Your tax receipt for this payment is ready to view and print.`
+    : `Thank you for your generous gift of <strong>${amount}</strong>. Your tax receipt is ready to view and print.`;
 
   const html = buildEmailHtml(`
     <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Dear ${name},</p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#282828;">
-      Thank you for your generous gift of <strong>${amount}</strong>.
-      Your tax receipt is ready to view and print.
+      ${intro}
     </p>
     ${emailButton(receiptUrl, 'View &amp; Print Tax Receipt')}
     <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#6f6a60;">
@@ -33,7 +37,9 @@ export async function sendDonationTaxReceiptEmail(
 
   return sendEmail({
     to: input.email,
-    subject: `Your HaBayit tax receipt — ${amount}`,
+    subject: isMonthly
+      ? `Thank you for your monthly gift to HaBayit — ${amount}`
+      : `Your HaBayit tax receipt — ${amount}`,
     html,
   });
 }

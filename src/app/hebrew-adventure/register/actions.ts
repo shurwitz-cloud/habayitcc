@@ -10,6 +10,7 @@ import {
   type HebrewAdventurePaymentPlan,
   type HebrewAdventurePaymentMethod,
 } from '@/lib/programs/hebrew-adventure-tuition';
+import { sendRegistrationReceivedEmail } from '@/lib/email/registration-received';
 
 export interface ChildInput {
   firstName: string;
@@ -308,6 +309,14 @@ export async function submitHebrewSchoolRegistration(
         hebrewLevel: c.hebrewLevel,
         allergies: c.allergies,
       })),
+    });
+
+    void sendRegistrationReceivedEmail({
+      to: input.parent1Email,
+      parentFirstName: input.parent1FirstName,
+      childNames: input.children.map((c) => `${c.firstName} ${c.lastName}`.trim()),
+      paymentPlan: input.paymentPlan,
+      paymentMethod: input.paymentMethod,
     });
 
     return { success: true };

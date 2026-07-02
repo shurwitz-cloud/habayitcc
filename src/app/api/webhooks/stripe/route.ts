@@ -228,6 +228,14 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         status: 'succeeded',
         paid_at: new Date().toISOString(),
       });
+
+      void sendDonationReceiptEmailFromRecord({
+        email: donor_email,
+        firstName: firstName ?? '',
+        lastName: lastName ?? '',
+        amountDollars,
+        donationType: 'Monthly',
+      });
     }
   }
 

@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/server';
 import { chaiPartnerRow } from '@/lib/google/sheets';
+import { sendChaiPartnerWelcomeEmail } from '@/lib/email/chai-partner-welcome';
 
 // ——— Legacy no-payment signup (kept for reference, no longer called) ———
 
@@ -123,7 +124,14 @@ export async function confirmChaiPartnerPayment(
       customerId: input.stripeCustomerId,
     });
 
-    // TODO (Phase 3): send Resend confirmation email with access code
+    void sendChaiPartnerWelcomeEmail({
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      monthlyAmount: input.monthlyAmount,
+      accessCode,
+    });
 
     return { success: true, accessCode };
   } catch (err) {

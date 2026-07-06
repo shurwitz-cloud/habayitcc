@@ -12,6 +12,8 @@ export const metadata = {
     "Join HaBayit for Shabbat — Friday evening L'chaim and Kabbalat Shabbat, Saturday morning Shacharit, and Mincha.",
 };
 
+export const revalidate = 3600;
+
 const SCHEDULE = [
   {
     day: 'Friday Evenings',

@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { HEBCAL_SHABBAT_PARAMS, SHABBAT_LOCATION } from '@/lib/shabbat/config';
 
 interface HebcalShabbatItem {
@@ -116,19 +117,48 @@ function parseResponse(data: HebcalShabbatResponse): ShabbatInfo | null {
   };
 }
 
-export async function getUpcomingShabbat(): Promise<ShabbatInfo | null> {
-  try {
-    const response = await fetch(buildHebcalUrl(), {
-      next: { revalidate: 3600 },
-    });
+const SHABBAT_CACHE_KEY = 'hebcal-upcoming-shabbat';
+const SHABBAT_REVALIDATE_SECONDS = 3600;
 
-    if (!response.ok) {
-      return null;
+async function fetchUpcomingShabbatFromHebcal(): Promise<ShabbatInfo | null> {
+  const url = buildHebcalUrl();
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'HaBayit/1.0 (+https://www.habayitcc.org)',
+        },
+        next: { revalidate: SHABBAT_REVALIDATE_SECONDS },
+      });
+
+      if (!response.ok) {
+        console.error(`Hebcal fetch failed (${response.status} ${response.statusText})`);
+        continue;
+      }
+
+      const data = (await response.json()) as HebcalShabbatResponse;
+      const parsed = parseResponse(data);
+      if (!parsed) {
+        console.error('Hebcal response missing required Shabbat fields');
+      }
+      return parsed;
+    } catch (error) {
+      console.error('Hebcal fetch error:', error);
     }
-
-    const data = (await response.json()) as HebcalShabbatResponse;
-    return parseResponse(data);
-  } catch {
-    return null;
   }
+
+  return null;
+}
+
+const getCachedUpcomingShabbat = unstable_cache(
+  fetchUpcomingShabbatFromHebcal,
+  [SHABBAT_CACHE_KEY],
+  { revalidate: SHABBAT_REVALIDATE_SECONDS, tags: ['shabbat'] },
+);
+
+/** Cached Shabbat data shared across static and dynamic pages (home uses noStore for photos). */
+export async function getUpcomingShabbat(): Promise<ShabbatInfo | null> {
+  return getCachedUpcomingShabbat();
 }

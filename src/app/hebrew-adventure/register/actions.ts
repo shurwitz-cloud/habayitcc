@@ -311,7 +311,7 @@ export async function submitHebrewSchoolRegistration(
       })),
     });
 
-    void sendRegistrationReceivedEmail({
+    await sendRegistrationReceivedEmail({
       to: input.parent1Email,
       parentFirstName: input.parent1FirstName,
       childNames: input.children.map((c) => `${c.firstName} ${c.lastName}`.trim()),

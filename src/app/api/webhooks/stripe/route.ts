@@ -110,7 +110,7 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
     paid_at: new Date().toISOString(),
   });
 
-  void sendDonationReceiptEmailFromRecord({
+  await sendDonationReceiptEmailFromRecord({
     email: donor_email ?? '',
     firstName: firstName ?? '',
     lastName: lastName ?? '',
@@ -229,7 +229,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         paid_at: new Date().toISOString(),
       });
 
-      void sendDonationReceiptEmailFromRecord({
+      await sendDonationReceiptEmailFromRecord({
         email: donor_email,
         firstName: firstName ?? '',
         lastName: lastName ?? '',
@@ -240,9 +240,12 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   }
 
   if (type === 'chai_partner') {
+    const [firstName, ...rest] = (donor_name ?? '').split(' ');
+    const lastName = rest.join(' ');
+
     const { data: partner } = await supabase
       .from('chai_partners')
-      .select('id')
+      .select('id, first_name, last_name, email')
       .eq('stripe_subscription_id', subscriptionId)
       .maybeSingle();
 
@@ -255,6 +258,15 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         stripe_charge_id: null,
         status: 'succeeded',
         paid_at: new Date().toISOString(),
+      });
+
+      await sendDonationReceiptEmailFromRecord({
+        email: partner.email || donor_email,
+        firstName: partner.first_name || firstName || '',
+        lastName: partner.last_name || lastName || '',
+        amountDollars,
+        campaign: 'chai-partner',
+        donationType: 'Monthly',
       });
     }
   }

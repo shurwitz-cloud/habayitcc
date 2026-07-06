@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/server';
 import { chaiPartnerRow } from '@/lib/google/sheets';
 import { sendChaiPartnerWelcomeEmail } from '@/lib/email/chai-partner-welcome';
+import { buildChaiPartnerReceiptUrl } from '@/lib/email/donation-receipt';
 
 // ——— Legacy no-payment signup (kept for reference, no longer called) ———
 
@@ -68,13 +69,18 @@ export async function confirmChaiPartnerPayment(
       .maybeSingle();
 
     if (existing?.access_code) {
-      void sendChaiPartnerWelcomeEmail({
+      await sendChaiPartnerWelcomeEmail({
         firstName: input.firstName,
         lastName: input.lastName,
         email: input.email,
         phone: input.phone,
         monthlyAmount: input.monthlyAmount,
         accessCode: existing.access_code,
+        receiptUrl: buildChaiPartnerReceiptUrl({
+          firstName: input.firstName,
+          lastName: input.lastName,
+          amount: input.monthlyAmount,
+        }),
       });
       return { success: true, accessCode: existing.access_code };
     }
@@ -132,16 +138,23 @@ export async function confirmChaiPartnerPayment(
       customerId: input.stripeCustomerId,
     });
 
-    void sendChaiPartnerWelcomeEmail({
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      phone: input.phone,
-      monthlyAmount: input.monthlyAmount,
-      accessCode,
-    }).catch((err) => {
+    try {
+      await sendChaiPartnerWelcomeEmail({
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phone: input.phone,
+        monthlyAmount: input.monthlyAmount,
+        accessCode,
+        receiptUrl: buildChaiPartnerReceiptUrl({
+          firstName: input.firstName,
+          lastName: input.lastName,
+          amount: input.monthlyAmount,
+        }),
+      });
+    } catch (err) {
       console.error('Chai Partner welcome email failed:', err);
-    });
+    }
 
     return { success: true, accessCode };
   } catch (err) {

@@ -1,6 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Hero } from '@/components/sections/Hero';
+import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section } from '@/components/sections/Section';
 import { ContactForm } from './ContactForm';
 
@@ -15,13 +16,14 @@ export default function ContactPage() {
       <Header />
 
       <main className="flex-1">
-        <Hero
+        <SiteRotatingHero
+          slotId="contact.hero"
           kicker="Get In Touch"
-          minHeight="min-h-[42vh]"
+          minHeight={HERO_HEIGHT.page}
           subtitle="Questions, RSVPs, or just want to say hello — reach out anytime."
         >
           We&apos;d Love to Hear From You
-        </Hero>
+        </SiteRotatingHero>
 
         <Section background="white">
           <div className="grid md:grid-cols-2 gap-15">

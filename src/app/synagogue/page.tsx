@@ -1,6 +1,9 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
+import { ShabbatThisWeek } from '@/components/shabbat/ShabbatThisWeek';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
+import { getUpcomingShabbat } from '@/lib/shabbat/hebcal';
 import { Section, SectionTitle } from '@/components/sections/Section';
 
 export const metadata = {
@@ -51,13 +54,19 @@ const EXPECTATIONS = [
   { title: 'Shared Meals', description: 'Refreshments, Kiddush, and time together are part of what makes it feel like home.' },
 ];
 
-export default function SynagoguePage() {
+export default async function SynagoguePage() {
+  const shabbat = await getUpcomingShabbat();
+
   return (
     <>
       <Header />
 
       <main className="flex-1">
-        <Hero kicker="Synagogue" minHeight="min-h-[62vh]" subtitle="A welcoming place to pray, connect, celebrate, and grow together.">
+        <Hero
+          kicker="Synagogue"
+          minHeight={HERO_HEIGHT.page}
+          subtitle="A welcoming place to pray, connect, celebrate, and grow together."
+        >
           Shabbat &amp; Community
         </Hero>
 
@@ -93,6 +102,7 @@ export default function SynagoguePage() {
               </article>
             ))}
           </div>
+          <ShabbatThisWeek shabbat={shabbat} />
         </Section>
 
         <Section background="cream">

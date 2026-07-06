@@ -67,13 +67,10 @@ function emailHeaderHtml(): string {
 
   return `<table width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td width="80" align="left" valign="middle" style="padding:0;">
-              <img src="${logoUrl}" alt="HaBayit" width="64" height="56" style="display:block;width:64px;height:56px;border:0;" />
+            <td align="left" valign="middle" style="padding:0;">
+              <img src="${logoUrl}" alt="HaBayit" width="56" height="49" style="display:block;width:56px;height:49px;border:0;" />
             </td>
-            <td align="center" valign="middle" style="color:#b8902a;font-size:12px;font-weight:bold;letter-spacing:0.14em;text-transform:uppercase;line-height:1.4;padding:10px 8px 0 8px;">
-              HaBayit Israeli Jewish Center
-            </td>
-            <td width="72" align="right" valign="top" style="color:#b8902a;font-size:15px;font-family:Georgia,'Times New Roman',serif;line-height:1;padding:0;">
+            <td align="right" valign="middle" style="color:#b8902a;font-size:11px;font-family:Georgia,'Times New Roman',serif;line-height:1;padding:0;">
               ב&quot;ה
             </td>
           </tr>
@@ -88,7 +85,7 @@ function emailShell(content: string): string {
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f3ea;padding:32px 16px;">
     <tr><td align="center">
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e4ded2;border-radius:12px;overflow:hidden;">
-        <tr><td style="background:#172643;padding:18px 24px;">
+        <tr><td style="background:#172643;padding:12px 20px;">
           ${emailHeaderHtml()}
         </td></tr>
         <tr><td style="padding:28px;">${content}</td></tr>

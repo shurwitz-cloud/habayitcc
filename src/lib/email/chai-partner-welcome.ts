@@ -1,4 +1,4 @@
-import { buildEmailHtml, emailButton, getAdminEmail, getSiteUrl, sendEmail } from '@/lib/email/client';
+import { buildEmailHtml, emailButton, getAdminEmail, sendEmail } from '@/lib/email/client';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 export interface ChaiPartnerWelcomeEmailInput {
@@ -8,6 +8,8 @@ export interface ChaiPartnerWelcomeEmailInput {
   phone: string;
   monthlyAmount: number;
   accessCode: string;
+  /** First monthly payment receipt — shown as a button at the bottom. */
+  receiptUrl?: string;
 }
 
 function formatMonthlyAmount(amount: number): string {
@@ -29,7 +31,7 @@ export async function sendChaiPartnerWelcomeEmail(
       Dear ${input.firstName},
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
-      From the bottom of our hearts — <strong>thank you</strong>. Your monthly partnership of
+      We are grateful — <strong>thank you</strong>. Your monthly partnership of
       <strong>${monthly}</strong> means more than we can easily put into words. Chai Partners like
       you help sustain Shabbat, holidays, learning, and the warm Jewish home we are building
       together in Cooper City.
@@ -64,34 +66,44 @@ export async function sendChaiPartnerWelcomeEmail(
       With heartfelt appreciation,
     </p>
     <p style="margin:0;font-size:15px;line-height:1.7;color:#172643;font-weight:bold;">
-      Rabbi Shmuel Hurwitz &amp; the HaBayit Team
+      Rabbi Shmuly &amp; Devora
     </p>
-    ${emailButton(`${getSiteUrl()}/hebrew-adventure/register`, `Register for ${HEBREW_ADVENTURE_NAME}`)}
+    ${
+      input.receiptUrl
+        ? `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #e4ded2;text-align:center;">
+      <p style="margin:0 0 4px;font-size:13px;line-height:1.6;color:#6f6a60;">
+        Your tax receipt for this month&apos;s gift:
+      </p>
+      ${emailButton(input.receiptUrl, 'View &amp; Print Tax Receipt')}
+    </div>`
+        : ''
+    }
   `);
 
-  const partnerSent = await sendEmail({
-    to: input.email,
-    subject: 'Thank you for becoming a HaBayit Chai Partner',
-    html,
-  });
-
-  void sendEmail({
-    to: getAdminEmail(),
-    subject: `New Chai Partner: ${name} (${monthly})`,
-    replyTo: input.email,
-    html: buildEmailHtml(`
-      <p style="font-size:16px;color:#172643;font-weight:bold;margin:0 0 12px;">
-        New Chai Partner signup
-      </p>
-      <p style="margin:0 0 12px;line-height:1.7;">
-        <strong>${name}</strong><br>
-        Email: ${input.email}<br>
-        Phone: ${input.phone}<br>
-        Monthly amount: ${monthly}<br>
-        Access code: <strong>${input.accessCode}</strong>
-      </p>
-    `),
-  });
+  const [partnerSent] = await Promise.all([
+    sendEmail({
+      to: input.email,
+      subject: 'Thank you for becoming a HaBayit Chai Partner',
+      html,
+    }),
+    sendEmail({
+      to: getAdminEmail(),
+      subject: `New Chai Partner: ${name} (${monthly})`,
+      replyTo: input.email,
+      html: buildEmailHtml(`
+        <p style="font-size:16px;color:#172643;font-weight:bold;margin:0 0 12px;">
+          New Chai Partner signup
+        </p>
+        <p style="margin:0 0 12px;line-height:1.7;">
+          <strong>${name}</strong><br>
+          Email: ${input.email}<br>
+          Phone: ${input.phone}<br>
+          Monthly amount: ${monthly}<br>
+          Access code: <strong>${input.accessCode}</strong>
+        </p>
+      `),
+    }),
+  ]);
 
   return partnerSent;
 }

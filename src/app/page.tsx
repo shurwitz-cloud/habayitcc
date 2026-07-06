@@ -1,23 +1,30 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Hero } from '@/components/sections/Hero';
+import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
+import { SynagogueHomeSection } from '@/components/shabbat/SynagogueHomeSection';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { ProgramCard, ProgramTile } from '@/components/sections/ProgramCard';
+import { getSiteImages } from '@/lib/site-images/store';
+import { getUpcomingShabbat } from '@/lib/shabbat/hebcal';
+import { HERO_HEIGHT, HERO_PADDING } from '@/lib/hero-heights';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [images, shabbat] = await Promise.all([getSiteImages(), getUpcomingShabbat()]);
+
   return (
     <>
       <Header />
 
       <main className="flex-1">
-        <Hero
-          minHeight="min-h-[78vh]"
+        <SiteRotatingHero
+          slotId="home.hero"
+          minHeight={HERO_HEIGHT.home}
           subtitle="A warm Jewish home in Cooper City with an Israeli spirit."
         >
           Welcome to HaBayit
-        </Hero>
+        </SiteRotatingHero>
 
         <Section id="programs" background="white" className="scroll-mt-[88px]">
           <SectionTitle
@@ -32,6 +39,7 @@ export default function HomePage() {
             kicker="For Children & Families"
             title={HEBREW_ADVENTURE_NAME}
             description="Joyful Jewish learning where children build skills, confidence, identity, and a love for being Jewish."
+            photo={images['home.hebrew-adventure'].image}
           />
 
           <div className="grid md:grid-cols-3 gap-5.5 mb-6">
@@ -39,27 +47,24 @@ export default function HomePage() {
               href="/bar-mitzvah"
               title="Bar Mitzvah"
               description="Meaningful preparation for boys entering Jewish adulthood."
+              photo={images['home.bar-mitzvah'].image}
             />
             <ProgramCard
               href="/bat-mitzvah"
               title="Bat Mitzvah"
               description="A warm and inspiring experience for girls celebrating this milestone."
+              photo={images['home.bat-mitzvah'].image}
             />
             <ProgramCard
               href="/chai-partner"
               title="Chai Partner"
               description="Help sustain HaBayit through monthly partnership and become part of building our community."
               variant="featured"
+              photo={images['home.chai-partner'].image}
             />
           </div>
 
-          <ProgramTile
-            href="/synagogue"
-            kicker="Shabbat • Holidays • Events"
-            title="Synagogue & Community"
-            description="Join us for meaningful Jewish life, family programs, holiday celebrations, learning, and community connection."
-            reverse
-          />
+          <SynagogueHomeSection shabbat={shabbat} photo={images['home.synagogue'].image} />
         </Section>
 
         <Section background="cream" narrow>

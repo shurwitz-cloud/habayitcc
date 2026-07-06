@@ -2,7 +2,8 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Section } from '@/components/sections/Section';
 import { isAdminAuthenticated } from '@/lib/admin/auth';
-import { AdminLoginForm, AdminRegistrationsPanel } from './AdminPanel';
+import { AdminLoginForm } from '@/components/admin/AdminLoginForm';
+import { AdminRegistrationsPanel } from './AdminPanel';
 import { getPendingRegistrations, getScheduledInstallments } from './actions';
 
 export const metadata = {
@@ -19,7 +20,11 @@ export default async function AdminRegistrationsPage() {
       <main className="flex-1">
         <Section background="cream">
           {!authed ? (
-            <AdminLoginForm />
+            <AdminLoginForm
+              title="Admin sign in"
+              description="Manage Hebrew Adventure registrations and site photos."
+              alternateLink={{ href: '/admin/photos', label: 'Go to photo admin' }}
+            />
           ) : (
             <AdminRegistrationsPageContent />
           )}

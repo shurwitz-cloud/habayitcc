@@ -366,7 +366,7 @@ export async function acceptAndChargeFamily(
         return `${c.first_name} ${c.last_name}`;
       }) ?? [];
 
-    void sendRegistrationAcceptedEmail({
+    await sendRegistrationAcceptedEmail({
       to: parentEmail,
       parentFirstName: parent?.first_name ?? 'there',
       childNames,

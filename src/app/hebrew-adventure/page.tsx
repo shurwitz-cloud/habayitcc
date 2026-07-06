@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Hero } from '@/components/sections/Hero';
+import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_REGISTER_PATH } from '@/lib/programs/names';
 import {
@@ -28,9 +29,14 @@ export default function HebrewSchoolPage() {
       <Header />
 
       <main className="flex-1">
-        <Hero kicker="Programs" minHeight="min-h-[56vh]" subtitle="Joyful Jewish learning where children build skills, confidence, and identity.">
+        <SiteRotatingHero
+          slotId="hebrew-adventure.hero"
+          kicker="Programs"
+          minHeight={HERO_HEIGHT.page}
+          subtitle="Joyful Jewish learning where children build skills, confidence, and identity."
+        >
           {HEBREW_ADVENTURE_NAME}
-        </Hero>
+        </SiteRotatingHero>
 
         <Section background="white">
           <div className="grid md:grid-cols-[.9fr_1.1fr] gap-15 items-center">

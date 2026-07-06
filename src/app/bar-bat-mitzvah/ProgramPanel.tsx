@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { FocalImageLayer } from '@/components/site-images/FocalImageLayer';
+import { DEFAULT_CROP, normalizeImage } from '@/lib/site-images/crop';
+import type { SiteImage } from '@/lib/site-images/types';
 
 interface ProgramPanelProps {
   href: string;
@@ -7,6 +10,8 @@ interface ProgramPanelProps {
   title: string;
   age: string;
   focus: string;
+  image?: string;
+  photo?: SiteImage;
 }
 
 /**
@@ -15,16 +20,30 @@ interface ProgramPanelProps {
  * (no separate "Learn More" button), per the design direction
  * to avoid redundant CTAs.
  */
-export function ProgramPanel({ href, gradient, program, title, age, focus }: ProgramPanelProps) {
+export function ProgramPanel({ href, gradient, program, title, age, focus, image, photo }: ProgramPanelProps) {
+  const src = photo?.src ?? image;
+  const crop = photo ?? (src ? normalizeImage(src, DEFAULT_CROP) : undefined);
+
   return (
     <Link
       href={href}
       className="relative min-h-[480px] rounded-[18px] overflow-hidden flex items-end p-9 md:p-11 text-white transition-transform hover:-translate-y-1 group"
-      style={{ background: gradient }}
+      style={!src ? { background: gradient } : undefined}
     >
-      <span className="absolute top-6 left-7 text-[0.66rem] tracking-[0.16em] uppercase text-white/70">
-        Photo Coming Soon
-      </span>
+      {src && crop && (
+        <>
+          <FocalImageLayer {...crop} src={src} />
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(rgba(23,38,67,.5),rgba(23,38,67,.72))' }}
+          />
+        </>
+      )}
+      {!src && (
+        <span className="absolute top-6 left-7 text-[0.66rem] tracking-[0.16em] uppercase text-white/70">
+          Photo Coming Soon
+        </span>
+      )}
       <div className="relative z-10">
         <p className="text-[0.74rem] tracking-[0.16em] uppercase text-[#f1d697] font-bold mb-2.5">
           {program}

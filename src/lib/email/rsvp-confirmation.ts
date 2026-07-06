@@ -33,26 +33,27 @@ export async function sendRsvpConfirmationEmail(
     <p style="margin:16px 0 0;font-size:14px;line-height:1.6;">We look forward to seeing you!</p>
   `);
 
-  const attendeeSent = await sendEmail({
-    to: email,
-    subject: `RSVP confirmed — ${event.title}`,
-    html,
-  });
-
-  void sendEmail({
-    to: getAdminEmail(),
-    subject: `New RSVP — ${event.title} (${firstName} ${input.lastName})`,
-    replyTo: email,
-    html: buildEmailHtml(`
-      <p style="margin:0 0 12px;font-size:15px;"><strong>${firstName} ${input.lastName}</strong> RSVP'd for ${event.title}</p>
-      <p style="margin:0;font-size:14px;line-height:1.7;color:#282828;">
-        Email: ${email}<br>
-        Phone: ${input.phone || '—'}<br>
-        Attending: ${attending}<br>
-        Notes: ${input.notes || '—'}
-      </p>
-    `),
-  });
+  const [attendeeSent] = await Promise.all([
+    sendEmail({
+      to: email,
+      subject: `RSVP confirmed — ${event.title}`,
+      html,
+    }),
+    sendEmail({
+      to: getAdminEmail(),
+      subject: `New RSVP — ${event.title} (${firstName} ${input.lastName})`,
+      replyTo: email,
+      html: buildEmailHtml(`
+        <p style="margin:0 0 12px;font-size:15px;"><strong>${firstName} ${input.lastName}</strong> RSVP'd for ${event.title}</p>
+        <p style="margin:0;font-size:14px;line-height:1.7;color:#282828;">
+          Email: ${email}<br>
+          Phone: ${input.phone || '—'}<br>
+          Attending: ${attending}<br>
+          Notes: ${input.notes || '—'}
+        </p>
+      `),
+    }),
+  ]);
 
   return attendeeSent;
 }

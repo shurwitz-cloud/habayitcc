@@ -1,6 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Hero } from '@/components/sections/Hero';
+import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section } from '@/components/sections/Section';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
 
@@ -46,13 +47,14 @@ export default function EventsPage() {
       <Header />
 
       <main className="flex-1">
-        <Hero
+        <SiteRotatingHero
+          slotId="events.hero"
           kicker="What's Happening"
-          minHeight="min-h-[42vh]"
+          minHeight={HERO_HEIGHT.page}
           subtitle="Shabbat dinners, holiday celebrations, classes, and community gatherings."
         >
           Upcoming Events
-        </Hero>
+        </SiteRotatingHero>
 
         {/* Open House / Featured events — card grid with flyers */}
         <Section background="soft">

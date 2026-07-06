@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { AdminNav } from '@/components/admin/AdminNav';
 import type {
   PendingFamilyRegistration,
   ScheduledInstallment,
@@ -9,55 +10,6 @@ import {
   acceptAndChargeFamily,
   chargeScheduledInstallment,
 } from './actions';
-
-export function AdminLoginForm() {
-  const [secret, setSecret] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    const res = await fetch('/api/admin/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      setError('Incorrect password.');
-      return;
-    }
-    window.location.reload();
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white border border-line rounded-2xl p-8">
-      <h1 className="text-2xl font-bold text-navy mb-2">Admin</h1>
-      <p className="text-muted text-sm mb-6">Hebrew Adventure registrations</p>
-      <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">
-        Admin password
-      </label>
-      <input
-        type="password"
-        value={secret}
-        onChange={(e) => setSecret(e.target.value)}
-        className="w-full mb-4"
-        required
-        autoComplete="current-password"
-      />
-      {error && <p className="text-danger text-sm mb-3">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-gold text-white rounded-full py-3 font-bold uppercase tracking-wider disabled:opacity-60"
-      >
-        {loading ? 'Signing in…' : 'Sign in'}
-      </button>
-    </form>
-  );
-}
 
 export function StripeCheatSheet() {
   return (
@@ -138,20 +90,13 @@ export function AdminRegistrationsPanel({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Hebrew Adventure — Registrations</h1>
-          <p className="text-muted text-sm mt-1">
-            Accept pending registrations and charge saved Stripe payment methods.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => fetch('/api/admin/auth', { method: 'DELETE' }).then(() => window.location.reload())}
-          className="text-sm text-muted underline"
-        >
-          Sign out
-        </button>
+      <AdminNav />
+
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-navy">Hebrew Adventure — Registrations</h1>
+        <p className="text-muted text-sm mt-1">
+          Accept pending registrations and charge saved Stripe payment methods.
+        </p>
       </div>
 
       <StripeCheatSheet />

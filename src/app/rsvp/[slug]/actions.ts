@@ -44,7 +44,7 @@ export async function submitRsvp(input: RsvpInput): Promise<RsvpResult> {
       });
     }
 
-    void sendRsvpConfirmationEmail({
+    await sendRsvpConfirmationEmail({
       event,
       firstName: input.firstName,
       lastName: input.lastName,

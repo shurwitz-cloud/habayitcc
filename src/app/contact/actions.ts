@@ -43,7 +43,7 @@ export async function submitContactForm(
       message: input.message,
     });
 
-    void sendContactEmails(input);
+    await sendContactEmails(input);
 
     return { success: true };
   } catch (err) {

@@ -263,6 +263,17 @@ export interface Sponsor {
 // ============================================================
 type Insertable<T> = Omit<T, 'id' | 'created_at' | 'updated_at'>;
 
+export interface SiteImageSlotRow {
+  [key: string]: unknown;
+  slot_id: string;
+  src: string | null;
+  images: unknown | null;
+  focal_x: number;
+  focal_y: number;
+  zoom: number;
+  updated_at: string;
+}
+
 export interface Database {
   __InternalSupabase: {
     PostgrestVersion: '13';
@@ -314,6 +325,11 @@ export interface Database {
       };
       waivers: { Row: Waiver; Insert: Insertable<Waiver>; Update: Partial<Insertable<Waiver>> };
       sponsors: { Row: Sponsor; Insert: Insertable<Sponsor>; Update: Partial<Insertable<Sponsor>> };
+      site_image_slots: {
+        Row: SiteImageSlotRow;
+        Insert: Insertable<SiteImageSlotRow>;
+        Update: Partial<Insertable<SiteImageSlotRow>>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

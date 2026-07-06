@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { HERO_HEIGHT, HERO_PADDING } from '@/lib/hero-heights';
 
 interface HeroProps {
   kicker?: string;
@@ -19,12 +20,12 @@ export function Hero({
   hebrewKicker,
   children,
   subtitle,
-  minHeight = 'min-h-[62vh]',
+  minHeight = HERO_HEIGHT.page,
   actions,
 }: HeroProps) {
   return (
     <section
-      className={`${minHeight} grid place-items-center text-center relative overflow-hidden px-[6vw] py-[130px_6vw_90px]`}
+      className={`${minHeight} grid place-items-center text-center relative overflow-hidden ${HERO_PADDING}`}
       style={{
         background:
           'linear-gradient(rgba(13,41,73,.4),rgba(13,41,73,.5)), linear-gradient(135deg,#6f7f93 0%,#cdb98b 55%,#7e8d76 100%)',

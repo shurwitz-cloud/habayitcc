@@ -34,18 +34,19 @@ export async function sendContactEmails(input: ContactEmailInput): Promise<boole
     </p>
   `);
 
-  const userSent = await sendEmail({
-    to: input.email,
-    subject: 'We received your message — HaBayit',
-    html: userHtml,
-  });
-
-  void sendEmail({
-    to: getAdminEmail(),
-    subject: `Contact form — ${name}`,
-    replyTo: input.email,
-    html: adminHtml,
-  });
+  const [userSent] = await Promise.all([
+    sendEmail({
+      to: input.email,
+      subject: 'We received your message — HaBayit',
+      html: userHtml,
+    }),
+    sendEmail({
+      to: getAdminEmail(),
+      subject: `Contact form — ${name}`,
+      replyTo: input.email,
+      html: adminHtml,
+    }),
+  ]);
 
   return userSent;
 }

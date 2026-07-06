@@ -2,6 +2,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section } from '@/components/sections/Section';
+import { getSiteImages } from '@/lib/site-images/store';
 import { ProgramPanel } from './ProgramPanel';
 
 export const metadata = {
@@ -10,7 +11,9 @@ export const metadata = {
     'A meaningful journey toward Jewish adulthood. Explore HaBayit\u2019s Bar Mitzvah Experience and Bat Mitzvah Club.',
 };
 
-export default function BarBatMitzvahPage() {
+export default async function BarBatMitzvahPage() {
+  const images = await getSiteImages();
+
   return (
     <>
       <Header />
@@ -40,6 +43,7 @@ export default function BarBatMitzvahPage() {
               title="Bar Mitzvah Experience"
               age="For 7th grade boys"
               focus="Jewish pride · Mitzvah projects · Meaningful discussion"
+              photo={images['bar-bat-mitzvah.bar'].image}
             />
             <ProgramPanel
               href="/bat-mitzvah"
@@ -48,6 +52,7 @@ export default function BarBatMitzvahPage() {
               title="Bat Mitzvah Club"
               age="For 6th grade girls"
               focus="Meaningful conversations · Creativity · Mitzvah projects"
+              photo={images['bar-bat-mitzvah.bat'].image}
             />
           </div>
         </Section>

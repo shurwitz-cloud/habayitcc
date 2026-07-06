@@ -91,7 +91,7 @@ export async function recordDonation(
       donationType: input.donationType,
     });
 
-    void sendDonationReceiptEmailFromRecord({
+    await sendDonationReceiptEmailFromRecord({
       email: input.email,
       firstName: input.firstName,
       lastName: input.lastName,

@@ -59,28 +59,29 @@ export async function sendRegistrationReceivedEmail(input: {
     ${emailButton(`${getSiteUrl()}/hebrew-adventure`, 'Program details')}
   `);
 
-  const parentSent = await sendEmail({
-    to: input.to,
-    subject: `${HEBREW_ADVENTURE_NAME} registration received`,
-    html,
-  });
-
-  void sendEmail({
-    to: getAdminEmail(),
-    subject: `New ${HEBREW_ADVENTURE_NAME} registration — ${childList}`,
-    replyTo: input.to,
-    html: buildEmailHtml(`
-      <p style="margin:0 0 12px;font-size:15px;"><strong>New registration (pending)</strong></p>
-      <p style="margin:0;font-size:14px;line-height:1.7;">
-        Parent: ${input.parentFirstName}<br>
-        Email: ${input.to}<br>
-        Children: ${childList}<br>
-        Plan: ${paymentPlanLabel(input.paymentPlan)}<br>
-        Method: ${paymentMethodLabel(input.paymentMethod)}
-      </p>
-      ${emailButton(`${getSiteUrl()}/admin/registrations`, 'Review in admin')}
-    `),
-  });
+  const [parentSent] = await Promise.all([
+    sendEmail({
+      to: input.to,
+      subject: `${HEBREW_ADVENTURE_NAME} registration received`,
+      html,
+    }),
+    sendEmail({
+      to: getAdminEmail(),
+      subject: `New ${HEBREW_ADVENTURE_NAME} registration — ${childList}`,
+      replyTo: input.to,
+      html: buildEmailHtml(`
+        <p style="margin:0 0 12px;font-size:15px;"><strong>New registration (pending)</strong></p>
+        <p style="margin:0;font-size:14px;line-height:1.7;">
+          Parent: ${input.parentFirstName}<br>
+          Email: ${input.to}<br>
+          Children: ${childList}<br>
+          Plan: ${paymentPlanLabel(input.paymentPlan)}<br>
+          Method: ${paymentMethodLabel(input.paymentMethod)}
+        </p>
+        ${emailButton(`${getSiteUrl()}/admin/registrations`, 'Review in admin')}
+      `),
+    }),
+  ]);
 
   return parentSent;
 }

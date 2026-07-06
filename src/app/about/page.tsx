@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Hero } from '@/components/sections/Hero';
 import { Section, SectionTitle } from '@/components/sections/Section';
+import { SiteBackground } from '@/components/site-images/SiteBackground';
+import { getSiteImages } from '@/lib/site-images/store';
 import { HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 export const metadata = {
@@ -18,38 +19,33 @@ const VALUES = [
   { title: 'Connection', description: 'Community is built through real relationships.' },
 ];
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const images = await getSiteImages();
+
   return (
     <>
       <Header />
 
       <main className="flex-1">
-        <Hero kicker="About HaBayit" minHeight="min-h-[50vh]" subtitle="HaBayit was created to help every Jew feel welcome, connected, and at home.">
-          A Jewish home built with heart.
-        </Hero>
-
         <Section background="white">
-          <div className="grid md:grid-cols-[.85fr_1.15fr] gap-16 items-center">
+          <div className="grid md:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
               <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
-                Our Mission
+                About HaBayit
               </p>
-              <h2 className="text-[clamp(2.1rem,3.6vw,3rem)] leading-tight text-navy font-bold">
-                Every Jew deserves a place to feel at home.
-              </h2>
-              <p className="mt-4.5 text-muted text-[1.05rem]">
-                At HaBayit, Jewish life is celebrated with warmth, meaningful learning, genuine
-                friendships, and a deep sense of belonging.
+              <h1 className="text-[clamp(2.4rem,4.5vw,3.6rem)] leading-tight text-navy font-bold">
+                A Jewish home built with heart.
+              </h1>
+              <p className="mt-5 text-muted text-[1.1rem] leading-relaxed">
+                HaBayit was created so every Jew feels welcome, connected, and at home — a place
+                where Jewish life is celebrated with warmth, meaningful learning, and genuine
+                friendship.
               </p>
             </div>
-            <div
-              className="relative min-h-[340px] rounded-[18px] overflow-hidden"
-              style={{ background: 'linear-gradient(135deg,#d8c9a8,#8aa0b0)' }}
-            >
-              <span className="absolute inset-0 grid place-items-center text-white/85 text-[0.72rem] tracking-[0.2em] uppercase font-bold">
-                Photography Coming Soon
-              </span>
-            </div>
+            <SiteBackground
+              image={images['about.intro'].image!}
+              className="min-h-[340px] md:min-h-[460px] rounded-[18px]"
+            />
           </div>
         </Section>
 
@@ -65,16 +61,12 @@ export default function AboutPage() {
         <Section background="white">
           <div className="grid md:grid-cols-[1fr_1.05fr] gap-16 items-start">
             <div>
-              <div
-                className="relative min-h-[400px] md:min-h-[520px] rounded-[18px] overflow-hidden"
-                style={{ background: 'linear-gradient(135deg,#d8c9a8,#8aa0b0)' }}
-              >
-                <span className="absolute inset-0 grid place-items-center text-white/85 text-[0.72rem] tracking-[0.2em] uppercase font-bold">
-                  Photography Coming Soon
-                </span>
-              </div>
+              <SiteBackground
+                image={images['about.founders'].image!}
+                className="aspect-[5/4] w-full max-h-[300px] sm:max-h-[340px] md:aspect-[4/5] md:max-h-none md:min-h-[520px] rounded-[18px]"
+              />
               <p className="text-center mt-3.5 text-[0.82rem] text-muted">
-                Family photo coming soon
+                Rabbi Shmuly &amp; Devora Hurwitz with their family
               </p>
             </div>
             <div className="bg-soft border-l-4 border-gold rounded-r-[18px] p-9 md:p-11">

@@ -1,14 +1,32 @@
 import type { DedicationType } from '@/types/database';
+import { receiptMethodFromDonationType } from '@/lib/donations/receipt-method';
 import { buildEmailHtml, emailButton, getSiteUrl, sendEmail } from './client';
 import { buildReceiptUrl, type ReceiptUrlParams } from '@/lib/donations/receipt-url';
 
 export interface DonationReceiptEmailInput extends ReceiptUrlParams {
   email: string;
   firstName: string;
+  /** Monthly/recurring gift — affects email copy, not receipt method label. */
+  isRecurring?: boolean;
 }
 
 export function buildAbsoluteReceiptUrl(params: ReceiptUrlParams): string {
   return `${getSiteUrl()}${buildReceiptUrl(params)}`;
+}
+
+export function buildChaiPartnerReceiptUrl(input: {
+  firstName: string;
+  lastName: string;
+  amount: number;
+  date?: Date;
+}): string {
+  return buildAbsoluteReceiptUrl({
+    name: `${input.firstName} ${input.lastName}`.trim(),
+    amount: input.amount,
+    date: input.date,
+    campaign: 'chai-partner',
+    method: 'Credit Card',
+  });
 }
 
 export async function sendDonationTaxReceiptEmail(
@@ -17,7 +35,7 @@ export async function sendDonationTaxReceiptEmail(
   const receiptUrl = buildAbsoluteReceiptUrl(input);
   const name = input.name.trim() || `${input.firstName}`.trim();
   const amount = `$${input.amount.toFixed(2)}`;
-  const isMonthly = input.method?.includes('Monthly');
+  const isMonthly = input.isRecurring === true;
 
   const intro = isMonthly
     ? `Thank you for your generous monthly gift of <strong>${amount}/month</strong>. Your recurring support means the world to HaBayit. Your tax receipt for this payment is ready to view and print.`
@@ -29,10 +47,6 @@ export async function sendDonationTaxReceiptEmail(
       ${intro}
     </p>
     ${emailButton(receiptUrl, 'View &amp; Print Tax Receipt')}
-    <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#6f6a60;">
-      You can also save this link for your records:<br>
-      <a href="${receiptUrl}" style="color:#172643;word-break:break-all;">${receiptUrl}</a>
-    </p>
   `);
 
   return sendEmail({
@@ -62,6 +76,7 @@ export async function sendDonationReceiptEmailFromRecord(input: {
     campaign: input.campaign,
     dedicationName: input.dedicationName,
     dedicationType: input.dedicationType,
-    method: input.donationType === 'Monthly' ? 'Credit Card (Monthly)' : 'Credit Card',
+    method: receiptMethodFromDonationType(input.donationType),
+    isRecurring: input.donationType === 'Monthly',
   });
 }

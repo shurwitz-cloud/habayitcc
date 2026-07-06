@@ -6,12 +6,11 @@ import { SynagogueHomeSection } from '@/components/shabbat/SynagogueHomeSection'
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { ProgramCard, ProgramTile } from '@/components/sections/ProgramCard';
 import { getSiteImages } from '@/lib/site-images/store';
-import { getUpcomingShabbat } from '@/lib/shabbat/hebcal';
 import { HERO_HEIGHT, HERO_PADDING } from '@/lib/hero-heights';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 export default async function HomePage() {
-  const [images, shabbat] = await Promise.all([getSiteImages(), getUpcomingShabbat()]);
+  const images = await getSiteImages();
 
   return (
     <>
@@ -64,7 +63,7 @@ export default async function HomePage() {
             />
           </div>
 
-          <SynagogueHomeSection shabbat={shabbat} photo={images['home.synagogue'].image} />
+          <SynagogueHomeSection photo={images['home.synagogue'].image} />
         </Section>
 
         <Section background="cream" narrow>

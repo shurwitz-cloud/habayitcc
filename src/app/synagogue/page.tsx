@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
-import { ShabbatThisWeek } from '@/components/shabbat/ShabbatThisWeek';
+import { ShabbatHomeCard } from '@/components/shabbat/ShabbatHomeCard';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { getUpcomingShabbat } from '@/lib/shabbat/hebcal';
 import { Section, SectionTitle } from '@/components/sections/Section';
@@ -89,22 +89,26 @@ export default async function SynagoguePage() {
           <SectionTitle eyebrow="Weekly Rhythm" center={false}>
             Shabbat at HaBayit
           </SectionTitle>
-          <div className="grid md:grid-cols-2 gap-6.5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 items-start">
             {SCHEDULE.map((block) => (
-              <article key={block.day} className="bg-cream border border-line rounded-[18px] p-9 min-h-[300px]">
-                <h3 className="text-[1.9rem] text-navy font-bold mb-5.5">{block.day}</h3>
-                <div className="space-y-4">
+              <article key={block.day} className="bg-cream border border-line rounded-[18px] p-7">
+                <h3 className="text-[1.55rem] text-navy font-bold mb-4">{block.day}</h3>
+                <div className="space-y-3.5">
                   {block.items.map((item) => (
-                    <div key={item.title} className="border-l-[3px] border-gold pl-4.5">
-                      <strong className="block text-navy text-[1.02rem] mb-1">{item.title}</strong>
-                      <span className="text-muted text-[0.9rem]">{item.description}</span>
+                    <div key={item.title} className="border-l-[3px] border-gold pl-4">
+                      <strong className="block text-navy text-[0.98rem] mb-0.5">{item.title}</strong>
+                      <span className="text-muted text-[0.88rem] leading-snug">{item.description}</span>
                     </div>
                   ))}
                 </div>
               </article>
             ))}
+            <ShabbatHomeCard
+              shabbat={shabbat}
+              variant="compact"
+              className="md:col-span-2 lg:col-span-1"
+            />
           </div>
-          <ShabbatThisWeek shabbat={shabbat} />
         </Section>
 
         <Section background="cream">

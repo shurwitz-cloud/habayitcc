@@ -3,11 +3,64 @@ import type { ShabbatInfo } from '@/lib/shabbat/hebcal';
 interface ShabbatHomeCardProps {
   shabbat: ShabbatInfo | null;
   className?: string;
+  /** `default` — homepage sidebar card; `compact` — synagogue 3-col / strip layout */
+  variant?: 'default' | 'compact';
 }
 
-export function ShabbatHomeCard({ shabbat, className = '' }: ShabbatHomeCardProps) {
+export function ShabbatHomeCard({
+  shabbat,
+  className = '',
+  variant = 'default',
+}: ShabbatHomeCardProps) {
   if (!shabbat) {
     return null;
+  }
+
+  if (variant === 'compact') {
+    return (
+      <div
+        className={`bg-cream border border-line rounded-[18px] p-5 md:p-7 flex flex-col h-auto ${className}`}
+      >
+        <div className="flex flex-col md:flex-row lg:flex-col gap-4 md:gap-6 lg:gap-0">
+          <div className="min-w-0">
+            <p className="text-[0.62rem] tracking-[0.14em] uppercase text-gold font-bold mb-2">
+              This week&apos;s parsha
+            </p>
+            <p className="heb text-[1.35rem] text-navy font-bold leading-tight">
+              {shabbat.parsha.hebrew}
+            </p>
+            <p className="text-[0.98rem] text-navy font-bold leading-tight mt-0.5">
+              {shabbat.parsha.englishName}
+            </p>
+            {shabbat.mevarchim && (
+              <div className="mt-2.5 space-y-0.5">
+                <p className="text-muted text-[0.74rem] leading-snug">
+                  We bless the month {shabbat.mevarchim.englishMonth}
+                </p>
+                <p className="heb text-[0.78rem] text-navy/75 font-medium leading-snug">
+                  {shabbat.mevarchim.hebrew}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2.5 pt-3.5 border-t border-line md:pt-0 md:border-t-0 md:border-l md:pl-6 md:shrink-0 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-2 lg:flex lg:flex-col lg:gap-2.5 lg:pt-3.5 lg:mt-3.5 lg:border-t lg:border-l-0 lg:pl-0">
+            <div>
+              <p className="text-[0.62rem] text-muted leading-tight mb-0.5">{shabbat.fridayLabel}</p>
+              <p className="text-navy font-bold text-[0.8rem] leading-tight">
+                Candles {shabbat.candleLighting}
+              </p>
+            </div>
+            <div>
+              <p className="text-[0.62rem] text-muted leading-tight mb-0.5">{shabbat.shabbatLabel}</p>
+              <p className="text-navy font-bold text-[0.8rem] leading-tight">
+                Ends {shabbat.shabbosEnds}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

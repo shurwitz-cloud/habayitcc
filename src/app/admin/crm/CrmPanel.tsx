@@ -51,6 +51,7 @@ import {
 } from '@/lib/admin/crm/utils';
 import { setContactResolved, addImportantDate } from './actions';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
+import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -635,7 +636,10 @@ export function CrmPanel({
             </>
           )}
           {view === 'chai' && canSeeFinance && (
-            <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+            <>
+              <ReconcileZeffyButton />
+              <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+            </>
           )}
           {view === 'events' && (
             <EventsTable

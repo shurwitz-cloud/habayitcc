@@ -56,11 +56,16 @@ function resolveCampaign(payment: ZeffyPaymentLike): ZeffyCampaignLike {
 }
 
 /**
- * Zeffy amounts are often major units (dollars). If value looks like cents for a
- * Chai-sized gift (>= 15000), treat as cents.
+ * Zeffy donation-form amounts are stored in cents (e.g. 15000 = $150).
+ * Webhooks may send cents or dollars — detect cents when value is a whole number
+ * and looks like minor units (>= 100 and not a clean "already dollars" chai tier).
  */
 export function toAmountDollars(raw: number): number {
-  if (raw >= 15000) return Math.round(raw) / 100;
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  // Explicit cents: typical Zeffy form amounts (100 = $1.00, 15000 = $150).
+  if (Number.isInteger(raw) && raw >= 100) {
+    return Math.round(raw) / 100;
+  }
   return Math.round(raw * 100) / 100;
 }
 
@@ -100,7 +105,14 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
   const campaign = resolveCampaign(payment);
   const address = asRecord(contact.address) ?? {};
 
-  const email = pickString(contact.email).toLowerCase();
+  // Real Zeffy payloads nest email in several places.
+  const email = pickString(
+    contact.email,
+    payment.email,
+    (payment as { buyerEmail?: string }).buyerEmail,
+    (asRecord(payment.buyer) ?? {}).email,
+    (asRecord(payment.donor) ?? {}).email
+  ).toLowerCase();
   if (!email) return null;
 
   let firstName = pickString(contact.first_name, contact.firstName);
@@ -113,6 +125,18 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
   if (!firstName) firstName = 'Friend';
   if (!lastName) lastName = 'Partner';
 
+  const campaignId =
+    pickString(
+      campaign.id,
+      typeof payment.campaign === 'string' ? payment.campaign : '',
+      (payment as { campaignId?: string }).campaignId,
+      (payment as { formId?: string }).formId,
+      (campaign as { urlPath?: string }).urlPath
+    ) || null;
+
+  const campaignTitle =
+    pickString(campaign.title, campaign.name, (campaign as { urlPath?: string }).urlPath) || null;
+
   return {
     paymentId,
     amountDollars: toAmountDollars(rawAmount),
@@ -124,8 +148,8 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
     city: pickString(address.city),
     state: pickString(address.state),
     zip: pickString(address.postal_code, address.zip),
-    campaignId: pickString(campaign.id, typeof payment.campaign === 'string' ? payment.campaign : '') || null,
-    campaignTitle: pickString(campaign.title, campaign.name) || null,
+    campaignId,
+    campaignTitle,
     status,
     raw: body,
   };
@@ -134,12 +158,16 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
 export function isLikelyChaiPartnerPayment(parsed: ParsedZeffyPayment): boolean {
   const campaignFilter = process.env.ZEFFY_CHAI_CAMPAIGN_ID?.trim();
   if (campaignFilter) {
-    return parsed.campaignId === campaignFilter;
+    return (
+      parsed.campaignId === campaignFilter ||
+      (parsed.campaignTitle ?? '').toLowerCase().includes(campaignFilter.toLowerCase())
+    );
   }
 
-  const title = (parsed.campaignTitle ?? '').toLowerCase();
-  if (title && /chai/.test(title)) return true;
+  const haystack = `${parsed.campaignTitle ?? ''} ${parsed.campaignId ?? ''} ${JSON.stringify(parsed.raw)}`.toLowerCase();
+  // Dedicated Chai Partner form (slug/title) — accept any amount including $1 tests.
+  if (/chai|habayit-chai-partner/.test(haystack)) return true;
 
-  // Without a campaign filter, accept gifts at Chai Partner threshold.
+  // Fallback: only treat large gifts as Chai if campaign metadata is missing.
   return parsed.amountDollars >= 150;
 }

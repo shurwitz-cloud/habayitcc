@@ -43,7 +43,9 @@ export async function POST(req: NextRequest) {
       '[zeffy webhook] Skipping non-Chai payment',
       parsed.paymentId,
       parsed.amountDollars,
-      parsed.campaignTitle
+      parsed.campaignTitle,
+      parsed.campaignId,
+      parsed.email
     );
     return NextResponse.json({ received: true, handled: false, reason: 'not_chai_partner' });
   }

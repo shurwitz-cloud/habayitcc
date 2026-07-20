@@ -56,8 +56,8 @@ function ChaiPartnerForm() {
   const [accessCode, setAccessCode] = useState<string | null>(null);
 
   const resolvedAmount = selectedAmt === 'other' ? parseFloat(otherAmt) : selectedAmt;
-  /** Card ~3%; ACH ~0.8% (Stripe bank debit). Zeffy has no HaBayit fee. */
-  const feeRate = payMethod === 'ach' ? 0.008 : 0.03;
+  /** Card ~3%; ACH ~1%. Zeffy has no HaBayit fee. */
+  const feeRate = payMethod === 'ach' ? 0.01 : 0.03;
   const fee = resolvedAmount ? Math.round(resolvedAmount * feeRate * 100) / 100 : 0;
   const finalAmount = resolvedAmount
     ? coverFee && (payMethod === 'card' || payMethod === 'ach')
@@ -327,7 +327,7 @@ function ChaiPartnerForm() {
             <PayMethodCard
               active={payMethod === 'ach'}
               title="Bank account (ACH)"
-              detail="Lower fees · optional 0.8% cover"
+              detail="Lower fees · optional 1% cover"
               badge="Preview"
               onClick={() => {
                 setPayMethod('ach');
@@ -402,7 +402,7 @@ function ChaiPartnerForm() {
               </button>
               <p className="text-center text-[0.72rem] text-muted mt-3">
                 {ZEFFY_LIVE
-                  ? 'You&apos;ll leave this page briefly to complete payment on Zeffy.'
+                  ? "You'll leave this page briefly to complete payment on Zeffy."
                   : 'Zeffy form URL not set yet — use card to join today.'}
               </p>
             </div>
@@ -420,9 +420,11 @@ function ChaiPartnerForm() {
               className="mt-0.5 h-4 w-4 flex-shrink-0"
             />
             <span className="text-[0.9rem] text-navy">
-              {payMethod === 'ach'
-                ? 'I&apos;d like to cover the 0.8% bank processing fee'
-                : 'I&apos;d like to cover the 3% credit card processing fee'}
+              {payMethod === 'ach' ? (
+                <>I&apos;d like to cover the 1% bank processing fee</>
+              ) : (
+                <>I&apos;d like to cover the 3% credit card processing fee</>
+              )}
               <span className="text-gold font-semibold"> (+${fee.toFixed(2)}/mo)</span>
             </span>
           </label>
@@ -473,7 +475,7 @@ function ChaiPartnerForm() {
           ? 'Secured by Stripe. Your card details are never stored by HaBayit.'
           : payMethod === 'zeffy'
             ? ZEFFY_LIVE
-              ? 'Secured by Zeffy. After you finish, we&apos;ll confirm your partnership automatically.'
+              ? "Secured by Zeffy. After you finish, we'll confirm your partnership automatically."
               : 'Zeffy form URL not configured yet.'
             : 'ACH is a UI preview — not live checkout yet.'}
       </p>

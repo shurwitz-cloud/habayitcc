@@ -324,15 +324,6 @@ function ChaiPartnerForm() {
               }}
             />
             <PayMethodCard
-              active={payMethod === 'ach'}
-              title="Bank account (ACH)"
-              badge="Preview"
-              onClick={() => {
-                setPayMethod('ach');
-                setError('');
-              }}
-            />
-            <PayMethodCard
               active={payMethod === 'zeffy'}
               title="Credit card via Zeffy"
               detail={ZEFFY_LIVE ? 'HaBayit keeps 100%' : 'HaBayit keeps 100% · preview'}
@@ -340,6 +331,15 @@ function ChaiPartnerForm() {
               onClick={() => {
                 setPayMethod('zeffy');
                 setCoverFee(false);
+                setError('');
+              }}
+            />
+            <PayMethodCard
+              active={payMethod === 'ach'}
+              title="Bank account (ACH)"
+              badge="Preview"
+              onClick={() => {
+                setPayMethod('ach');
                 setError('');
               }}
             />

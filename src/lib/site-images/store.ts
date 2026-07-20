@@ -5,6 +5,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { DEFAULT_SITE_IMAGES } from './defaults';
 import { normalizeCrop, normalizeImage, withImageCacheBust } from './crop';
+import { imagesFromSlot, isSlotCleared } from './slot-utils';
 import type { SiteImage, SiteImageSlot, SiteImageSlotId, SiteImagesConfig } from './types';
 
 interface DbRow {
@@ -29,7 +30,8 @@ function cacheVersion(row: DbRow): string {
 
 function rowToSlot(row: DbRow): SiteImageSlot {
   const version = cacheVersion(row);
-  if (row.images && row.images.length > 0) {
+  // Empty array is an intentional clear (do not treat as missing).
+  if (Array.isArray(row.images)) {
     return {
       images: row.images.map((img) =>
         normalizeImage(withImageCacheBust(img.src, version), {
@@ -49,7 +51,7 @@ function rowToSlot(row: DbRow): SiteImageSlot {
       }),
     };
   }
-  return {};
+  return { images: [] };
 }
 
 function mergeConfig(overrides: Partial<SiteImagesConfig>): SiteImagesConfig {
@@ -86,16 +88,18 @@ export async function getSiteImageSlot(id: SiteImageSlotId): Promise<SiteImageSl
 }
 
 export async function getSiteImage(id: SiteImageSlotId): Promise<SiteImage | undefined> {
-  const slot = await getSiteImageSlot(id);
-  return slot.image ?? slot.images?.[0];
+  const list = await getSiteImageList(id);
+  return list[0];
 }
 
 export async function getSiteImageList(id: SiteImageSlotId): Promise<SiteImage[]> {
   const slot = await getSiteImageSlot(id);
-  if (slot.images?.length) return slot.images;
-  if (slot.image) return [slot.image];
+  if (isSlotCleared(slot)) return [];
+  const fromSlot = imagesFromSlot(slot);
+  if (fromSlot.length) return fromSlot;
   const fallback = DEFAULT_SITE_IMAGES[id];
-  return fallback.images ?? (fallback.image ? [fallback.image] : []);
+  if (isSlotCleared(fallback)) return [];
+  return imagesFromSlot(fallback);
 }
 
 export async function saveSiteImageSlot(
@@ -110,8 +114,20 @@ export async function saveSiteImageSlot(
     };
   }
 
-  if (!slot.images?.length && !slot.image?.src?.trim()) {
-    return { success: false, error: 'Add an image URL or upload a photo before saving.' };
+  const cleared = isSlotCleared(slot);
+  if (!cleared) {
+    if (!slot.images?.length && !slot.image?.src?.trim()) {
+      return { success: false, error: 'Add an image URL or upload a photo before saving.' };
+    }
+    if (slot.images?.length) {
+      const blank = slot.images.findIndex((img) => !img.src?.trim());
+      if (blank !== -1) {
+        return {
+          success: false,
+          error: `Slide ${blank + 1} has no photo yet — upload or paste a URL, or remove that slide before saving.`,
+        };
+      }
+    }
   }
 
   try {
@@ -146,7 +162,7 @@ export async function saveSiteImageSlot(
 
 function slotToRow(id: SiteImageSlotId, slot: SiteImageSlot): DbRow & { updated_at: string } {
   const updated_at = new Date().toISOString();
-  if (slot.images?.length) {
+  if (Array.isArray(slot.images)) {
     return {
       slot_id: id,
       src: null,
@@ -157,15 +173,26 @@ function slotToRow(id: SiteImageSlotId, slot: SiteImageSlot): DbRow & { updated_
       updated_at,
     };
   }
-  const img = slot.image!;
-  const crop = normalizeCrop(img);
+  if (slot.image?.src?.trim()) {
+    const img = slot.image;
+    const crop = normalizeCrop(img);
+    return {
+      slot_id: id,
+      src: stripImageSrcForSave(img.src),
+      images: null,
+      focal_x: crop.focalX,
+      focal_y: crop.focalY,
+      zoom: crop.zoom,
+      updated_at,
+    };
+  }
   return {
     slot_id: id,
-    src: stripImageSrcForSave(img.src),
-    images: null,
-    focal_x: crop.focalX,
-    focal_y: crop.focalY,
-    zoom: crop.zoom,
+    src: null,
+    images: [],
+    focal_x: 50,
+    focal_y: 50,
+    zoom: 100,
     updated_at,
   };
 }

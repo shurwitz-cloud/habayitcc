@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { ReceiptDocument } from '@/components/receipt/ReceiptDocument';
-import { readReceiptParam, resolveReceiptMemoFromParams } from '@/lib/donations/receipt-url';
+import {
+  readReceiptParam,
+  resolveReceiptMemoFromParams,
+  verifyReceiptSearchParams,
+} from '@/lib/donations/receipt-url';
 import type { ReceiptLine } from '@/lib/donations/receipt-types';
 
 export const metadata: Metadata = {
@@ -16,6 +21,24 @@ export default async function ReceiptPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+
+  if (!verifyReceiptSearchParams(params)) {
+    return (
+      <main className="flex-1 flex items-center justify-center px-6 py-24">
+        <div className="max-w-md text-center">
+          <h1 className="text-navy font-display text-2xl mb-3">Receipt unavailable</h1>
+          <p className="text-muted mb-6">
+            This receipt link is invalid or has expired. If you made a donation, check your email
+            for the official receipt link we sent you.
+          </p>
+          <Link href="/donate" className="text-gold hover:underline">
+            Make a donation
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   const name = readReceiptParam(params.name) ?? 'Valued Donor';
   const amount = parseFloat(typeof params.amount === 'string' ? params.amount : '0');
   const dateRaw = readReceiptParam(params.date);

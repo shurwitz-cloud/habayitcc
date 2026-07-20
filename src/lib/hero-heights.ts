@@ -1,9 +1,11 @@
-/** Responsive hero min-heights — shorter on phones, taller on wide screens. */
+/** Shared banner height — interpolates 50svh (phone) → viewport fill (desktop). */
+export const HERO_BANNER = 'hero-banner';
+
 export const HERO_HEIGHT = {
-  home: 'min-h-[48vh] md:min-h-[72vh] lg:min-h-[85vh]',
-  page: 'min-h-[42vh] md:min-h-[58vh] lg:min-h-[68vh]',
-  compact: 'min-h-[36vh] md:min-h-[46vh] lg:min-h-[52vh]',
+  home: HERO_BANNER,
+  page: HERO_BANNER,
+  compact: HERO_BANNER,
 } as const;
 
-/** Top padding clears the fixed header; less vertical padding on mobile. */
-export const HERO_PADDING = 'pt-[92px] pb-12 px-[5vw] md:pt-[118px] md:pb-20 md:px-[6vw] lg:pt-[130px] lg:pb-[90px]';
+/** Header sits above the banner; modest vertical padding for overlaid text. */
+export const HERO_PADDING = 'py-10 px-[5vw] md:py-14 md:px-[6vw] lg:py-16';

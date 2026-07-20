@@ -1,12 +1,19 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
 import { FocalImageLayer } from '@/components/site-images/FocalImageLayer';
 import type { SiteImage, SiteImageSlot, SiteImageSlotId, SiteImagesConfig } from '@/lib/site-images/types';
 import { IMAGE_SLOT_META } from '@/lib/site-images/slots';
-import { DEFAULT_CROP, normalizeCrop, normalizeImage } from '@/lib/site-images/crop';
+import { DEFAULT_CROP, normalizeImage } from '@/lib/site-images/crop';
 import {
+  BANNER_DESKTOP_WIDTH,
+  BANNER_PHONE_WIDTH,
+  bannerHeightAtWidth,
+  bannerPreviewLabel,
+} from '@/lib/site-images/banner-preview';
+import {
+  getAdminSiteImages,
   resetSiteImageSlotAction,
   saveSiteImageSlotAction,
   uploadSitePhotoAction,
@@ -19,16 +26,25 @@ function slotToImages(slot: SiteImageSlot): SiteImage[] {
 }
 
 function imagesToSlot(images: SiteImage[], multi: boolean): SiteImageSlot {
+  if (images.length === 0) return { images: [] };
   if (multi) return { images };
   return { image: images[0] };
+}
+
+const MAX_BANNER_SLIDES = 8;
+
+function blankSlide(): SiteImage {
+  return normalizeImage('', DEFAULT_CROP);
 }
 
 export function PhotoAdminPanel({
   initialConfig,
   defaults,
+  role = 'admin',
 }: {
   initialConfig: SiteImagesConfig;
   defaults: SiteImagesConfig;
+  role?: 'admin' | 'volunteer';
 }) {
   const [selectedId, setSelectedId] = useState<SiteImageSlotId>('home.hero');
   const [config, setConfig] = useState(initialConfig);
@@ -78,9 +94,15 @@ export function PhotoAdminPanel({
     setMessage('');
     setError('');
     startTransition(async () => {
-      const result = await saveSiteImageSlotAction(selectedId, config[selectedId]);
-      if (result.success) setMessage('Saved — live site updated.');
-      else setError(result.error ?? 'Save failed.');
+      const slot = config[selectedId] ?? defaults[selectedId];
+      const result = await saveSiteImageSlotAction(selectedId, slot);
+      if (result.success) {
+        const fresh = await getAdminSiteImages();
+        setConfig(fresh.config);
+        setMessage('Saved — live site updated. Refresh the public page to verify.');
+      } else {
+        setError(result.error ?? 'Save failed.');
+      }
     });
   }
 
@@ -97,6 +119,55 @@ export function PhotoAdminPanel({
         setError(result.error ?? 'Reset failed.');
       }
     });
+  }
+
+  function setSlotImages(nextImages: SiteImage[]) {
+    setConfig((prev) => ({
+      ...prev,
+      [selectedId]: imagesToSlot(nextImages, meta.multi),
+    }));
+  }
+
+  function handleAddSlide() {
+    if (!meta.multi) return;
+    if (images.length >= MAX_BANNER_SLIDES) {
+      setError(`You can add up to ${MAX_BANNER_SLIDES} slides per banner.`);
+      return;
+    }
+    setMessage('');
+    setError('');
+    const nextImages = [...images, blankSlide()];
+    setSlotImages(nextImages);
+    setImageIndex(nextImages.length - 1);
+    setMessage('New slide added — upload a photo, then Save.');
+  }
+
+  function handleRemoveSlide() {
+    if (!meta.multi) return;
+    setMessage('');
+    setError('');
+    if (images.length <= 1) {
+      setSlotImages([]);
+      setImageIndex(0);
+      setMessage('All photos cleared — click Save. The live page will use a text-only banner.');
+      return;
+    }
+    const nextImages = images.filter((_, i) => i !== imageIndex);
+    setSlotImages(nextImages);
+    setImageIndex(Math.min(imageIndex, nextImages.length - 1));
+    setMessage('Slide removed — click Save to update the live site.');
+  }
+
+  function handleClearAllPhotos() {
+    setMessage('');
+    setError('');
+    setSlotImages([]);
+    setImageIndex(0);
+    setMessage(
+      meta.responsiveBanner
+        ? 'Photos cleared — click Save. The page banner will become text-only.'
+        : 'Photo cleared — click Save. The site layout will adjust without this image.'
+    );
   }
 
   function handleUpload(file: File) {
@@ -117,7 +188,7 @@ export function PhotoAdminPanel({
 
   return (
     <div>
-      <AdminNav />
+      <AdminNav role={role} />
       <div className="grid lg:grid-cols-[280px_1fr] gap-8">
       <aside className="bg-white border border-line rounded-2xl p-4 h-fit lg:sticky lg:top-24">
         <div className="mb-4">
@@ -157,6 +228,8 @@ export function PhotoAdminPanel({
             <h1 className="text-2xl font-bold text-navy">{meta.label}</h1>
             <p className="text-sm text-muted mt-1">
               Drag the preview to reposition. Use zoom to crop tighter. Save when it looks right.
+              {meta.multi ? ' Add or remove slides for rotating banners.' : ''}{' '}
+              Clear photos to hide the image on the live site.
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -179,29 +252,101 @@ export function PhotoAdminPanel({
           </div>
         </div>
 
-        {meta.multi && images.length > 1 && (
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {images.map((img, i) => (
-              <button
-                key={`${img.src}-${i}`}
-                type="button"
-                onClick={() => setImageIndex(i)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold ${
-                  imageIndex === i ? 'bg-navy text-white' : 'bg-soft text-navy'
-                }`}
-              >
-                Slide {i + 1}
-              </button>
-            ))}
+        {meta.multi && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {images.length === 0 ? (
+              <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-soft text-muted">
+                No photos — text-only on site
+              </span>
+            ) : (
+              images.map((img, i) => (
+                <button
+                  key={`${img.src || 'empty'}-${i}`}
+                  type="button"
+                  onClick={() => setImageIndex(i)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                    imageIndex === i ? 'bg-navy text-white' : 'bg-soft text-navy'
+                  }`}
+                >
+                  Slide {i + 1}
+                  {!img.src ? ' · empty' : ''}
+                </button>
+              ))
+            )}
+            <button
+              type="button"
+              onClick={handleAddSlide}
+              disabled={isPending || images.length >= MAX_BANNER_SLIDES}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border border-navy text-navy disabled:opacity-50"
+            >
+              + Add slide
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveSlide}
+              disabled={isPending || images.length === 0}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border border-line text-muted disabled:opacity-50"
+            >
+              Remove slide
+            </button>
+            <button
+              type="button"
+              onClick={handleClearAllPhotos}
+              disabled={isPending || images.length === 0}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#c45c4a] text-[#c45c4a] disabled:opacity-50"
+            >
+              Clear all photos
+            </button>
+            <span className="text-xs text-muted">
+              {images.length}/{MAX_BANNER_SLIDES} slides
+            </span>
           </div>
         )}
 
-        <CropPreview
-          image={activeImage}
-          aspectRatio={meta.aspectRatio}
-          onPan={handlePan}
-        />
+        {!meta.multi && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {images.length === 0 || !activeImage.src ? (
+              <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-soft text-muted">
+                No photo — layout adjusts on site
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleClearAllPhotos}
+              disabled={isPending || (!activeImage.src && images.length === 0)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#c45c4a] text-[#c45c4a] disabled:opacity-50"
+            >
+              Clear photo
+            </button>
+          </div>
+        )}
 
+        {images.length === 0 ? (
+          <div className="rounded-[18px] border border-dashed border-line bg-soft px-6 py-16 text-center max-w-3xl mx-auto">
+            <p className="text-navy font-semibold">No photo for this slot</p>
+            <p className="text-sm text-muted mt-2 max-w-md mx-auto">
+              {meta.responsiveBanner
+                ? 'After you save, the live page shows a compact text banner instead of a photo.'
+                : 'After you save, the live page hides this image and keeps the text layout.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSlotImages([blankSlide()]);
+                setImageIndex(0);
+              }}
+              className="mt-5 px-5 py-2.5 rounded-full border border-navy text-navy text-sm font-semibold"
+            >
+              Add a photo
+            </button>
+          </div>
+        ) : meta.responsiveBanner ? (
+          <BannerCropPreview key={selectedId} image={activeImage} onPan={handlePan} />
+        ) : (
+          <CropPreview image={activeImage} aspectRatio={meta.aspectRatio} onPan={handlePan} />
+        )}
+
+        {images.length > 0 && (
         <div className="grid md:grid-cols-2 gap-6 mt-6">
           <label className="flex flex-col gap-2">
             <span className="text-[0.72rem] font-bold uppercase tracking-wide text-navy">Zoom</span>
@@ -228,6 +373,7 @@ export function PhotoAdminPanel({
             />
           </label>
         </div>
+        )}
 
         <div className="mt-6 flex flex-wrap gap-3 items-center">
           <input
@@ -237,13 +383,25 @@ export function PhotoAdminPanel({
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleUpload(file);
+              if (file) {
+                if (images.length === 0) {
+                  setSlotImages([blankSlide()]);
+                  setImageIndex(0);
+                }
+                handleUpload(file);
+              }
               e.target.value = '';
             }}
           />
           <button
             type="button"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              if (images.length === 0) {
+                setSlotImages([blankSlide()]);
+                setImageIndex(0);
+              }
+              fileRef.current?.click();
+            }}
             disabled={isPending}
             className="px-5 py-2.5 rounded-full border border-navy text-navy text-sm font-semibold"
           >
@@ -269,6 +427,79 @@ export function PhotoAdminPanel({
   );
 }
 
+function BannerCropPreview({
+  image,
+  onPan,
+}: {
+  image: SiteImage;
+  onPan: (dx: number, dy: number, rect: DOMRect) => void;
+}) {
+  const [previewWidth, setPreviewWidth] = useState(BANNER_DESKTOP_WIDTH);
+  const previewHeight = bannerHeightAtWidth(previewWidth);
+  const label = bannerPreviewLabel(previewWidth);
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <p className="text-[0.72rem] font-bold uppercase tracking-wide text-navy">
+          Preview width — {label}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setPreviewWidth(BANNER_PHONE_WIDTH)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+              previewWidth <= BANNER_PHONE_WIDTH + 40
+                ? 'bg-navy text-white'
+                : 'bg-soft text-navy border border-line'
+            }`}
+          >
+            Phone
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewWidth(BANNER_DESKTOP_WIDTH)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+              previewWidth >= BANNER_DESKTOP_WIDTH - 40
+                ? 'bg-navy text-white'
+                : 'bg-soft text-navy border border-line'
+            }`}
+          >
+            Desktop
+          </button>
+        </div>
+      </div>
+
+      <input
+        type="range"
+        min={BANNER_PHONE_WIDTH}
+        max={BANNER_DESKTOP_WIDTH}
+        step={10}
+        value={previewWidth}
+        onChange={(e) => setPreviewWidth(Number(e.target.value))}
+        className="w-full mb-4"
+        aria-label="Preview viewport width"
+      />
+
+      <p className="text-xs text-muted text-center mb-3">
+        {previewWidth}px wide · simulates how the banner crops on phone (half screen) vs desktop
+        (full viewport)
+      </p>
+
+      <DraggableCropFrame
+        image={image}
+        onPan={onPan}
+        frameStyle={{
+          width: '100%',
+          maxWidth: previewWidth,
+          aspectRatio: `${previewWidth} / ${previewHeight}`,
+        }}
+        className="mx-auto"
+      />
+    </div>
+  );
+}
+
 function CropPreview({
   image,
   aspectRatio,
@@ -278,13 +509,34 @@ function CropPreview({
   aspectRatio: string;
   onPan: (dx: number, dy: number, rect: DOMRect) => void;
 }) {
+  return (
+    <DraggableCropFrame
+      image={image}
+      onPan={onPan}
+      frameStyle={{ aspectRatio }}
+      className="max-w-3xl mx-auto"
+    />
+  );
+}
+
+function DraggableCropFrame({
+  image,
+  onPan,
+  frameStyle,
+  className = '',
+}: {
+  image: SiteImage;
+  onPan: (dx: number, dy: number, rect: DOMRect) => void;
+  frameStyle: CSSProperties;
+  className?: string;
+}) {
   const dragging = useRef(false);
   const last = useRef({ x: 0, y: 0 });
 
   return (
     <div
-      className="relative w-full max-w-3xl mx-auto rounded-[18px] overflow-hidden border border-line cursor-grab active:cursor-grabbing select-none touch-none bg-[#d8c9a8]"
-      style={{ aspectRatio }}
+      className={`relative w-full rounded-[18px] overflow-hidden border border-line cursor-grab active:cursor-grabbing select-none touch-none bg-[#d8c9a8] ${className}`}
+      style={frameStyle}
       onPointerDown={(e) => {
         dragging.current = true;
         last.current = { x: e.clientX, y: e.clientY };

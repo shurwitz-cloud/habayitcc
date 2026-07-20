@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
+import { ProgramOpenHouse } from '@/components/events/ProgramOpenHouse';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_REGISTER_PATH } from '@/lib/programs/names';
@@ -38,37 +39,30 @@ export default function HebrewSchoolPage() {
           {HEBREW_ADVENTURE_NAME}
         </SiteRotatingHero>
 
+        <ProgramOpenHouse eventSlug="hebrew-adventure" background="soft" />
+
         <Section background="white">
-          <div className="grid md:grid-cols-[.9fr_1.1fr] gap-15 items-center">
-            <div>
-              <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
-                About the Program
-              </p>
-              <h2 className="text-[clamp(2rem,3.5vw,2.8rem)] leading-tight text-navy font-bold">
-                A place to learn, belong, and grow.
-              </h2>
-              <p className="mt-4 text-muted text-[1.02rem]">
-                {HEBREW_ADVENTURE_NAME} offers children a meaningful, age-appropriate Jewish
-                education in a warm and supportive environment — Hebrew reading, holidays and
-                values, and genuine friendship, taught by caring, experienced educators.
-              </p>
-              <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
-                📅 Classes meet every Sunday, 10:00 AM – 12:00 PM.
-              </div>
-              <Link
-                href={HEBREW_ADVENTURE_REGISTER_PATH}
-                className="inline-block mt-8 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
-              >
-                Begin Registration
-              </Link>
+          <div className="max-w-[720px]">
+            <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
+              About the Program
+            </p>
+            <h2 className="text-[clamp(2rem,3.5vw,2.8rem)] leading-tight text-navy font-bold">
+              A place to learn, belong, and grow.
+            </h2>
+            <p className="mt-4 text-muted text-[1.02rem]">
+              {HEBREW_ADVENTURE_NAME} offers children a meaningful, age-appropriate Jewish
+              education in a warm and supportive environment — Hebrew reading, holidays and
+              values, and genuine friendship, taught by caring, experienced educators.
+            </p>
+            <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
+              📅 Classes meet every Sunday, 10:00 AM – 12:00 PM.
             </div>
-            <div className="rounded-[18px] overflow-hidden border border-line shadow-sm bg-black">
-              <img
-                src="/flyers/hebrew-adventure.png"
-                alt={`${HEBREW_ADVENTURE_NAME} program flyer`}
-                className="w-full h-auto block"
-              />
-            </div>
+            <Link
+              href={HEBREW_ADVENTURE_REGISTER_PATH}
+              className="inline-block mt-8 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
+            >
+              Begin Registration
+            </Link>
           </div>
         </Section>
 

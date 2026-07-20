@@ -91,7 +91,7 @@ function emailShell(content: string): string {
         <tr><td style="padding:28px;">${content}</td></tr>
         <tr><td style="padding:16px 28px 24px;border-top:1px solid #e4ded2;text-align:center;font-size:12px;color:#6f6a60;line-height:1.6;">
           HaBayit Israeli Jewish Center · Cooper City, FL<br>
-          <a href="https://habayitcc.org" style="color:#172643;">habayitcc.org</a> · (646) 462-1138
+          <a href="${getSiteUrl()}" style="color:#172643;">${getSiteUrl().replace(/^https?:\/\//, '')}</a> · (646) 462-1138
         </td></tr>
       </table>
     </td></tr>

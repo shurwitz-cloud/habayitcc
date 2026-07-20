@@ -93,6 +93,35 @@ export function ProgramTile({
   const src = photo?.src ?? image;
   const crop = photo ?? (src ? normalizeImage(src, DEFAULT_CROP) : undefined);
 
+  // No photo — text-only tile (layout collapses the image column).
+  if (!src) {
+    return (
+      <Link
+        href={href}
+        className={`block bg-soft rounded-[18px] overflow-hidden mb-6 transition-all hover:-translate-y-1 hover:shadow-2xl ${
+          compact ? 'min-h-[180px]' : 'min-h-[220px]'
+        } ${className}`}
+      >
+        <div className={`flex flex-col justify-center ${compact ? 'p-6 md:p-8' : 'p-8 md:p-[50px]'}`}>
+          <p className="text-[0.74rem] tracking-[0.16em] uppercase text-gold font-bold mb-3.5">
+            {kicker}
+          </p>
+          <h3
+            className={`leading-tight text-navy font-bold mb-4 ${
+              compact
+                ? 'text-[clamp(1.45rem,2.2vw,2rem)]'
+                : 'text-[clamp(1.9rem,3vw,2.7rem)]'
+            }`}
+          >
+            {title}
+          </h3>
+          <p className={`text-muted max-w-[520px] ${compact ? 'text-[0.88rem]' : ''}`}>{description}</p>
+          <div className={`text-gold text-[1.6rem] ${compact ? 'mt-4' : 'mt-5.5'}`}>&rarr;</div>
+        </div>
+      </Link>
+    );
+  }
+
   const gridCols = compact
     ? 'md:grid-cols-2'
     : reverse
@@ -111,16 +140,7 @@ export function ProgramTile({
           compact ? 'min-h-[180px]' : 'min-h-[220px]'
         }`}
       >
-        {src && crop ? (
-          <FocalImageLayer {...crop} src={src} />
-        ) : (
-          <>
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg,#d8c9a8,#8aa0b0)' }} />
-            <span className="absolute inset-0 grid place-items-center text-white/85 text-[0.72rem] tracking-[0.18em] uppercase font-bold">
-              Photography Coming Soon
-            </span>
-          </>
-        )}
+        <FocalImageLayer {...crop!} src={src} />
       </div>
       <div className={`flex flex-col justify-center ${compact ? 'p-6 md:p-8' : 'p-8 md:p-[50px]'}`}>
         <p className="text-[0.74rem] tracking-[0.16em] uppercase text-gold font-bold mb-3.5">

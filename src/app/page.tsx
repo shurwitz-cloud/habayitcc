@@ -6,6 +6,7 @@ import { SynagogueHomeSection } from '@/components/shabbat/SynagogueHomeSection'
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { ProgramCard, ProgramTile } from '@/components/sections/ProgramCard';
 import { getSiteImages } from '@/lib/site-images/store';
+import { primaryImageFromSlot } from '@/lib/site-images/slot-utils';
 import { HERO_HEIGHT, HERO_PADDING } from '@/lib/hero-heights';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
@@ -38,7 +39,7 @@ export default async function HomePage() {
             kicker="For Children & Families"
             title={HEBREW_ADVENTURE_NAME}
             description="Joyful Jewish learning where children build skills, confidence, identity, and a love for being Jewish."
-            photo={images['home.hebrew-adventure'].image}
+            photo={primaryImageFromSlot(images['home.hebrew-adventure'])}
           />
 
           <div className="grid md:grid-cols-3 gap-5.5 mb-6">
@@ -46,24 +47,24 @@ export default async function HomePage() {
               href="/bar-mitzvah"
               title="Bar Mitzvah"
               description="Meaningful preparation for boys entering Jewish adulthood."
-              photo={images['home.bar-mitzvah'].image}
+              photo={primaryImageFromSlot(images['home.bar-mitzvah'])}
             />
             <ProgramCard
               href="/bat-mitzvah"
               title="Bat Mitzvah"
               description="A warm and inspiring experience for girls celebrating this milestone."
-              photo={images['home.bat-mitzvah'].image}
+              photo={primaryImageFromSlot(images['home.bat-mitzvah'])}
             />
             <ProgramCard
               href="/chai-partner"
               title="Chai Partner"
               description="Help sustain HaBayit through monthly partnership and become part of building our community."
               variant="featured"
-              photo={images['home.chai-partner'].image}
+              photo={primaryImageFromSlot(images['home.chai-partner'])}
             />
           </div>
 
-          <SynagogueHomeSection photo={images['home.synagogue'].image} />
+          <SynagogueHomeSection photo={primaryImageFromSlot(images['home.synagogue'])} />
         </Section>
 
         <Section background="cream" narrow>

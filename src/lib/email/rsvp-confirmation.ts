@@ -1,4 +1,5 @@
 import type { EventConfig } from '@/lib/events/config';
+import { formatLocationAddressHtml } from '@/lib/events/location';
 import { buildEmailHtml, getAdminEmail, sendEmail } from './client';
 
 export interface RsvpConfirmationEmailInput {
@@ -15,22 +16,29 @@ export async function sendRsvpConfirmationEmail(
   input: RsvpConfirmationEmailInput
 ): Promise<boolean> {
   const { event, firstName, email, attending } = input;
-  const locationNote = event.locationPrivate
-    ? 'The venue address will be sent to you closer to the event.'
-    : 'See habayitcc.org/events for location details.';
+
+  const locationRow = event.locationAddress
+    ? `<tr><td style="padding:6px 0;color:#6f6a60;vertical-align:top;">Location</td><td style="padding:6px 0;"><strong>${formatLocationAddressHtml(event.locationAddress)}</strong></td></tr>`
+    : '';
+
+  const locationNote = event.locationAddress
+    ? ''
+    : event.locationPrivate
+      ? '<p style="margin:0;font-size:14px;line-height:1.6;color:#6f6a60;">The venue address will be sent to you closer to the event.</p>'
+      : '<p style="margin:0;font-size:14px;line-height:1.6;color:#6f6a60;">See habayitcc.org/events for location details.</p>';
 
   const html = buildEmailHtml(`
     <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Dear ${firstName},</p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
-      You're registered for <strong>${event.title}</strong>.
+      You're registered for <strong>${event.title}</strong>. We look forward to seeing you!
     </p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.6;margin:0 0 16px;">
       <tr><td style="padding:6px 0;color:#6f6a60;width:120px;">Event</td><td style="padding:6px 0;"><strong>${event.rsvpLabel}</strong></td></tr>
       <tr><td style="padding:6px 0;color:#6f6a60;">Date</td><td style="padding:6px 0;">${event.dateLabel} · ${event.time}</td></tr>
       <tr><td style="padding:6px 0;color:#6f6a60;">Attending</td><td style="padding:6px 0;">${attending}</td></tr>
+      ${locationRow}
     </table>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#6f6a60;">${locationNote}</p>
-    <p style="margin:16px 0 0;font-size:14px;line-height:1.6;">We look forward to seeing you!</p>
+    ${locationNote}
   `);
 
   const [attendeeSent] = await Promise.all([

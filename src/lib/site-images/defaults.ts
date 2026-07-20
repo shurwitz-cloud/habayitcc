@@ -27,16 +27,16 @@ export const DEFAULT_SITE_IMAGES: SiteImagesConfig = {
     image: { src: '/photos/about-family.jpg', focalX: 50, focalY: 38, zoom: 108 },
   },
   'synagogue.hero': {
-    image: { src: '/photos/synagogue-hero.jpg', focalX: 50, focalY: 50, zoom: 100 },
+    images: [{ src: '/photos/synagogue-hero.jpg', focalX: 50, focalY: 50, zoom: 100 }],
   },
   'hebrew-adventure.hero': {
-    image: { src: '/photos/hebrew-adventure-hero.jpg', focalX: 50, focalY: 50, zoom: 100 },
+    images: [{ src: '/photos/hebrew-adventure-hero.jpg', focalX: 50, focalY: 50, zoom: 100 }],
   },
   'contact.hero': {
-    image: { src: '/photos/contact-hero.jpg', focalX: 50, focalY: 50, zoom: 100 },
+    images: [{ src: '/photos/contact-hero.jpg', focalX: 50, focalY: 50, zoom: 100 }],
   },
   'donate.hero': {
-    image: { src: '/photos/donate-hero.jpg', focalX: 50, focalY: 50, zoom: 100 },
+    images: [{ src: '/photos/donate-hero.jpg', focalX: 50, focalY: 50, zoom: 100 }],
   },
   'chai-partner.hero': {
     images: [

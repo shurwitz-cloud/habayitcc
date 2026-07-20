@@ -12,6 +12,12 @@ export const SITE_DESCRIPTION =
 /** Default link-preview image unless a page sets its own openGraph.images */
 export const DEFAULT_OG_IMAGE = '/logos/habayit-logo-blue.png';
 
+/** Browser tab / PWA icons (generated from logo emblem in src/app/icon.png). */
+export const SITE_ICONS = {
+  icon: '/icon.png',
+  apple: '/apple-icon.png',
+} as const;
+
 export const defaultOpenGraph = {
   type: 'website' as const,
   siteName: SITE_NAME,

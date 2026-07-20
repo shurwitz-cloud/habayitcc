@@ -56,6 +56,16 @@ body {
   line-height: 1.65;
 }
 
+/* Page banners: 50svh on phone → full viewport below nav on desktop, linear in between */
+.hero-banner {
+  width: 100%;
+  min-height: clamp(
+    50svh,
+    calc(50svh + (50svh - var(--nav-height)) * ((100vw - 390px) / 890px)),
+    calc(100svh - var(--nav-height))
+  );
+}
+
 h1, h2, h3, .font-display {
   font-family: var(--font-display);
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminApi } from '@/lib/admin/guard';
 import { getFromEmail, getResend, sendEmail } from '@/lib/email/client';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,9 @@ export const dynamic = 'force-dynamic';
  * Add ?send=test@example.com to send a test message (optional).
  */
 export async function GET(req: Request) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const testTo = url.searchParams.get('send')?.trim();
 

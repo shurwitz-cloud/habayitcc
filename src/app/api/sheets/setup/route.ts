@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminApi } from '@/lib/admin/guard';
 import { createSheet, setupSheet, SHEET_CONFIGS } from '@/lib/google/sheets';
 
 const SHEET_TITLES: Record<string, string> = {
@@ -23,6 +24,9 @@ const SHEET_TITLES: Record<string, string> = {
  * to be set before calling.
  */
 export async function GET() {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
   if (
     !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
     !process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY

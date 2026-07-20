@@ -80,6 +80,9 @@ export function ContactForm() {
         </option>
         <option>Shabbat &amp; Synagogue</option>
         <option>{HEBREW_ADVENTURE_NAME}</option>
+        <option>Bar Mitzvah</option>
+        <option>Bat Mitzvah</option>
+        <option>Teen Programs</option>
         <option>Bar / Bat Mitzvah</option>
         <option>Chai Partnership</option>
         <option>General Information</option>

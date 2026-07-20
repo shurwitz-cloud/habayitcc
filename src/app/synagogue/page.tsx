@@ -1,10 +1,9 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Hero } from '@/components/sections/Hero';
 import { ShabbatHomeCard } from '@/components/shabbat/ShabbatHomeCard';
-import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { getUpcomingShabbat } from '@/lib/shabbat/hebcal';
 import { Section, SectionTitle } from '@/components/sections/Section';
+import { SynagogueHero } from './SynagogueHero';
 
 export const metadata = {
   title: 'Synagogue – Shabbat at HaBayit',
@@ -12,7 +11,7 @@ export const metadata = {
     "Join HaBayit for Shabbat — Friday evening L'chaim and Kabbalat Shabbat, Saturday morning Shacharit, and Mincha.",
 };
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 const SCHEDULE = [
   {
@@ -64,13 +63,7 @@ export default async function SynagoguePage() {
       <Header />
 
       <main className="flex-1">
-        <Hero
-          kicker="Synagogue"
-          minHeight={HERO_HEIGHT.page}
-          subtitle="A welcoming place to pray, connect, celebrate, and grow together."
-        >
-          Shabbat &amp; Community
-        </Hero>
+        <SynagogueHero />
 
         <Section background="white" narrow>
           <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">

@@ -163,37 +163,56 @@ function NavDropdown({
   links: { href: string; label: string }[];
   href?: string;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="relative group">
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
       {href ? (
         <Link href={href} className="flex items-center gap-1.5 hover:text-gold">
           {label}
-          <DropdownArrow />
+          <DropdownArrow open={open} />
         </Link>
       ) : (
-        <button className="flex items-center gap-1.5 hover:text-gold bg-transparent uppercase tracking-wider">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 hover:text-gold bg-transparent uppercase tracking-wider text-[0.78rem] font-semibold text-navy"
+        >
           {label}
-          <DropdownArrow />
+          <DropdownArrow open={open} />
         </button>
       )}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 translate-y-1.5 bg-white border border-line rounded-xl p-2 min-w-[200px] shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all mt-3.5 z-50">
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="block px-4 py-2.5 text-[0.76rem] font-semibold normal-case tracking-normal text-navy rounded-lg hover:bg-soft hover:text-gold whitespace-nowrap"
-          >
-            {link.label}
-          </Link>
-        ))}
+      <div
+        className={`absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50 transition-opacity duration-150 ${
+          open ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+        }`}
+      >
+        <div className="bg-white border border-line rounded-xl p-2 min-w-[220px] shadow-xl">
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="block px-4 py-2.5 text-[0.76rem] font-semibold normal-case tracking-normal text-navy rounded-lg hover:bg-soft hover:text-gold whitespace-nowrap"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function DropdownArrow() {
+function DropdownArrow({ open }: { open: boolean }) {
   return (
-    <svg viewBox="0 0 12 8" fill="none" className="w-2.5 h-2.5 transition-transform group-hover:rotate-180">
+    <svg
+      viewBox="0 0 12 8"
+      fill="none"
+      className={`w-2.5 h-2.5 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+    >
       <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );

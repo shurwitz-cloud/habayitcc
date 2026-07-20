@@ -29,14 +29,14 @@ export const SUBMISSION_EMAILS = {
     trigger: 'src/app/rsvp/[slug]/actions.ts → submitRsvp',
   },
   donation_one_time: {
-    description: 'One-time donation — tax receipt email',
-    handler: 'sendDonationReceiptEmailFromRecord',
+    description: 'One-time donation — tax receipt email + admin notification',
+    handler: 'sendDonationReceiptEmailFromRecord + sendDonationAdminNotification',
     trigger: 'src/app/donate/actions.ts → recordDonation; webhook backup',
   },
   donation_monthly_start: {
-    description: 'Monthly donation signup — thank-you + tax receipt',
-    handler: 'sendDonationReceiptEmailFromRecord (donationType: Monthly)',
-    trigger: 'src/app/donate/actions.ts → recordDonation',
+    description: 'Monthly donation signup — thank-you + receipt + admin notification',
+    handler: 'sendDonationReceiptEmailFromRecord + sendDonationAdminNotification',
+    trigger: 'src/app/donate/actions.ts → recordDonation; invoice.payment_succeeded webhook',
   },
   donation_monthly_renewal: {
     description: 'Recurring monthly donation charge — tax receipt',
@@ -46,7 +46,8 @@ export const SUBMISSION_EMAILS = {
   chai_partner: {
     description: 'Chai Partner signup — welcome + access code + admin notification',
     handler: 'sendChaiPartnerWelcomeEmail',
-    trigger: 'src/app/chai-partner/actions.ts → confirmChaiPartnerPayment',
+    trigger:
+      'src/app/chai-partner/actions.ts → confirmChaiPartnerPayment; src/app/api/webhooks/zeffy → recordZeffyChaiPartnerPayment',
   },
   hebrew_adventure_registration: {
     description: 'Hebrew Adventure registration submitted — pending review confirmation',

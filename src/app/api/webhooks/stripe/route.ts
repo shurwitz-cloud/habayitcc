@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { logFormSubmission } from '@/lib/admin/form-log';
 import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
+import {
+  syncDonationFromPaymentIntent,
+  syncDonationFromSubscriptionInvoice,
+} from '@/lib/donations/reconcile-stripe';
 import type Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
@@ -34,14 +39,11 @@ export async function POST(req: NextRequest) {
         break;
     }
   } catch (err) {
-    // Log but return 200 so Stripe doesn't retry — alert for manual review
     console.error(`Error handling Stripe event ${event.type}:`, err);
   }
 
   return NextResponse.json({ received: true });
 }
-
-// ——— One-time donation payment intents ———
 
 async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
   const { type } = pi.metadata ?? {};
@@ -51,78 +53,10 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
     return;
   }
 
-  const {
-    donation_type,
-    donor_name,
-    donor_email,
-    dedication_name,
-    dedication_type,
-    campaign,
-  } = pi.metadata ?? {};
-
+  const { donation_type } = pi.metadata ?? {};
   if (type !== 'donation' || donation_type !== 'one_time') return;
 
-  const supabase = createAdminClient();
-  const [firstName, ...rest] = (donor_name ?? '').split(' ');
-  const lastName = rest.join(' ');
-  const amountDollars = pi.amount / 100;
-
-  const { data: existing } = await supabase
-    .from('donations')
-    .select('id')
-    .eq('stripe_payment_intent_id', pi.id)
-    .maybeSingle();
-
-  if (existing) return; // Already recorded by client-side action
-
-  const { data: donation, error } = await supabase
-    .from('donations')
-    .insert({
-      first_name: firstName ?? '',
-      last_name: lastName ?? '',
-      email: donor_email ?? '',
-      amount: amountDollars,
-      stripe_payment_intent_id: pi.id,
-      status: 'succeeded',
-      family_id: null,
-      phone: null,
-      dedication_name: dedication_name || null,
-      dedication_type:
-        dedication_type === 'honor' || dedication_type === 'memory'
-          ? dedication_type
-          : null,
-    })
-    .select('id')
-    .single();
-
-  if (error || !donation) {
-    console.error('Webhook: failed to insert donation:', error);
-    return;
-  }
-
-  await supabase.from('payments').insert({
-    source_type: 'donation',
-    source_id: donation.id,
-    amount: amountDollars,
-    stripe_payment_intent_id: pi.id,
-    stripe_charge_id: typeof pi.latest_charge === 'string' ? pi.latest_charge : null,
-    status: 'succeeded',
-    paid_at: new Date().toISOString(),
-  });
-
-  await sendDonationReceiptEmailFromRecord({
-    email: donor_email ?? '',
-    firstName: firstName ?? '',
-    lastName: lastName ?? '',
-    amountDollars,
-    campaign: campaign || null,
-    dedicationName: dedication_name || null,
-    dedicationType:
-      dedication_type === 'honor' || dedication_type === 'memory'
-        ? dedication_type
-        : null,
-    donationType: 'One-Time',
-  });
+  await syncDonationFromPaymentIntent(pi, 'One-Time');
 }
 
 async function handleHebrewAdventureTuitionPayment(pi: Stripe.PaymentIntent) {
@@ -169,105 +103,90 @@ async function handleHebrewAdventureTuitionPayment(pi: Stripe.PaymentIntent) {
       status: 'succeeded',
       paid_at: paidAt,
     });
+
+    void logFormSubmission({
+      formType: 'hebrew_adventure_registration',
+      email: pi.metadata?.donor_email,
+      sourceId: reg.id,
+      payload: {
+        type: 'tuition_payment',
+        paymentIntentId: pi.id,
+        familyId,
+        installment,
+        amountDollars,
+      },
+    });
   }
 }
 
-// ——— Recurring subscription payments ———
-
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  // Skip the first invoice — handled by client-side confirmation
-  if (invoice.billing_reason === 'subscription_create') return;
-
-  const supabase = createAdminClient();
-  const amountDollars = invoice.amount_paid / 100;
-
   const subRef = invoice.parent?.subscription_details?.subscription;
-  const subscriptionId = typeof subRef === 'string'
-    ? subRef
-    : (subRef as Stripe.Subscription | null)?.id ?? null;
+  const subscriptionId =
+    typeof subRef === 'string' ? subRef : (subRef as Stripe.Subscription | null)?.id ?? null;
 
   if (!subscriptionId) return;
 
-  // Extract the payment intent ID from the confirmation_secret client_secret
-  // Format: pi_xxx_secret_yyy → payment intent ID is pi_xxx
-  const piId = invoice.confirmation_secret?.client_secret?.split('_secret_')[0] ?? null;
-
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const { type, donor_email, donor_name } = subscription.metadata ?? {};
-
-  if (!type || !donor_email) return;
+  const { type } = subscription.metadata ?? {};
 
   if (type === 'monthly_donation') {
-    const [firstName, ...rest] = (donor_name ?? '').split(' ');
-    const lastName = rest.join(' ');
-
-    const { data: donation, error } = await supabase
-      .from('donations')
-      .insert({
-        first_name: firstName ?? '',
-        last_name: lastName ?? '',
-        email: donor_email,
-        amount: amountDollars,
-        stripe_payment_intent_id: piId,
-        status: 'succeeded',
-        family_id: null,
-        phone: null,
-        dedication_name: null,
-        dedication_type: null,
-      })
-      .select('id')
-      .single();
-
-    if (!error && donation) {
-      await supabase.from('payments').insert({
-        source_type: 'donation',
-        source_id: donation.id,
-        amount: amountDollars,
-        stripe_payment_intent_id: piId,
-        stripe_charge_id: null,
-        status: 'succeeded',
-        paid_at: new Date().toISOString(),
-      });
-
-      await sendDonationReceiptEmailFromRecord({
-        email: donor_email,
-        firstName: firstName ?? '',
-        lastName: lastName ?? '',
-        amountDollars,
-        donationType: 'Monthly',
-      });
-    }
+    await syncDonationFromSubscriptionInvoice(invoice, subscription);
+    return;
   }
 
-  if (type === 'chai_partner') {
-    const [firstName, ...rest] = (donor_name ?? '').split(' ');
-    const lastName = rest.join(' ');
-
-    const { data: partner } = await supabase
-      .from('chai_partners')
-      .select('id, first_name, last_name, email')
-      .eq('stripe_subscription_id', subscriptionId)
-      .maybeSingle();
-
-    if (partner) {
-      await supabase.from('payments').insert({
-        source_type: 'chai_partner',
-        source_id: partner.id,
-        amount: amountDollars,
-        stripe_payment_intent_id: piId,
-        stripe_charge_id: null,
-        status: 'succeeded',
-        paid_at: new Date().toISOString(),
-      });
-
-      await sendDonationReceiptEmailFromRecord({
-        email: partner.email || donor_email,
-        firstName: partner.first_name || firstName || '',
-        lastName: partner.last_name || lastName || '',
-        amountDollars,
-        campaign: 'chai-partner',
-        donationType: 'Monthly',
-      });
-    }
+  if (type === 'chai_partner' && invoice.billing_reason !== 'subscription_create') {
+    await handleChaiPartnerRenewal(invoice, subscription);
   }
+}
+
+async function handleChaiPartnerRenewal(
+  invoice: Stripe.Invoice,
+  subscription: Stripe.Subscription
+) {
+  const supabase = createAdminClient();
+  const amountDollars = invoice.amount_paid / 100;
+  const piId = invoice.confirmation_secret?.client_secret?.split('_secret_')[0] ?? null;
+  const { donor_email, donor_name } = subscription.metadata ?? {};
+  const [firstName, ...rest] = (donor_name ?? '').split(' ');
+  const lastName = rest.join(' ');
+
+  const { data: partner } = await supabase
+    .from('chai_partners')
+    .select('id, first_name, last_name, email')
+    .eq('stripe_subscription_id', subscription.id)
+    .maybeSingle();
+
+  if (!partner) return;
+
+  await supabase.from('payments').insert({
+    source_type: 'chai_partner',
+    source_id: partner.id,
+    amount: amountDollars,
+    stripe_payment_intent_id: piId,
+    stripe_charge_id: null,
+    status: 'succeeded',
+    paid_at: new Date().toISOString(),
+  });
+
+  void logFormSubmission({
+    formType: 'chai_partner',
+    email: partner.email || donor_email,
+    sourceId: partner.id,
+    payload: {
+      type: 'renewal',
+      subscriptionId: subscription.id,
+      invoiceId: invoice.id,
+      amountDollars,
+      paymentIntentId: piId,
+    },
+  });
+
+  await sendDonationReceiptEmailFromRecord({
+    email: partner.email || donor_email,
+    firstName: partner.first_name || firstName || '',
+    lastName: partner.last_name || lastName || '',
+    amountDollars,
+    campaign: 'chai-partner',
+    donationType: 'Monthly',
+  });
 }

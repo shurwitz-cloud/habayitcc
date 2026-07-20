@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { isAdminAuthenticated } from '@/lib/admin/auth';
+import { requireCapability } from '@/lib/admin/auth';
 import { sendRegistrationAcceptedEmail } from '@/lib/email/registration-accepted';
 import {
   formatUsd,
@@ -48,7 +48,7 @@ export type ScheduledInstallment = {
 };
 
 async function requireAdmin() {
-  if (!(await isAdminAuthenticated())) {
+  if (!(await requireCapability('registrations'))) {
     throw new Error('Unauthorized');
   }
 }

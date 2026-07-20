@@ -1,12 +1,12 @@
 'use server';
 
+import { logFormSubmission } from '@/lib/admin/form-log';
 import { createAdminClient } from '@/lib/supabase/server';
+import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 import { stripe } from '@/lib/stripe/server';
 import { chaiPartnerRow } from '@/lib/google/sheets';
 import { sendChaiPartnerWelcomeEmail } from '@/lib/email/chai-partner-welcome';
 import { buildChaiPartnerReceiptUrl } from '@/lib/email/donation-receipt';
-
-// ——— Legacy no-payment signup (kept for reference, no longer called) ———
 
 export interface ChaiPartnerInput {
   firstName: string;
@@ -35,33 +35,46 @@ function generateAccessCode(): string {
   return `HABAYIT-${code}`;
 }
 
-// ——— Called from the client AFTER stripe.confirmPayment() succeeds ———
-
 export interface ConfirmChaiPartnerInput extends ChaiPartnerInput {
   paymentIntentId: string;
   stripeSubscriptionId: string;
   stripeCustomerId: string;
 }
 
-/**
- * Verifies the Stripe payment actually succeeded, then saves the Chai Partner
- * record to Supabase and generates the unique member access code shown to the user.
- * Doing this server-side (with a live Stripe API verify) prevents someone from
- * calling this action with a fake paymentIntentId to obtain a free access code.
- */
 export async function confirmChaiPartnerPayment(
   input: ConfirmChaiPartnerInput
 ): Promise<ChaiPartnerResult> {
+  const ready = assertSupabaseWriteReady();
+  if (!ready.ok) return { success: false, error: ready.error };
+
   try {
-    // Verify with Stripe that payment actually succeeded
     const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
     if (pi.status !== 'succeeded') {
       return { success: false, error: 'Payment has not been confirmed. Please try again.' };
     }
 
+    if (input.monthlyAmount < 150) {
+      return { success: false, error: 'Chai Partner monthly gifts must be at least $150.' };
+    }
+
+    const email = input.email.trim().toLowerCase();
+    if (!input.firstName.trim() || !input.lastName.trim() || !email) {
+      return { success: false, error: 'Please fill in your name and email.' };
+    }
+
+    await logFormSubmission({
+      formType: 'chai_partner',
+      email,
+      payload: {
+        ...input,
+        paymentIntentId: input.paymentIntentId,
+        stripeSubscriptionId: input.stripeSubscriptionId,
+        stripeCustomerId: input.stripeCustomerId,
+      },
+    });
+
     const supabase = createAdminClient();
 
-    // Idempotency: if already confirmed (e.g. double-submit), return existing code
     const { data: existing } = await supabase
       .from('chai_partners')
       .select('access_code')
@@ -72,7 +85,7 @@ export async function confirmChaiPartnerPayment(
       await sendChaiPartnerWelcomeEmail({
         firstName: input.firstName,
         lastName: input.lastName,
-        email: input.email,
+        email,
         phone: input.phone,
         monthlyAmount: input.monthlyAmount,
         accessCode: existing.access_code,
@@ -90,14 +103,14 @@ export async function confirmChaiPartnerPayment(
     const { data: partner, error: partnerError } = await supabase
       .from('chai_partners')
       .insert({
-        first_name: input.firstName,
-        last_name: input.lastName,
-        email: input.email,
-        phone: input.phone,
-        street_address: input.street,
-        city: input.city,
-        state: input.state,
-        zip: input.zip,
+        first_name: input.firstName.trim(),
+        last_name: input.lastName.trim(),
+        email,
+        phone: input.phone?.trim() || null,
+        street_address: input.street.trim(),
+        city: input.city.trim(),
+        state: input.state.trim(),
+        zip: input.zip.trim(),
         monthly_amount: input.monthlyAmount,
         stripe_customer_id: input.stripeCustomerId,
         stripe_subscription_id: input.stripeSubscriptionId,
@@ -112,7 +125,7 @@ export async function confirmChaiPartnerPayment(
       return { success: false, error: 'Could not save your membership. Please contact us.' };
     }
 
-    await supabase.from('payments').insert({
+    const { error: paymentError } = await supabase.from('payments').insert({
       source_type: 'chai_partner',
       source_id: partner.id,
       amount: input.monthlyAmount,
@@ -121,12 +134,14 @@ export async function confirmChaiPartnerPayment(
       status: 'succeeded',
       paid_at: new Date().toISOString(),
     });
+    if (paymentError) {
+      console.error('confirmChaiPartner payments insert error:', paymentError);
+    }
 
-    // Append to Google Sheets (best-effort)
     void chaiPartnerRow({
       firstName: input.firstName,
       lastName: input.lastName,
-      email: input.email,
+      email,
       phone: input.phone,
       street: input.street,
       city: input.city,
@@ -138,11 +153,24 @@ export async function confirmChaiPartnerPayment(
       customerId: input.stripeCustomerId,
     });
 
+    void logFormSubmission({
+      formType: 'chai_partner',
+      email,
+      sourceId: partner.id,
+      payload: {
+        ...input,
+        paymentIntentId: input.paymentIntentId,
+        stripeSubscriptionId: input.stripeSubscriptionId,
+        stripeCustomerId: input.stripeCustomerId,
+        accessCode,
+      },
+    });
+
     try {
       await sendChaiPartnerWelcomeEmail({
         firstName: input.firstName,
         lastName: input.lastName,
-        email: input.email,
+        email,
         phone: input.phone,
         monthlyAmount: input.monthlyAmount,
         accessCode,

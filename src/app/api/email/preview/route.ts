@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdminApi } from '@/lib/admin/guard';
 import { sendDonationTaxReceiptEmail } from '@/lib/email/donation-receipt';
 import { getFromEmail, getResend } from '@/lib/email/client';
 
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
  * GET /api/email/preview?send=you@email.com
  */
 export async function GET(req: Request) {
+  const denied = await requireAdminApi();
+  if (denied) return denied;
+
   const to = new URL(req.url).searchParams.get('send')?.trim();
 
   if (!to) {

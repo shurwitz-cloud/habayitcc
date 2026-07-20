@@ -4,6 +4,7 @@ import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section } from '@/components/sections/Section';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
+import { registrationLocationHint } from '@/lib/events/location';
 
 export const metadata = {
   title: 'Events – HaBayit Jewish Center',
@@ -89,8 +90,8 @@ export default function EventsPage() {
                       <span className="text-muted text-[0.72rem]">· {event.time}</span>
                     </div>
                     <h3 className="text-navy font-bold text-[1.1rem] leading-snug">{event.title}</h3>
-                    {event.locationPrivate && (
-                      <p className="text-muted text-[0.78rem]">Location provided upon registration</p>
+                    {registrationLocationHint(event) && (
+                      <p className="text-muted text-[0.78rem]">{registrationLocationHint(event)}</p>
                     )}
                     <span className="mt-2 inline-block text-[0.75rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-0.5 w-fit group-hover:text-gold transition-colors">
                       RSVP →

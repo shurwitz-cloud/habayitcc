@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   ADMIN_COOKIE,
   getAdminSessionToken,
-  isValidAdminLogin,
-  isValidAdminSecret,
+  resolveAdminLogin,
 } from '@/lib/admin/auth';
 
-function setSessionCookie(res: NextResponse) {
-  const token = getAdminSessionToken();
+function setSessionCookie(res: NextResponse, role: 'admin' | 'volunteer') {
+  const token = getAdminSessionToken(role);
   res.cookies.set(ADMIN_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -18,22 +17,31 @@ function setSessionCookie(res: NextResponse) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as { email?: string; password?: string; secret?: string };
+  const body = (await req.json()) as { email?: string; password?: string };
 
   const email = body.email?.trim() ?? '';
-  const password = body.password ?? body.secret ?? '';
+  const password = body.password ?? '';
 
-  const valid =
-    email && body.password !== undefined
-      ? isValidAdminLogin(email, password)
-      : isValidAdminSecret(password);
-
-  if (!valid) {
+  const role = resolveAdminLogin(email, password);
+  if (!role) {
     return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true });
-  setSessionCookie(res);
+  const token = getAdminSessionToken(role);
+  if (!token) {
+    return NextResponse.json(
+      {
+        error:
+          role === 'volunteer'
+            ? 'Volunteer login is not configured (missing VOLUNTEER_SECRET).'
+            : 'Admin login is not configured (missing ADMIN_SECRET).',
+      },
+      { status: 500 }
+    );
+  }
+
+  const res = NextResponse.json({ ok: true, role });
+  setSessionCookie(res, role);
   return res;
 }
 

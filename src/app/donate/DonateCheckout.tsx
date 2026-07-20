@@ -7,7 +7,6 @@ import { Elements, useStripe, useElements, CardElement } from '@stripe/react-str
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
 import { DEFAULT_DONATION_MEMO, resolveDonationMemo } from '@/lib/donations/memo';
-import { buildReceiptUrl } from '@/lib/donations/receipt-url';
 import { recordDonation } from './actions';
 import type { DedicationType } from '@/types/database';
 
@@ -155,7 +154,7 @@ function DonateForm() {
       }
 
       if (paymentIntent?.status === 'succeeded') {
-        await recordDonation({
+        const recorded = await recordDonation({
           paymentIntentId: paymentIntent.id,
           amountDollars: finalAmount!,
           firstName,
@@ -167,16 +166,18 @@ function DonateForm() {
           campaign: campaignSlug,
           ...dedicationPayload,
         });
-        setReceiptUrl(
-          buildReceiptUrl({
-            name: `${firstName} ${lastName}`.trim(),
-            amount: finalAmount!,
-            campaign: campaignSlug,
-            dedicationName: dedicationPayload.dedicationName,
-            dedicationType: dedicationPayload.dedicationType,
-            method: 'Credit Card',
-          })
-        );
+
+        if (!recorded.success) {
+          throw new Error(recorded.error ?? 'Could not complete your donation record.');
+        }
+
+        if (recorded.warning) {
+          console.warn('recordDonation warning:', recorded.warning);
+        }
+
+        if (recorded.receiptUrl) {
+          setReceiptUrl(recorded.receiptUrl);
+        }
         setSuccess(true);
       }
     } catch (err) {
@@ -206,7 +207,7 @@ function DonateForm() {
           </Link>
         )}
         <p className="text-muted text-[0.85rem] mt-4 max-w-[440px] mx-auto">
-          A tax receipt link has also been sent to {email}.
+          A tax receipt email from HaBayit has been sent to {email}. You can also open your receipt below.
         </p>
         <Link
           href="/"

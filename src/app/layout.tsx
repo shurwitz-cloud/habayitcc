@@ -4,6 +4,7 @@ import {
   SITE_DESCRIPTION,
   SITE_NAME,
   SITE_URL,
+  SITE_ICONS,
   defaultOpenGraph,
   DEFAULT_OG_IMAGE,
 } from "@/lib/site-metadata";
@@ -31,6 +32,10 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: `${SITE_NAME} – Cooper City, FL`,
   description: SITE_DESCRIPTION,
+  icons: {
+    icon: SITE_ICONS.icon,
+    apple: SITE_ICONS.apple,
+  },
   openGraph: {
     ...defaultOpenGraph,
     title: SITE_NAME,

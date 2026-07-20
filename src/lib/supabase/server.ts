@@ -1,4 +1,3 @@
-import { createBrowserClient } from '@supabase/ssr';
 import { createClient as createSupabaseJsClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -36,6 +35,15 @@ export async function createClient() {
   );
 }
 
+export function getServiceRoleKey(): string | undefined {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined;
+}
+
+export function isServiceRoleConfigured(): boolean {
+  const key = getServiceRoleKey();
+  return Boolean(key && key.length > 20);
+}
+
 /**
  * Admin client using the service role key — bypasses RLS entirely.
  * Use ONLY in trusted server-side code (Server Actions, Route Handlers,
@@ -44,9 +52,16 @@ export async function createClient() {
  * NEVER expose the service role key to the browser.
  */
 export function createAdminClient() {
+  const serviceRoleKey = getServiceRoleKey();
+  if (!serviceRoleKey) {
+    console.error(
+      '[supabase] SUPABASE_SERVICE_ROLE_KEY is missing — database writes will fail after RLS is enabled.'
+    );
+  }
+
   return createSupabaseJsClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceRoleKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false } }
   );
 }

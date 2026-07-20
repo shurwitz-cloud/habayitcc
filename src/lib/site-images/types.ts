@@ -45,4 +45,6 @@ export interface ImageSlotMeta {
   /** CSS aspect-ratio value, e.g. "16/9". */
   aspectRatio: string;
   multi: boolean;
+  /** Page banners — preview uses live phone→desktop width/height curve. */
+  responsiveBanner?: boolean;
 }

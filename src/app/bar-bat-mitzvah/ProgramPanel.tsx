@@ -40,9 +40,11 @@ export function ProgramPanel({ href, gradient, program, title, age, focus, image
         </>
       )}
       {!src && (
-        <span className="absolute top-6 left-7 text-[0.66rem] tracking-[0.16em] uppercase text-white/70">
-          Photo Coming Soon
-        </span>
+        <div
+          className="absolute inset-0 opacity-90"
+          style={{ background: gradient }}
+          aria-hidden
+        />
       )}
       <div className="relative z-10">
         <p className="text-[0.74rem] tracking-[0.16em] uppercase text-[#f1d697] font-bold mb-2.5">

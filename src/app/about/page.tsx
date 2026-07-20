@@ -4,6 +4,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { SiteBackground } from '@/components/site-images/SiteBackground';
 import { getSiteImages } from '@/lib/site-images/store';
+import { primaryImageFromSlot } from '@/lib/site-images/slot-utils';
 import { HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 export const metadata = {
@@ -21,6 +22,8 @@ const VALUES = [
 
 export default async function AboutPage() {
   const images = await getSiteImages();
+  const introPhoto = primaryImageFromSlot(images['about.intro']);
+  const foundersPhoto = primaryImageFromSlot(images['about.founders']);
 
   return (
     <>
@@ -28,7 +31,11 @@ export default async function AboutPage() {
 
       <main className="flex-1">
         <Section background="white">
-          <div className="grid md:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div
+            className={`grid gap-12 lg:gap-16 items-center ${
+              introPhoto ? 'md:grid-cols-2' : 'max-w-[720px]'
+            }`}
+          >
             <div>
               <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
                 About HaBayit
@@ -42,33 +49,54 @@ export default async function AboutPage() {
                 friendship.
               </p>
             </div>
-            <SiteBackground
-              image={images['about.intro'].image!}
-              className="min-h-[340px] md:min-h-[460px] rounded-[18px]"
-            />
+            {introPhoto && (
+              <SiteBackground
+                image={introPhoto}
+                className="min-h-[340px] md:min-h-[460px] rounded-[18px]"
+              />
+            )}
           </div>
         </Section>
 
-        <Section background="cream" narrow>
-          <p className="font-display text-[clamp(1.4rem,2.6vw,2.1rem)] leading-relaxed text-navy max-w-[860px] mx-auto">
-            Inspired by the Lubavitcher Rebbe&apos;s call to reach every Jew with{' '}
-            <span className="text-gold italic">love, warmth, and meaningful Jewish life</span>,
-            HaBayit welcomes Jews of every background and level of observance while embracing the
-            unique spirit of the Israeli community.
-          </p>
+        <Section background="cream">
+          <div className="grid md:grid-cols-[260px_1fr] lg:grid-cols-[300px_1fr] gap-10 md:gap-14 items-center max-w-[980px] mx-auto">
+            <div className="relative w-full max-w-[280px] md:max-w-none mx-auto aspect-[4/5] rounded-[18px] overflow-hidden border border-line shadow-sm bg-[#e8e4dc]">
+              <img
+                src="/photos/rebbe.png"
+                alt="The Lubavitcher Rebbe"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{
+                  objectPosition: '50% 8%',
+                  transform: 'scale(1.55)',
+                  transformOrigin: '50% 8%',
+                }}
+              />
+            </div>
+            <p className="font-display text-[clamp(1.35rem,2.4vw,2rem)] leading-relaxed text-navy">
+              Inspired by the Lubavitcher Rebbe&apos;s call to reach every Jew with{' '}
+              <span className="text-gold italic">love, warmth, and meaningful Jewish life</span>,
+              HaBayit welcomes Jews of every background and level of observance.
+            </p>
+          </div>
         </Section>
 
         <Section background="white">
-          <div className="grid md:grid-cols-[1fr_1.05fr] gap-16 items-start">
-            <div>
-              <SiteBackground
-                image={images['about.founders'].image!}
-                className="aspect-[5/4] w-full max-h-[300px] sm:max-h-[340px] md:aspect-[4/5] md:max-h-none md:min-h-[520px] rounded-[18px]"
-              />
-              <p className="text-center mt-3.5 text-[0.82rem] text-muted">
-                Rabbi Shmuly &amp; Devora Hurwitz with their family
-              </p>
-            </div>
+          <div
+            className={`grid gap-16 items-start ${
+              foundersPhoto ? 'md:grid-cols-[1fr_1.05fr]' : 'max-w-[720px]'
+            }`}
+          >
+            {foundersPhoto && (
+              <div>
+                <SiteBackground
+                  image={foundersPhoto}
+                  className="aspect-[5/4] w-full max-h-[300px] sm:max-h-[340px] md:aspect-[4/5] md:max-h-none md:min-h-[520px] rounded-[18px]"
+                />
+                <p className="text-center mt-3.5 text-[0.82rem] text-muted">
+                  Rabbi Shmuly &amp; Devora Hurwitz with their family
+                </p>
+              </div>
+            )}
             <div className="bg-soft border-l-4 border-gold rounded-r-[18px] p-9 md:p-11">
               <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
                 The Founders
@@ -84,9 +112,9 @@ export default async function AboutPage() {
                 </p>
                 <p>
                   Rabbi Shmuly grew up in Brooklyn, New York, and studied in leading yeshivot in
-                  Brooklyn before serving in outreach yeshivot in Frankfurt, Germany, and Sydney,
-                  Australia. He later continued his studies at the Central Lubavitch Yeshiva (770)
-                  in Crown Heights, where he received his rabbinic ordination.
+                  Brooklyn and Paris before serving in outreach yeshivot in Frankfurt and Sydney.
+                  He later continued his studies at the Central Lubavitch Yeshiva (770) in Crown
+                  Heights, where he received his rabbinic ordination.
                 </p>
                 <p>
                   In addition to his community work, Rabbi Shmuly is the Senior Editor of JEM&apos;s

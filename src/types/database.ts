@@ -15,6 +15,8 @@ export interface Family {
   state: string | null;
   zip: string | null;
   notes: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
   stripe_customer_id: string | null;
   stripe_payment_method_id: string | null;
   payment_method_preference: string | null;
@@ -50,8 +52,11 @@ export interface Child {
   hebrew_name: string | null;
   date_of_birth: string | null;
   born_before_sunset: boolean | null;
+  born_sunset_timing: string | null;
   grade: string | null;
   school_attending: string | null;
+  attended_before: string | null;
+  hebrew_level: string | null;
   allergies: string | null;
   medications: string | null;
   notes: string | null;
@@ -93,6 +98,7 @@ export interface ProgramRegistration {
 export interface Event {
   [key: string]: unknown;
   id: string;
+  slug: string | null;
   title: string;
   description: string | null;
   starts_at: string;
@@ -107,6 +113,7 @@ export interface EventRegistration {
   [key: string]: unknown;
   id: string;
   event_id: string;
+  event_slug: string | null;
   family_id: string | null;
   first_name: string;
   last_name: string;
@@ -131,6 +138,9 @@ export interface Donation {
   amount: number;
   dedication_name: string | null;
   dedication_type: DedicationType | null;
+  memo: string | null;
+  campaign: string | null;
+  donation_type: string | null;
   stripe_payment_intent_id: string | null;
   status: PaymentStatus;
   created_at: string;
@@ -254,6 +264,35 @@ export interface Sponsor {
   created_at: string;
 }
 
+export type ImportantDateType = 'birthday' | 'yahrzeit' | 'anniversary' | 'other';
+
+export interface ImportantDate {
+  [key: string]: unknown;
+  id: string;
+  family_id: string | null;
+  parent_id: string | null;
+  child_id: string | null;
+  label: string;
+  date_type: ImportantDateType | string;
+  gregorian_date: string | null;
+  hebrew_date: string | null;
+  hebrew_year: string | null;
+  notes: string | null;
+  notify_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FormSubmission {
+  [key: string]: unknown;
+  id: string;
+  form_type: string;
+  source_id: string | null;
+  email: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
 // ============================================================
 // Supabase Database type — used to type the Supabase client.
 // Extend this as tables are added.
@@ -325,6 +364,16 @@ export interface Database {
       };
       waivers: { Row: Waiver; Insert: Insertable<Waiver>; Update: Partial<Insertable<Waiver>> };
       sponsors: { Row: Sponsor; Insert: Insertable<Sponsor>; Update: Partial<Insertable<Sponsor>> };
+      important_dates: {
+        Row: ImportantDate;
+        Insert: Insertable<ImportantDate>;
+        Update: Partial<Insertable<ImportantDate>>;
+      };
+      form_submissions: {
+        Row: FormSubmission;
+        Insert: Omit<FormSubmission, 'id' | 'created_at'>;
+        Update: Partial<Omit<FormSubmission, 'id' | 'created_at'>>;
+      };
       site_image_slots: {
         Row: SiteImageSlotRow;
         Insert: Insertable<SiteImageSlotRow>;

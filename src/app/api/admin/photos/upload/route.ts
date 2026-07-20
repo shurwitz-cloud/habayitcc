@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminAuthenticated } from '@/lib/admin/auth';
+import { requireCapability } from '@/lib/admin/auth';
 import { uploadSitePhoto } from '@/lib/site-images/store';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireCapability('photos'))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   try {

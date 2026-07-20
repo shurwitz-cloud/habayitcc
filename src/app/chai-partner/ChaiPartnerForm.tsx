@@ -9,6 +9,9 @@ import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 const AMOUNTS = [150, 180, 300, 500, 770, 1000, 1800];
 
+const ZEFFY_CHAI_URL = process.env.NEXT_PUBLIC_ZEFFY_CHAI_PARTNER_URL?.trim() || '';
+const ZEFFY_LIVE = Boolean(ZEFFY_CHAI_URL);
+
 const CARD_STYLE: StripeCardElementOptions = {
   style: {
     base: {
@@ -47,20 +50,61 @@ function ChaiPartnerForm() {
   const [zip, setZip] = useState('');
 
   const [coverFee, setCoverFee] = useState(false);
+  const [payMethod, setPayMethod] = useState<'card' | 'ach' | 'zeffy'>('card');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [accessCode, setAccessCode] = useState<string | null>(null);
 
   const resolvedAmount = selectedAmt === 'other' ? parseFloat(otherAmt) : selectedAmt;
-  const fee = resolvedAmount ? Math.round(resolvedAmount * 0.03 * 100) / 100 : 0;
+  /** Card ~3%; ACH ~0.8% (Stripe bank debit). Zeffy has no HaBayit fee. */
+  const feeRate = payMethod === 'ach' ? 0.008 : 0.03;
+  const fee = resolvedAmount ? Math.round(resolvedAmount * feeRate * 100) / 100 : 0;
   const finalAmount = resolvedAmount
-    ? coverFee
-      ? Math.round(resolvedAmount * 1.03 * 100) / 100
+    ? coverFee && (payMethod === 'card' || payMethod === 'ach')
+      ? Math.round(resolvedAmount * (1 + feeRate) * 100) / 100
       : resolvedAmount
     : null;
 
+  function continueOnZeffy() {
+    setError('');
+    if (!ZEFFY_LIVE) {
+      setError(
+        'Zeffy checkout is not connected yet — set NEXT_PUBLIC_ZEFFY_CHAI_PARTNER_URL, or use card to join today.'
+      );
+      return;
+    }
+    if (!resolvedAmount || resolvedAmount < 150) {
+      setError('Please select a monthly amount of $150 or more.');
+      return;
+    }
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
+      setError('Please fill in all required fields before continuing to Zeffy.');
+      return;
+    }
+
+    const url = new URL(ZEFFY_CHAI_URL);
+    url.searchParams.set('Amount', String(resolvedAmount));
+    url.searchParams.set('firstname', firstName.trim());
+    url.searchParams.set('lastname', lastName.trim());
+    url.searchParams.set('email', email.trim());
+    if (street.trim()) url.searchParams.set('street', street.trim());
+    if (city.trim()) url.searchParams.set('city', city.trim());
+    if (zip.trim()) url.searchParams.set('postal', zip.trim());
+
+    // Prefills Zeffy; donor may still edit on their page. CRM confirms via webhook.
+    window.location.assign(url.toString());
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (payMethod === 'ach') {
+      setError('Bank debit (ACH) is a preview for now — use card to complete signup today.');
+      return;
+    }
+    if (payMethod === 'zeffy') {
+      continueOnZeffy();
+      return;
+    }
     if (!stripe || !elements) return;
 
     setError('');
@@ -267,16 +311,106 @@ function ChaiPartnerForm() {
         </div>
 
         <div className="pt-3 border-t border-line">
-          <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">
-            Card Information
-          </label>
-          <div className="border border-line rounded-lg p-3.5 bg-white focus-within:border-navy focus-within:shadow-[0_0_0_3px_rgba(23,38,67,0.08)] transition-all">
-            <CardElement options={CARD_STYLE} />
+          <p className="text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-3">
+            How would you like to pay?
+          </p>
+          <div className="grid sm:grid-cols-3 gap-3 mb-4">
+            <PayMethodCard
+              active={payMethod === 'card'}
+              title="Credit / debit card"
+              detail="Instant · optional 3% fee cover"
+              onClick={() => {
+                setPayMethod('card');
+                setError('');
+              }}
+            />
+            <PayMethodCard
+              active={payMethod === 'ach'}
+              title="Bank account (ACH)"
+              detail="Lower fees · optional 0.8% cover"
+              badge="Preview"
+              onClick={() => {
+                setPayMethod('ach');
+                setError('');
+              }}
+            />
+            <PayMethodCard
+              active={payMethod === 'zeffy'}
+              title="Fee-free via Zeffy"
+              detail={ZEFFY_LIVE ? 'HaBayit keeps 100%' : 'HaBayit keeps 100% · preview'}
+              badge={ZEFFY_LIVE ? undefined : 'Preview'}
+              onClick={() => {
+                setPayMethod('zeffy');
+                setCoverFee(false);
+                setError('');
+              }}
+            />
           </div>
+
+          {payMethod === 'card' && (
+            <>
+              <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">
+                Card Information
+              </label>
+              <div className="border border-line rounded-lg p-3.5 bg-white focus-within:border-navy focus-within:shadow-[0_0_0_3px_rgba(23,38,67,0.08)] transition-all">
+                <CardElement options={CARD_STYLE} />
+              </div>
+            </>
+          )}
+
+          {payMethod === 'ach' && (
+            <div className="rounded-xl border border-dashed border-line bg-soft px-4 py-5 text-[0.9rem] text-muted">
+              <p className="text-navy font-semibold mb-1">Bank debit preview</p>
+              <p>
+                Pay directly from your bank account — much lower processing cost than a card.
+                Not live yet — choose card to join today.
+              </p>
+            </div>
+          )}
+
+          {payMethod === 'zeffy' && (
+            <div className="rounded-xl border border-line bg-soft px-4 py-5">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-navy font-semibold text-[0.95rem]">Fee-free checkout</p>
+                  <p className="text-[0.85rem] text-muted mt-1 leading-relaxed">
+                    Your gift comes to HaBayit in full. On the next screen, Zeffy may invite an
+                    optional tip for their platform — that tip goes to Zeffy, not to us.
+                  </p>
+                </div>
+                {!ZEFFY_LIVE && (
+                  <span className="text-[0.62rem] font-bold uppercase tracking-wider text-gold shrink-0 mt-0.5">
+                    Mock
+                  </span>
+                )}
+              </div>
+              {resolvedAmount && resolvedAmount >= 150 && (
+                <p className="text-[0.9rem] text-navy mb-4">
+                  Monthly gift:{' '}
+                  <span className="font-extrabold">${resolvedAmount.toFixed(2)}/mo</span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={continueOnZeffy}
+                className="w-full bg-navy text-white rounded-full px-6 py-3.5 font-extrabold uppercase tracking-wider text-[0.78rem] hover:bg-[#243552] transition-colors"
+              >
+                Continue on Zeffy
+                {resolvedAmount && resolvedAmount >= 150
+                  ? ` — $${resolvedAmount.toFixed(2)}/mo`
+                  : ''}
+              </button>
+              <p className="text-center text-[0.72rem] text-muted mt-3">
+                {ZEFFY_LIVE
+                  ? 'You&apos;ll leave this page briefly to complete payment on Zeffy.'
+                  : 'Zeffy form URL not set yet — use card to join today.'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {resolvedAmount && resolvedAmount >= 150 && (
+      {resolvedAmount && resolvedAmount >= 150 && (payMethod === 'card' || payMethod === 'ach') && (
         <div className="mt-4 bg-soft border border-line rounded-xl px-5 py-4">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -286,7 +420,9 @@ function ChaiPartnerForm() {
               className="mt-0.5 h-4 w-4 flex-shrink-0"
             />
             <span className="text-[0.9rem] text-navy">
-              I&apos;d like to cover the 3% credit card processing fee
+              {payMethod === 'ach'
+                ? 'I&apos;d like to cover the 0.8% bank processing fee'
+                : 'I&apos;d like to cover the 3% credit card processing fee'}
               <span className="text-gold font-semibold"> (+${fee.toFixed(2)}/mo)</span>
             </span>
           </label>
@@ -311,20 +447,71 @@ function ChaiPartnerForm() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={processing || !stripe}
-        className="w-full mt-6 bg-gold text-white rounded-full px-6 py-4.5 font-extrabold uppercase tracking-wider disabled:opacity-60 transition-opacity"
-      >
-        {processing
-          ? 'Processing…'
-          : `Become a Chai Partner${finalAmount ? ` — $${finalAmount.toFixed(2)}/mo` : ''}`}
-      </button>
+      {payMethod === 'card' && (
+        <button
+          type="submit"
+          disabled={processing || !stripe}
+          className="w-full mt-6 bg-gold text-white rounded-full px-6 py-4.5 font-extrabold uppercase tracking-wider disabled:opacity-60 transition-opacity"
+        >
+          {processing
+            ? 'Processing…'
+            : `Become a Chai Partner${finalAmount ? ` — $${finalAmount.toFixed(2)}/mo` : ''}`}
+        </button>
+      )}
+
+      {payMethod === 'ach' && (
+        <button
+          type="submit"
+          className="w-full mt-6 bg-gold text-white rounded-full px-6 py-4.5 font-extrabold uppercase tracking-wider"
+        >
+          Preview only — use card to join
+        </button>
+      )}
 
       <p className="text-center text-[0.75rem] text-muted mt-3">
-        Secured by Stripe. Your card details are never stored by HaBayit.
+        {payMethod === 'card'
+          ? 'Secured by Stripe. Your card details are never stored by HaBayit.'
+          : payMethod === 'zeffy'
+            ? ZEFFY_LIVE
+              ? 'Secured by Zeffy. After you finish, we&apos;ll confirm your partnership automatically.'
+              : 'Zeffy form URL not configured yet.'
+            : 'ACH is a UI preview — not live checkout yet.'}
       </p>
     </form>
+  );
+}
+
+function PayMethodCard({
+  active,
+  title,
+  detail,
+  badge,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  detail: string;
+  badge?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-xl border px-4 py-3 transition-colors ${
+        active ? 'border-navy bg-soft' : 'border-line bg-white hover:border-navy/40'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[0.92rem] font-bold text-navy leading-snug">{title}</span>
+        {badge && (
+          <span className="text-[0.62rem] font-bold uppercase tracking-wider text-gold shrink-0">
+            {badge}
+          </span>
+        )}
+      </div>
+      <span className="block text-[0.78rem] text-muted mt-1">{detail}</span>
+    </button>
   );
 }
 

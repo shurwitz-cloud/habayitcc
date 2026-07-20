@@ -1,8 +1,10 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/server';
-import { donationRow } from '@/lib/google/sheets';
+import { buildReceiptUrl } from '@/lib/donations/receipt-url';
+import { persistDonation } from '@/lib/donations/persist-donation';
+import { verifyDonationPaymentIntent } from '@/lib/donations/verify-donation-payment';
 import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
+import { sendDonationAdminNotification } from '@/lib/email/donation-admin';
 
 export interface RecordDonationInput {
   paymentIntentId: string;
@@ -20,89 +22,99 @@ export interface RecordDonationInput {
 
 export interface RecordDonationResult {
   success: boolean;
+  emailSent?: boolean;
+  adminNotified?: boolean;
+  savedToCrm?: boolean;
+  receiptUrl?: string;
   error?: string;
+  warning?: string;
 }
 
 /**
  * Called from the client after stripe.confirmPayment() succeeds.
- * Saves the donation to Supabase immediately so the record exists
- * even if the webhook fires late or isn't configured yet in dev.
- * The webhook is a safe backup that skips duplicates via the
- * stripe_payment_intent_id uniqueness check.
+ * Verifies payment with Stripe, emails donor + admin, then saves to Supabase.
  */
 export async function recordDonation(
   input: RecordDonationInput
 ): Promise<RecordDonationResult> {
+  const verified = await verifyDonationPaymentIntent(
+    input.paymentIntentId,
+    input.donationType
+  );
+
+  if (!verified.ok) {
+    return { success: false, error: verified.error };
+  }
+
+  const amountDollars = verified.payment.amountDollars;
+
+  const emailPayload = {
+    email: input.email,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    amountDollars,
+    campaign: input.campaign,
+    dedicationName: input.dedicationName,
+    dedicationType: input.dedicationType,
+    donationType: input.donationType,
+  };
+
+  const receiptUrl = buildReceiptUrl({
+    name: `${input.firstName} ${input.lastName}`.trim(),
+    amount: amountDollars,
+    campaign: input.campaign,
+    dedicationName: input.dedicationName,
+    dedicationType: input.dedicationType,
+    method: 'Credit Card',
+  });
+
   try {
-    const supabase = createAdminClient();
-
-    // Idempotency: skip if already recorded (e.g. by webhook)
-    const { data: existing } = await supabase
-      .from('donations')
-      .select('id')
-      .eq('stripe_payment_intent_id', input.paymentIntentId)
-      .maybeSingle();
-
-    if (existing) return { success: true };
-
-    const { data: donation, error: donationError } = await supabase
-      .from('donations')
-      .insert({
-        first_name: input.firstName,
-        last_name: input.lastName,
+    const [emailSent, adminNotified] = await Promise.all([
+      sendDonationReceiptEmailFromRecord(emailPayload),
+      sendDonationAdminNotification({
+        firstName: input.firstName,
+        lastName: input.lastName,
         email: input.email,
-        amount: input.amountDollars,
-        stripe_payment_intent_id: input.paymentIntentId,
-        status: 'succeeded',
-        family_id: null,
-        phone: input.phone?.trim() || null,
-        dedication_name: input.dedicationName?.trim() || null,
-        dedication_type: input.dedicationType ?? null,
-      })
-      .select('id')
-      .single();
+        phone: input.phone,
+        amountDollars,
+        donationType: input.donationType,
+        paymentIntentId: input.paymentIntentId,
+        campaign: input.campaign,
+        memo: input.memo,
+      }),
+    ]);
 
-    if (donationError || !donation) {
-      console.error('recordDonation insert error:', donationError);
-      return { success: false, error: 'Could not record donation.' };
+    if (!emailSent) {
+      console.error('recordDonation: donor receipt email failed for', input.email);
+    }
+    if (!adminNotified) {
+      console.error('recordDonation: admin notification failed for donation', input.paymentIntentId);
     }
 
-    await supabase.from('payments').insert({
-      source_type: 'donation',
-      source_id: donation.id,
-      amount: input.amountDollars,
-      stripe_payment_intent_id: input.paymentIntentId,
-      stripe_charge_id: null,
-      status: 'succeeded',
-      paid_at: new Date().toISOString(),
-    });
-
-    // Append to Google Sheets (best-effort)
-    void donationRow({
+    const persisted = await persistDonation({
+      paymentIntentId: input.paymentIntentId,
+      amountDollars,
       firstName: input.firstName,
       lastName: input.lastName,
       email: input.email,
       phone: input.phone,
-      amount: input.amountDollars,
-      paymentIntentId: input.paymentIntentId,
-      memo: input.memo,
-      dedicationName: input.dedicationName,
-      dedicationType: input.dedicationType,
       donationType: input.donationType,
-    });
-
-    await sendDonationReceiptEmailFromRecord({
-      email: input.email,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      amountDollars: input.amountDollars,
+      memo: input.memo,
       campaign: input.campaign,
       dedicationName: input.dedicationName,
       dedicationType: input.dedicationType,
-      donationType: input.donationType,
     });
 
-    return { success: true };
+    return {
+      success: true,
+      emailSent,
+      adminNotified,
+      savedToCrm: persisted.saved,
+      receiptUrl,
+      warning: persisted.saved
+        ? undefined
+        : persisted.error ?? 'Donation email sent but CRM save failed.',
+    };
   } catch (err) {
     console.error('recordDonation error:', err);
     return { success: false, error: 'Something went wrong.' };

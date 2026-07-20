@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { submitRsvp } from './actions';
 import type { EventConfig } from '@/lib/events/config';
+import { registrationLocationHint } from '@/lib/events/location';
 
 export function RsvpForm({ event }: { event: EventConfig }) {
   const [firstName, setFirstName]   = useState('');
@@ -14,6 +15,8 @@ export function RsvpForm({ event }: { event: EventConfig }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
   const [submitted, setSubmitted]   = useState(false);
+
+  const locationHint = registrationLocationHint(event);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,22 +44,36 @@ export function RsvpForm({ event }: { event: EventConfig }) {
 
   if (submitted) {
     return (
-      <div className="max-w-[560px] mx-auto text-center py-16">
+      <div className="text-center py-4">
         <div className="text-[3rem] mb-4">🎉</div>
         <h2 className="text-[2rem] text-navy font-bold mb-3">You&apos;re registered!</h2>
-        <p className="text-muted text-[1rem] leading-relaxed">
+        <p className="text-muted text-[1rem] leading-relaxed mb-6">
           Thank you, {firstName}! We&apos;ve received your RSVP for{' '}
           <strong>{event.title}</strong> on {event.dateLabel} at {event.time}.
-          {event.locationPrivate && (
-            <> Location details will be sent to <strong>{email}</strong> closer to the event.</>
-          )}
         </p>
+        <p className="text-[1rem] text-navy font-semibold mb-6">
+          We look forward to seeing you!
+        </p>
+        {event.locationAddress ? (
+          <div className="bg-soft border border-line rounded-2xl px-6 py-5 max-w-[320px] mx-auto text-center">
+            <p className="text-[0.95rem] font-bold text-navy mb-2">Location:</p>
+            {event.locationAddress.split('\n').map((line) => (
+              <p key={line} className="text-navy text-[1.05rem] leading-snug">
+                {line.trim()}
+              </p>
+            ))}
+          </div>
+        ) : event.locationPrivate ? (
+          <p className="text-muted text-[0.95rem] leading-relaxed">
+            Location details will be sent to <strong>{email}</strong> closer to the event.
+          </p>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-[560px] mx-auto space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
         <Field label="First Name" required>
           <input
@@ -129,9 +146,9 @@ export function RsvpForm({ event }: { event: EventConfig }) {
         />
       </Field>
 
-      {event.locationPrivate && (
+      {locationHint && (
         <div className="bg-soft border border-line text-muted rounded-2xl px-5 py-3.5 text-[0.9rem]">
-          <strong className="text-navy">Location note:</strong> The venue address will be sent to your email address upon registration.
+          <strong className="text-navy">Location:</strong> {locationHint}
         </div>
       )}
 

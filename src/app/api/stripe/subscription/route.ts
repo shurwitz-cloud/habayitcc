@@ -39,6 +39,12 @@ export async function POST(req: NextRequest) {
     if (!amountCents || amountCents < 100) {
       return NextResponse.json({ error: 'Invalid amount.' }, { status: 400 });
     }
+    if (type === 'chai_partner' && amountCents < 15000) {
+      return NextResponse.json(
+        { error: 'Chai Partner monthly gifts must be at least $150.' },
+        { status: 400 }
+      );
+    }
     if (!donorEmail) {
       return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
     }

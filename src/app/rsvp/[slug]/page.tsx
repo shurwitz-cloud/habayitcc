@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Section } from '@/components/sections/Section';
 import { getOpenHouseEvent } from '@/lib/events/config';
+import { registrationLocationHint } from '@/lib/events/location';
 import { RsvpForm } from './RsvpForm';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -19,6 +20,8 @@ export default async function RsvpPage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const event = getOpenHouseEvent(slug);
   if (!event) notFound();
+
+  const locationHint = registrationLocationHint(event);
 
   return (
     <>
@@ -37,10 +40,10 @@ export default async function RsvpPage({ params }: { params: Promise<{ slug: str
             <span>{event.dateLabel}</span>
             <span>·</span>
             <span>{event.time}</span>
-            {event.locationPrivate && (
+            {locationHint && (
               <>
                 <span>·</span>
-                <span className="text-white/70">Location provided upon registration</span>
+                <span className="text-white/70">{locationHint}</span>
               </>
             )}
           </div>
@@ -51,23 +54,19 @@ export default async function RsvpPage({ params }: { params: Promise<{ slug: str
 
         <Section background="soft">
           <div className="max-w-[560px] mx-auto">
+            {event.flyer && (
+              <div className="mb-8 rounded-[18px] overflow-hidden border border-line shadow-sm bg-black">
+                <img
+                  src={event.flyer}
+                  alt={`${event.title} ${event.rsvpLabel} flyer`}
+                  className="w-full h-auto block"
+                />
+              </div>
+            )}
             <div className="bg-white border border-line rounded-[22px] p-8 md:p-10 shadow-sm">
-              <h2 className="text-[1.6rem] text-navy font-bold mb-1 text-center leading-snug">
+              <h2 className="text-[1.6rem] text-navy font-bold mb-6 text-center leading-snug">
                 Reserve Your Spot at the {event.rsvpLabel}
               </h2>
-              {event.flyer && (
-                <p className="text-center mb-6">
-                  <a
-                    href={event.flyer}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[0.82rem] text-muted hover:text-gold transition-colors"
-                  >
-                    View event flyer →
-                  </a>
-                </p>
-              )}
-              {!event.flyer && <div className="mb-6" />}
               <RsvpForm event={event} />
             </div>
           </div>

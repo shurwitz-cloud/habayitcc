@@ -22,7 +22,7 @@ interface RotatingHeroProps {
 
 /**
  * RotatingHero — cross-fading hero photos with admin-controlled crop/zoom.
- * Uses object-fit cover so images fill narrow phone viewports (no navy gaps).
+ * With no photos, renders a compact text banner on a soft gradient.
  */
 export function RotatingHero({
   heroImages,
@@ -34,41 +34,50 @@ export function RotatingHero({
   actions,
   intervalMs = 6000,
 }: RotatingHeroProps) {
+  const slides = heroImages.filter((slide) => Boolean(slide.src?.trim()));
+  const hasPhotos = slides.length > 0;
   const [active, setActive] = useState(0);
 
   useEffect(() => {
-    if (heroImages.length <= 1) return;
+    if (slides.length <= 1) return;
     const id = setInterval(() => {
-      setActive((i) => (i + 1) % heroImages.length);
+      setActive((i) => (i + 1) % slides.length);
     }, intervalMs);
     return () => clearInterval(id);
-  }, [heroImages.length, intervalMs]);
+  }, [slides.length, intervalMs]);
+
+  const sectionHeight = hasPhotos ? minHeight : 'min-h-[200px] md:min-h-[240px]';
+  const sectionBackground = hasPhotos
+    ? 'linear-gradient(135deg,#0d2949,#172643)'
+    : 'linear-gradient(135deg,#0d2949 0%,#1a3a5c 45%,#2c4a6e 100%)';
 
   return (
     <section
-      className={`${minHeight} grid place-items-center text-center relative overflow-hidden ${HERO_PADDING}`}
-      style={{ background: 'linear-gradient(135deg,#0d2949,#172643)' }}
+      className={`${sectionHeight} grid place-items-center text-center relative overflow-hidden ${HERO_PADDING}`}
+      style={{ background: sectionBackground }}
     >
-      {heroImages.map((slide, i) => (
-        <FocalImageLayer
-          key={`${slide.src}-${i}`}
-          {...slide}
-          className="transition-opacity duration-[1600ms] ease-in-out"
-          style={{ opacity: i === active ? 1 : 0 }}
-        />
-      ))}
+      {hasPhotos &&
+        slides.map((slide, i) => (
+          <FocalImageLayer
+            key={`${slide.src}-${i}`}
+            {...slide}
+            className="transition-opacity duration-[1600ms] ease-in-out"
+            style={{ opacity: i === active ? 1 : 0 }}
+          />
+        ))}
 
       <div
         className="absolute inset-0"
         style={{
-          background:
-            'linear-gradient(rgba(13,41,73,.55),rgba(13,41,73,.62)), radial-gradient(circle at 22% 28%,rgba(0,0,0,.15),transparent 40%)',
+          background: hasPhotos
+            ? 'linear-gradient(rgba(13,41,73,.55),rgba(13,41,73,.62)), radial-gradient(circle at 22% 28%,rgba(0,0,0,.15),transparent 40%)'
+            : 'radial-gradient(circle at 22% 28%,rgba(255,255,255,.12),transparent 40%), radial-gradient(circle at 80% 70%,rgba(193,154,58,.18),transparent 42%)',
         }}
       />
 
       <div
         className="relative z-10 max-w-[820px] text-white"
-        style={{ textShadow: '0 2px 18px rgba(0,0,0,.4)' }}
+        style={{ textShadow: hasPhotos ? '0 2px 18px rgba(0,0,0,.4)' : '0 1px 12px rgba(0,0,0,.25)' }}
       >
         {hebrewKicker && <p className="heb text-[1.1rem] text-gold-light mb-3">{hebrewKicker}</p>}
         {kicker && (
@@ -76,7 +85,13 @@ export function RotatingHero({
             {kicker}
           </p>
         )}
-        <h1 className="text-[clamp(2.8rem,6.5vw,5.4rem)] font-bold leading-none mb-4.5">
+        <h1
+          className={`font-bold leading-none mb-4.5 ${
+            hasPhotos
+              ? 'text-[clamp(2.8rem,6.5vw,5.4rem)]'
+              : 'text-[clamp(2.2rem,5vw,3.6rem)]'
+          }`}
+        >
           {children}
         </h1>
         {subtitle && (
@@ -87,9 +102,9 @@ export function RotatingHero({
         {actions && <div className="mt-8 flex gap-4 justify-center flex-wrap">{actions}</div>}
       </div>
 
-      {heroImages.length > 1 && (
+      {slides.length > 1 && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2.5">
-          {heroImages.map((slide, i) => (
+          {slides.map((slide, i) => (
             <span
               key={slide.src}
               className={`h-1.5 rounded-full transition-all duration-500 ${

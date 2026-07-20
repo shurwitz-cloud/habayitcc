@@ -1,6 +1,9 @@
 'use server';
 
+import { logFormSubmission } from '@/lib/admin/form-log';
 import { createAdminClient } from '@/lib/supabase/server';
+import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
+import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
 import { hebrewAdventureRow } from '@/lib/google/sheets';
 import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 import { stripe } from '@/lib/stripe/server';
@@ -61,18 +64,32 @@ export interface RegistrationResult {
   error?: string;
 }
 
-/**
- * Submits a HaBayit Hebrew Adventure registration. Validates the Chai Partner
- * access code, verifies a saved Stripe payment method (SetupIntent), then
- * writes family + registration records. Tuition is charged upon acceptance.
- */
 export async function submitHebrewSchoolRegistration(
   input: RegistrationInput
 ): Promise<RegistrationResult> {
+  const ready = assertSupabaseWriteReady();
+  if (!ready.ok) return { success: false, error: ready.error };
+
   try {
+    if (!input.agreedToPolicies) {
+      return { success: false, error: 'Please agree to the program policies to continue.' };
+    }
+
+    if (!input.children?.length) {
+      return { success: false, error: 'Please add at least one child.' };
+    }
+
+    for (const child of input.children) {
+      if (!child.firstName.trim() || !child.lastName.trim() || !child.grade.trim()) {
+        return {
+          success: false,
+          error: 'Each child needs a first name, last name, and grade.',
+        };
+      }
+    }
+
     const supabase = createAdminClient();
 
-    // Verify Chai Partner code if claimed
     if (input.isChaiPartner) {
       const { data: partner, error: partnerError } = await supabase
         .from('chai_partners')
@@ -91,7 +108,7 @@ export async function submitHebrewSchoolRegistration(
     ) {
       return {
         success: false,
-        error: 'Please enter the mother\'s conversion Beit Din / organization and certifying rabbi.',
+        error: "Please enter the mother's conversion Beit Din / organization and certifying rabbi.",
       };
     }
 
@@ -101,7 +118,7 @@ export async function submitHebrewSchoolRegistration(
     ) {
       return {
         success: false,
-        error: 'Please enter the father\'s conversion Beit Din / organization and certifying rabbi.',
+        error: "Please enter the father's conversion Beit Din / organization and certifying rabbi.",
       };
     }
 
@@ -121,8 +138,8 @@ export async function submitHebrewSchoolRegistration(
     }
 
     const parentEmail = input.parent1Email.trim().toLowerCase();
-    if (!parentEmail) {
-      return { success: false, error: 'Parent email is required.' };
+    if (!parentEmail || !input.parent1FirstName.trim() || !input.parent1LastName.trim()) {
+      return { success: false, error: 'Parent 1 name and email are required.' };
     }
 
     const setupEmail = setupIntent.metadata?.email?.toLowerCase();
@@ -168,122 +185,171 @@ export async function submitHebrewSchoolRegistration(
       metadata: customerMetadata,
     });
 
+    await logFormSubmission({
+      formType: 'hebrew_adventure_registration',
+      email: parentEmail,
+      payload: {
+        ...input,
+        stripeSetupIntentId: input.stripeSetupIntentId,
+        stripeCustomerId,
+        stripePaymentMethodId,
+      },
+    });
+
     const paymentMethodNote =
       input.paymentMethod === 'card'
         ? 'Payment method: Credit card (+3% processing fee)'
         : 'Payment method: Bank account (ACH, no fee)';
 
-    // Create the family record
-    const { data: family, error: familyError } = await supabase
-      .from('families')
-      .insert({
-        family_name: `${input.parent1LastName} Family`,
-        street_address: input.streetAddress,
-        city: input.city,
-        state: input.state,
-        zip: input.zip,
-        stripe_customer_id: stripeCustomerId,
-        stripe_payment_method_id: stripePaymentMethodId,
-        payment_method_preference: input.paymentMethod,
-      })
-      .select()
-      .single();
+    const familyRow = {
+      family_name: `${input.parent1LastName.trim()} Family`,
+      street_address: input.streetAddress.trim(),
+      city: input.city.trim(),
+      state: input.state.trim(),
+      zip: input.zip.trim(),
+      notes: input.notes?.trim() || null,
+      emergency_contact_name: input.emergencyContact?.trim() || null,
+      emergency_contact_phone: input.emergencyPhone?.trim() || null,
+      stripe_customer_id: stripeCustomerId,
+      stripe_payment_method_id: stripePaymentMethodId,
+      payment_method_preference: input.paymentMethod,
+    };
+
+    const familyResult = await insertWithSchemaFallback(familyRow, async (payload) =>
+      supabase.from('families').insert(payload).select('id').single()
+    );
+    const family = familyResult.data as { id: string } | null;
+    const familyError = familyResult.error;
 
     if (familyError || !family) {
+      console.error('[registration] family insert error:', familyError);
       return { success: false, error: 'Could not create family record.' };
     }
 
-    // Create parent records
     const parentRows = [
       {
         family_id: family.id,
-        first_name: input.parent1FirstName,
-        last_name: input.parent1LastName,
-        email: input.parent1Email,
-        phone: input.parent1Phone,
+        first_name: input.parent1FirstName.trim(),
+        last_name: input.parent1LastName.trim(),
+        email: parentEmail,
+        phone: input.parent1Phone?.trim() || null,
         relationship: 'Mother',
         jewish_status: input.motherStatus,
-        conversion_org: input.motherConversionOrg || null,
-        conversion_rabbi: input.motherConversionRabbi || null,
+        conversion_org: input.motherConversionOrg?.trim() || null,
+        conversion_rabbi: input.motherConversionRabbi?.trim() || null,
         is_primary_contact: true,
       },
     ];
-    if (input.parent2FirstName) {
+    if (input.parent2FirstName?.trim()) {
       parentRows.push({
         family_id: family.id,
-        first_name: input.parent2FirstName,
-        last_name: input.parent2LastName,
-        email: input.parent2Email,
-        phone: input.parent2Phone,
+        first_name: input.parent2FirstName.trim(),
+        last_name: input.parent2LastName.trim(),
+        email: input.parent2Email?.trim().toLowerCase() || '',
+        phone: input.parent2Phone?.trim() || null,
         relationship: 'Father',
         jewish_status: input.fatherStatus,
-        conversion_org: input.fatherConversionOrg || null,
-        conversion_rabbi: input.fatherConversionRabbi || null,
+        conversion_org: input.fatherConversionOrg?.trim() || null,
+        conversion_rabbi: input.fatherConversionRabbi?.trim() || null,
         is_primary_contact: false,
       });
     }
-    await supabase.from('parents').insert(parentRows);
 
-    // Look up the program by slug
+    const { error: parentsError } = await supabase.from('parents').insert(parentRows);
+    if (parentsError) {
+      console.error('[registration] parents insert error:', parentsError);
+      return { success: false, error: 'Could not save parent information.' };
+    }
+
     const { data: program } = await supabase
       .from('programs')
       .select('id')
       .eq('slug', HEBREW_ADVENTURE_SLUG)
-      .single();
+      .maybeSingle();
 
-    // Create child + registration records
+    if (!program?.id) {
+      console.error('[registration] program not found for slug:', HEBREW_ADVENTURE_SLUG);
+    }
+
     for (let i = 0; i < input.children.length; i++) {
       const child = input.children[i];
 
-      const { data: childRow, error: childError } = await supabase
-        .from('children')
-        .insert({
-          family_id: family.id,
-          first_name: child.firstName,
-          last_name: child.lastName,
-          hebrew_name: child.hebrewName || null,
-          date_of_birth: child.dateOfBirth || null,
-          born_before_sunset: child.bornBeforeSunset === 'before',
-          grade: child.grade,
-          school_attending: child.schoolAttending,
-          allergies: child.allergies || null,
-        })
-        .select()
-        .single();
+      const childRow = {
+        family_id: family.id,
+        first_name: child.firstName.trim(),
+        last_name: child.lastName.trim(),
+        hebrew_name: child.hebrewName?.trim() || null,
+        date_of_birth: child.dateOfBirth || null,
+        born_before_sunset: child.bornBeforeSunset === 'before',
+        born_sunset_timing: child.bornBeforeSunset || null,
+        grade: child.grade.trim(),
+        school_attending: child.schoolAttending?.trim() || null,
+        attended_before: child.attendedBefore?.trim() || null,
+        hebrew_level: child.hebrewLevel?.trim() || null,
+        allergies: child.allergies?.trim() || null,
+      };
 
-      if (childError || !childRow) continue;
+      const childResult = await insertWithSchemaFallback(childRow, async (payload) =>
+        supabase.from('children').insert(payload).select('id').single()
+      );
+      const childRowData = childResult.data as { id: string } | null;
+      const childError = childResult.error;
+
+      if (childError || !childRowData) {
+        console.error('[registration] child insert error:', childError, child);
+        return {
+          success: false,
+          error: `Could not save information for ${child.firstName}. Please contact us.`,
+        };
+      }
 
       const baseTuition = getHebrewAdventureSessionTuition(input.isChaiPartner);
       const discount = getHebrewAdventureSiblingDiscount(i);
       const tuitionTotal = baseTuition - discount;
 
-      await supabase.from('program_registrations').insert({
-        program_id: program?.id,
-        child_id: childRow.id,
+      const { error: regError } = await supabase.from('program_registrations').insert({
+        program_id: program?.id ?? null,
+        child_id: childRowData.id,
         family_id: family.id,
         term: '2026-2027',
         status: 'pending',
         is_chai_partner_rate: input.isChaiPartner,
-        chai_partner_code_used: input.isChaiPartner ? input.chaiPartnerCode : null,
+        chai_partner_code_used: input.isChaiPartner ? input.chaiPartnerCode.trim().toUpperCase() : null,
         payment_plan: input.paymentPlan || 'full',
         tuition_total: tuitionTotal,
-        notes: paymentMethodNote,
+        notes:
+          [
+            paymentMethodNote,
+            child.hebrewLevel ? `Hebrew level: ${child.hebrewLevel}` : '',
+            child.attendedBefore ? `Attended before: ${child.attendedBefore}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || paymentMethodNote,
       });
+
+      if (regError) {
+        console.error('[registration] program_registrations insert error:', regError);
+        return {
+          success: false,
+          error: `Could not save registration for ${child.firstName}. Please contact us.`,
+        };
+      }
     }
 
-    // Record the policy waiver
-    await supabase.from('waivers').insert({
+    const { error: waiverError } = await supabase.from('waivers').insert({
       family_id: family.id,
       waiver_type: 'hebrew_school_policies',
-      signed_by: `${input.parent1FirstName} ${input.parent1LastName}`,
+      signed_by: `${input.parent1FirstName} ${input.parent1LastName}`.trim(),
       document_version: '2026-v1',
     });
+    if (waiverError) {
+      console.error('[registration] waiver insert error:', waiverError);
+    }
 
-    // Append to Google Sheets (best-effort)
     void hebrewAdventureRow({
       parent1First: input.parent1FirstName,
       parent1Last: input.parent1LastName,
-      parent1Email: input.parent1Email,
+      parent1Email: parentEmail,
       parent1Phone: input.parent1Phone,
       parent2First: input.parent2FirstName,
       parent2Last: input.parent2LastName,
@@ -311,8 +377,21 @@ export async function submitHebrewSchoolRegistration(
       })),
     });
 
+    void logFormSubmission({
+      formType: 'hebrew_adventure_registration',
+      email: parentEmail,
+      sourceId: family.id,
+      payload: {
+        ...input,
+        stripeSetupIntentId: input.stripeSetupIntentId,
+        stripeCustomerId,
+        stripePaymentMethodId,
+        children: input.children,
+      },
+    });
+
     await sendRegistrationReceivedEmail({
-      to: input.parent1Email,
+      to: parentEmail,
       parentFirstName: input.parent1FirstName,
       childNames: input.children.map((c) => `${c.firstName} ${c.lastName}`.trim()),
       paymentPlan: input.paymentPlan,

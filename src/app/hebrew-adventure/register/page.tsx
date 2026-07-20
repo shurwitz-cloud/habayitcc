@@ -2,6 +2,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { Section } from '@/components/sections/Section';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { RegistrationForm } from './RegistrationForm';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
@@ -17,7 +18,7 @@ export default function HebrewSchoolRegisterPage() {
       <main className="flex-1">
         <Hero
           kicker="Registration"
-          minHeight="min-h-[40vh]"
+          minHeight={HERO_HEIGHT.page}
           subtitle="We're excited to welcome your family. Registration takes just a few minutes."
         >
           {HEBREW_ADVENTURE_NAME}

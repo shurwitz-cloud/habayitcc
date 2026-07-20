@@ -1,12 +1,12 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-import { isAdminAuthenticated } from '@/lib/admin/auth';
+import { requireCapability } from '@/lib/admin/auth';
 import { DEFAULT_SITE_IMAGES, getSiteImages, saveSiteImageSlot, uploadSitePhoto } from '@/lib/site-images/store';
+import { revalidateSiteImages } from '@/lib/site-images/revalidate';
 import type { SiteImageSlot, SiteImageSlotId } from '@/lib/site-images/types';
 
 async function requireAdmin() {
-  if (!(await isAdminAuthenticated())) {
+  if (!(await requireCapability('photos'))) {
     throw new Error('Unauthorized');
   }
 }
@@ -25,14 +25,7 @@ export async function saveSiteImageSlotAction(
     await requireAdmin();
     const result = await saveSiteImageSlot(slotId, slot);
     if (result.success) {
-      revalidatePath('/', 'layout');
-      revalidatePath('/donate');
-      revalidatePath('/contact');
-      revalidatePath('/events');
-      revalidatePath('/hebrew-adventure');
-      revalidatePath('/chai-partner');
-      revalidatePath('/about');
-      revalidatePath('/bar-bat-mitzvah');
+      revalidateSiteImages();
     }
     return result;
   } catch (err) {
@@ -61,7 +54,7 @@ export async function uploadSitePhotoAction(
 
     const result = await uploadSitePhoto(file);
     if (result.url) {
-      revalidatePath('/', 'layout');
+      revalidateSiteImages();
     }
     return result;
   } catch (err) {

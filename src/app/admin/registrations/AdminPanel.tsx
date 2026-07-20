@@ -67,9 +67,11 @@ export function StripeCheatSheet() {
 export function AdminRegistrationsPanel({
   pending,
   scheduled,
+  role = 'admin',
 }: {
   pending: PendingFamilyRegistration[];
   scheduled: ScheduledInstallment[];
+  role?: 'admin' | 'volunteer';
 }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -90,7 +92,7 @@ export function AdminRegistrationsPanel({
 
   return (
     <div>
-      <AdminNav />
+      <AdminNav role={role} />
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-navy">Hebrew Adventure — Registrations</h1>

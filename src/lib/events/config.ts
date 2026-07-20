@@ -11,8 +11,12 @@ export interface EventConfig {
   day: string;
   dateLabel: string;   // e.g. "Monday, August 4th"
   time: string;
+  /** ISO 8601 — used for Supabase events table sync */
+  startsAt: string;
   description: string;
-  locationPrivate: boolean; // true = "Location provided upon registration"
+  locationPrivate: boolean; // true = hide address until after RSVP (or until revealed)
+  /** Full address — shown on confirmation page + email after RSVP. */
+  locationAddress?: string;
   tabName: string;          // Google Sheet tab name auto-created on first RSVP
   rsvpLabel: string;        // e.g. "Meet & Greet", "Open House" — used in form heading
   flyer?: string;           // path relative to /public, e.g. "/flyers/achim.png"
@@ -25,8 +29,9 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     program: HEBREW_ADVENTURE_NAME,
     month: 'Aug',
     day: '4',
-    dateLabel: 'Monday, August 4th',
+    dateLabel: 'Tuesday, August 4th',
     time: '8:30 PM',
+    startsAt: '2026-08-04T20:30:00-04:00',
     description:
       `Meet & greet and Q&A for parents. Come discover ${HEBREW_ADVENTURE_NAME} for the upcoming year.`,
     locationPrivate: true,
@@ -42,9 +47,11 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     day: '28',
     dateLabel: 'Monday, July 28th',
     time: '7:30 PM',
+    startsAt: '2026-07-28T19:30:00-04:00',
     description:
       'Open House and program for the boys. An exciting evening for 6th grade boys to experience what HaBayit Achim is all about.',
-    locationPrivate: false,
+    locationPrivate: true,
+    locationAddress: '4025 Augusta Ave\nEmbassy Lakes',
     tabName: 'Open House - Jul 28',
     rsvpLabel: 'Open House',
     flyer: '/flyers/achim.png',
@@ -57,6 +64,7 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     day: '6',
     dateLabel: 'Wednesday, August 6th',
     time: '7:30 PM',
+    startsAt: '2026-08-06T19:30:00-04:00',
     description:
       'Open House and program for the girls. An exciting evening for 6th grade girls to experience what HaBayit Bloom is all about.',
     locationPrivate: true,

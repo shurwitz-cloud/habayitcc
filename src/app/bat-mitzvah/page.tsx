@@ -1,7 +1,9 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { ProgramOpenHouse } from '@/components/events/ProgramOpenHouse';
 import { Hero } from '@/components/sections/Hero';
 import { Section } from '@/components/sections/Section';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
 
 export const metadata = {
   title: 'HaBayit Bloom – Bat Mitzvah Club',
@@ -23,7 +25,7 @@ export default function BatMitzvahPage() {
       <main className="flex-1">
         <Hero
           kicker="HaBayit Bloom"
-          minHeight="min-h-[50vh]"
+          minHeight={HERO_HEIGHT.page}
           subtitle="For 6th grade girls — meaningful conversations, creativity, and mitzvah projects."
         >
           Bat Mitzvah Club
@@ -50,6 +52,8 @@ export default function BatMitzvahPage() {
             ))}
           </div>
         </Section>
+
+        <ProgramOpenHouse eventSlug="bloom" background="soft" />
 
         <Section background="navy">
           <div className="text-center">

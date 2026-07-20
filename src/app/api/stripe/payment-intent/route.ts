@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
       amount: amountCents,
       currency: 'usd',
       payment_method_types: ['card'],
-      receipt_email: donorEmail || undefined,
       description: 'Donation to HaBayit Jewish Center',
       metadata: {
         type: 'donation',

@@ -62,9 +62,14 @@ export function AdminLoginForm({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="w-full mb-4"
-        required
+        required={process.env.NODE_ENV !== 'development'}
         autoComplete="current-password"
       />
+      {process.env.NODE_ENV === 'development' && (
+        <p className="text-xs text-muted mb-4">
+          Local dev: password is optional — any value works.
+        </p>
+      )}
 
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 

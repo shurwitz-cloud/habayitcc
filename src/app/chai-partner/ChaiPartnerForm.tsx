@@ -318,7 +318,6 @@ function ChaiPartnerForm() {
             <PayMethodCard
               active={payMethod === 'card'}
               title="Credit / debit card"
-              detail="Instant · optional 3% fee cover"
               onClick={() => {
                 setPayMethod('card');
                 setError('');
@@ -327,7 +326,6 @@ function ChaiPartnerForm() {
             <PayMethodCard
               active={payMethod === 'ach'}
               title="Bank account (ACH)"
-              detail="Lower fees · optional 1% cover"
               badge="Preview"
               onClick={() => {
                 setPayMethod('ach');
@@ -336,7 +334,7 @@ function ChaiPartnerForm() {
             />
             <PayMethodCard
               active={payMethod === 'zeffy'}
-              title="Fee-free via Zeffy"
+              title="Credit card via Zeffy"
               detail={ZEFFY_LIVE ? 'HaBayit keeps 100%' : 'HaBayit keeps 100% · preview'}
               badge={ZEFFY_LIVE ? undefined : 'Preview'}
               onClick={() => {
@@ -492,7 +490,7 @@ function PayMethodCard({
 }: {
   active: boolean;
   title: string;
-  detail: string;
+  detail?: string;
   badge?: string;
   onClick: () => void;
 }) {
@@ -512,7 +510,7 @@ function PayMethodCard({
           </span>
         )}
       </div>
-      <span className="block text-[0.78rem] text-muted mt-1">{detail}</span>
+      {detail ? <span className="block text-[0.78rem] text-muted mt-1">{detail}</span> : null}
     </button>
   );
 }

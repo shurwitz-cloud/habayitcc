@@ -24,18 +24,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
   }
 
+  console.info('[zeffy webhook] incoming', summarize(body));
+
   const parsed = parseZeffyWebhook(body);
   if (!parsed) {
     console.warn('[zeffy webhook] Unrecognized or non-completed payload', summarize(body));
     // Still 200 so Zeffy does not endlessly retry malformed noise we cannot use.
-    return NextResponse.json({ received: true, handled: false });
+    return NextResponse.json({ received: true, handled: false, reason: 'unrecognized_payload' });
   }
 
-  // Optional: verify payment still exists via Zeffy API (read-only).
+  // Soft verify only — never block recording if API lookup fails or status is odd.
   const verified = await verifyPaymentWithApi(parsed.paymentId);
   if (verified === false) {
-    console.error('[zeffy webhook] API verification failed for', parsed.paymentId);
-    return NextResponse.json({ error: 'Payment verification failed.' }, { status: 400 });
+    console.warn(
+      '[zeffy webhook] API did not confirm payment; recording from webhook payload anyway',
+      parsed.paymentId
+    );
   }
 
   if (!isLikelyChaiPartnerPayment(parsed)) {
@@ -56,6 +60,13 @@ export async function POST(req: NextRequest) {
       console.error('[zeffy webhook] Failed to record', parsed.paymentId);
       return NextResponse.json({ error: 'Failed to record payment.' }, { status: 500 });
     }
+    console.info('[zeffy webhook] recorded', {
+      paymentId: parsed.paymentId,
+      email: parsed.email,
+      amount: parsed.amountDollars,
+      partnerId: result.partnerId,
+      duplicate: result.duplicate,
+    });
     return NextResponse.json({
       received: true,
       handled: true,
@@ -117,8 +128,21 @@ async function verifyPaymentWithApi(paymentId: string): Promise<boolean | 'skipp
 function summarize(body: unknown): unknown {
   if (!body || typeof body !== 'object') return body;
   const o = body as Record<string, unknown>;
+  const data = o.data && typeof o.data === 'object' ? (o.data as Record<string, unknown>) : null;
+  const obj =
+    data?.object && typeof data.object === 'object'
+      ? (data.object as Record<string, unknown>)
+      : o.payment && typeof o.payment === 'object'
+        ? (o.payment as Record<string, unknown>)
+        : null;
   return {
     type: o.type ?? o.event,
-    keys: Object.keys(o).slice(0, 12),
+    keys: Object.keys(o).slice(0, 20),
+    dataKeys: data ? Object.keys(data).slice(0, 12) : undefined,
+    paymentKeys: obj ? Object.keys(obj).slice(0, 20) : undefined,
+    hasAmount: obj ? obj.amount != null || obj.amount_total != null || obj.total != null : undefined,
+    hasContact: obj
+      ? Boolean(obj.contact || obj.buyer || obj.donor || obj.email)
+      : undefined,
   };
 }

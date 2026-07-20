@@ -168,6 +168,7 @@ export function isLikelyChaiPartnerPayment(parsed: ParsedZeffyPayment): boolean 
   // Dedicated Chai Partner form (slug/title) — accept any amount including $1 tests.
   if (/chai|habayit-chai-partner/.test(haystack)) return true;
 
-  // Fallback: only treat large gifts as Chai if campaign metadata is missing.
-  return parsed.amountDollars >= 150;
+  // This webhook URL is only configured for HaBayit Chai Partner — accept all succeeded gifts.
+  // Set ZEFFY_CHAI_CAMPAIGN_ID if you later share this webhook with other Zeffy forms.
+  return parsed.amountDollars > 0;
 }

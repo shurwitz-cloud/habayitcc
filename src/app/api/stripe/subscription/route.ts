@@ -13,6 +13,8 @@ export interface SubscriptionRequestBody {
   dedicationName?: string;
   dedicationType?: 'honor' | 'memory';
   type: 'monthly_donation' | 'chai_partner';
+  /** Card (default) or ACH bank debit. */
+  paymentMethod?: 'card' | 'ach';
   // Additional fields for chai_partner type
   street?: string;
   city?: string;
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest) {
       dedicationName,
       dedicationType,
       type,
+      paymentMethod = 'card',
     } = body;
 
     if (!amountCents || amountCents < 100) {
@@ -47,6 +50,9 @@ export async function POST(req: NextRequest) {
     }
     if (!donorEmail) {
       return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
+    }
+    if (paymentMethod !== 'card' && paymentMethod !== 'ach') {
+      return NextResponse.json({ error: 'Invalid payment method.' }, { status: 400 });
     }
 
     const productName =
@@ -64,6 +70,7 @@ export async function POST(req: NextRequest) {
         type,
         first_name: donorFirstName,
         last_name: donorLastName,
+        payment_method_preference: paymentMethod,
         ...(type === 'chai_partner' && {
           street: body.street ?? '',
           city: body.city ?? '',
@@ -72,6 +79,8 @@ export async function POST(req: NextRequest) {
         }),
       },
     });
+
+    const isAch = paymentMethod === 'ach';
 
     const subscription = await stripe.subscriptions.create({
       customer: customer.id,
@@ -87,14 +96,27 @@ export async function POST(req: NextRequest) {
       ],
       payment_behavior: 'default_incomplete',
       payment_settings: {
-        payment_method_types: ['card'],
+        payment_method_types: isAch ? ['us_bank_account'] : ['card'],
         save_default_payment_method: 'on_subscription',
       },
+      ...(isAch
+        ? {
+            payment_method_options: {
+              us_bank_account: {
+                financial_connections: {
+                  permissions: ['payment_method'],
+                },
+                verification_method: 'automatic' as const,
+              },
+            },
+          }
+        : {}),
       expand: ['latest_invoice.confirmation_secret'],
       metadata: {
         type,
         donor_name: `${donorFirstName} ${donorLastName}`.trim(),
         donor_email: donorEmail,
+        payment_method_preference: paymentMethod,
         ...(memo && { memo }),
         ...(campaign && { campaign }),
         ...(dedicationName && { dedication_name: dedicationName }),

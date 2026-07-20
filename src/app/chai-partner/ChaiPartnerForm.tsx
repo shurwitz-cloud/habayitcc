@@ -97,15 +97,11 @@ function ChaiPartnerForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (payMethod === 'ach') {
-      setError('Bank debit (ACH) is a preview for now — use card to complete signup today.');
-      return;
-    }
     if (payMethod === 'zeffy') {
       continueOnZeffy();
       return;
     }
-    if (!stripe || !elements) return;
+    if (!stripe) return;
 
     setError('');
 
@@ -122,8 +118,10 @@ function ChaiPartnerForm() {
       return;
     }
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) return;
+    if (payMethod === 'card') {
+      const cardElement = elements?.getElement(CardElement);
+      if (!cardElement) return;
+    }
 
     setProcessing(true);
 
@@ -138,6 +136,7 @@ function ChaiPartnerForm() {
           donorEmail: email,
           donorPhone: phone,
           type: 'chai_partner',
+          paymentMethod: payMethod === 'ach' ? 'ach' : 'card',
           street,
           city,
           state,
@@ -156,22 +155,93 @@ function ChaiPartnerForm() {
         throw new Error(data.error ?? 'Failed to initialize payment.');
       }
 
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(data.clientSecret, {
-        payment_method: {
-          card: cardElement,
-          billing_details: { name: `${firstName} ${lastName}`, email, phone },
-        },
-      });
+      const billingName = `${firstName} ${lastName}`.trim();
+      let paymentIntentId: string | null = null;
+      let paymentOk = false;
 
-      if (stripeError) {
-        setError(stripeError.message ?? 'Payment failed. Please try again.');
-        setProcessing(false);
-        return;
+      if (payMethod === 'ach') {
+        const collect = await stripe.collectBankAccountForPayment({
+          clientSecret: data.clientSecret,
+          params: {
+            payment_method_type: 'us_bank_account',
+            payment_method_data: {
+              billing_details: {
+                name: billingName,
+                email,
+                phone,
+                address: {
+                  line1: street.trim(),
+                  city: city.trim(),
+                  state: state.trim(),
+                  postal_code: zip.trim(),
+                  country: 'US',
+                },
+              },
+            },
+          },
+        });
+
+        if (collect.error) {
+          setError(collect.error.message ?? 'Could not connect your bank account. Please try again.');
+          setProcessing(false);
+          return;
+        }
+
+        const collectedStatus = collect.paymentIntent?.status;
+        if (collectedStatus === 'requires_payment_method') {
+          setError('Bank account setup was cancelled. Please try again.');
+          setProcessing(false);
+          return;
+        }
+
+        if (collectedStatus === 'requires_confirmation') {
+          const { error: confirmError, paymentIntent } = await stripe.confirmUsBankAccountPayment(
+            data.clientSecret
+          );
+          if (confirmError) {
+            setError(confirmError.message ?? 'Bank payment could not be confirmed. Please try again.');
+            setProcessing(false);
+            return;
+          }
+          paymentIntentId = paymentIntent?.id ?? null;
+          paymentOk =
+            paymentIntent?.status === 'succeeded' || paymentIntent?.status === 'processing';
+        } else if (
+          collectedStatus === 'processing' ||
+          collectedStatus === 'succeeded'
+        ) {
+          paymentIntentId = collect.paymentIntent?.id ?? null;
+          paymentOk = true;
+        } else {
+          setError('Bank payment was not completed. Please try again.');
+          setProcessing(false);
+          return;
+        }
+      } else {
+        const cardElement = elements!.getElement(CardElement)!;
+        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+          data.clientSecret,
+          {
+            payment_method: {
+              card: cardElement,
+              billing_details: { name: billingName, email, phone },
+            },
+          }
+        );
+
+        if (stripeError) {
+          setError(stripeError.message ?? 'Payment failed. Please try again.');
+          setProcessing(false);
+          return;
+        }
+
+        paymentIntentId = paymentIntent?.id ?? null;
+        paymentOk = paymentIntent?.status === 'succeeded';
       }
 
-      if (paymentIntent?.status === 'succeeded') {
+      if (paymentOk && paymentIntentId) {
         const result = await confirmChaiPartnerPayment({
-          paymentIntentId: paymentIntent.id,
+          paymentIntentId,
           stripeSubscriptionId: data.subscriptionId ?? '',
           stripeCustomerId: data.customerId ?? '',
           firstName,
@@ -189,9 +259,12 @@ function ChaiPartnerForm() {
           setAccessCode(result.accessCode);
         } else {
           setError(
-            result.error ?? 'Payment succeeded but we could not save your membership. Please contact us.'
+            result.error ??
+              'Payment succeeded but we could not save your membership. Please contact us.'
           );
         }
+      } else {
+        setError('Payment was not completed. Please try again.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -337,7 +410,6 @@ function ChaiPartnerForm() {
             <PayMethodCard
               active={payMethod === 'ach'}
               title="Bank account (ACH)"
-              badge="Preview"
               onClick={() => {
                 setPayMethod('ach');
                 setError('');
@@ -357,11 +429,11 @@ function ChaiPartnerForm() {
           )}
 
           {payMethod === 'ach' && (
-            <div className="rounded-xl border border-dashed border-line bg-soft px-4 py-5 text-[0.9rem] text-muted">
-              <p className="text-navy font-semibold mb-1">Bank debit preview</p>
+            <div className="rounded-xl border border-line bg-soft px-4 py-5 text-[0.9rem] text-muted">
+              <p className="text-navy font-semibold mb-1">Bank account</p>
               <p>
-                Pay directly from your bank account — much lower processing cost than a card.
-                Not live yet — choose card to join today.
+                After you submit, Stripe will securely connect your bank (or let you enter routing and
+                account numbers). The first debit may take a few business days to clear.
               </p>
             </div>
           )}
@@ -447,24 +519,17 @@ function ChaiPartnerForm() {
         </div>
       )}
 
-      {payMethod === 'card' && (
+      {(payMethod === 'card' || payMethod === 'ach') && (
         <button
           type="submit"
           disabled={processing || !stripe}
           className="w-full mt-6 bg-gold text-white rounded-full px-6 py-4.5 font-extrabold uppercase tracking-wider disabled:opacity-60 transition-opacity"
         >
           {processing
-            ? 'Processing…'
+            ? payMethod === 'ach'
+              ? 'Connecting bank…'
+              : 'Processing…'
             : `Become a Chai Partner${finalAmount ? ` — $${finalAmount.toFixed(2)}/mo` : ''}`}
-        </button>
-      )}
-
-      {payMethod === 'ach' && (
-        <button
-          type="submit"
-          className="w-full mt-6 bg-gold text-white rounded-full px-6 py-4.5 font-extrabold uppercase tracking-wider"
-        >
-          Preview only — use card to join
         </button>
       )}
 
@@ -475,7 +540,7 @@ function ChaiPartnerForm() {
             ? ZEFFY_LIVE
               ? "Secured by Zeffy. After you finish, we'll confirm your partnership automatically."
               : 'Zeffy form URL not configured yet.'
-            : 'ACH is a UI preview — not live checkout yet.'}
+            : 'Secured by Stripe. Bank debit (ACH) usually clears in a few business days.'}
       </p>
     </form>
   );

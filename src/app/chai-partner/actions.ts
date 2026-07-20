@@ -49,7 +49,8 @@ export async function confirmChaiPartnerPayment(
 
   try {
     const pi = await stripe.paymentIntents.retrieve(input.paymentIntentId);
-    if (pi.status !== 'succeeded') {
+    // Card: succeeded immediately. ACH: often "processing" until funds clear — mandate is already set.
+    if (pi.status !== 'succeeded' && pi.status !== 'processing') {
       return { success: false, error: 'Payment has not been confirmed. Please try again.' };
     }
 
@@ -131,8 +132,8 @@ export async function confirmChaiPartnerPayment(
       amount: input.monthlyAmount,
       stripe_payment_intent_id: input.paymentIntentId,
       stripe_charge_id: null,
-      status: 'succeeded',
-      paid_at: new Date().toISOString(),
+      status: pi.status === 'processing' ? 'pending' : 'succeeded',
+      paid_at: pi.status === 'processing' ? null : new Date().toISOString(),
     });
     if (paymentError) {
       console.error('confirmChaiPartner payments insert error:', paymentError);

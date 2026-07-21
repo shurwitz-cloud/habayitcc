@@ -53,6 +53,7 @@ import { setContactResolved, addImportantDate } from './actions';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 import { ManualZeffyEntryForm } from '@/components/admin/ManualZeffyEntryForm';
+import { ManualDonationForm } from '@/components/admin/ManualDonationForm';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -633,11 +634,13 @@ export function CrmPanel({
           {view === 'donations' && canSeeFinance && (
             <>
               <ReconcileStripeButton />
+              <ManualZeffyEntryForm defaultType="donation" />
               <DonationsTable rows={sortedDonations} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
           )}
           {view === 'chai' && canSeeFinance && (
             <>
+              <ManualZeffyEntryForm defaultType="chai_partner" />
               <ReconcileZeffyButton />
               <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>

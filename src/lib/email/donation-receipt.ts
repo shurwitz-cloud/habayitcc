@@ -67,6 +67,8 @@ export async function sendDonationReceiptEmailFromRecord(input: {
   dedicationName?: string | null;
   dedicationType?: DedicationType | null;
   donationType: 'One-Time' | 'Monthly';
+  /** Receipt payment-method label (Zelle, Zeffy, Credit Card, …). */
+  method?: string;
 }): Promise<boolean> {
   return sendDonationTaxReceiptEmail({
     email: input.email,
@@ -76,7 +78,7 @@ export async function sendDonationReceiptEmailFromRecord(input: {
     campaign: input.campaign,
     dedicationName: input.dedicationName,
     dedicationType: input.dedicationType,
-    method: receiptMethodFromDonationType(input.donationType),
+    method: input.method?.trim() || receiptMethodFromDonationType(input.donationType),
     isRecurring: input.donationType === 'Monthly',
   });
 }

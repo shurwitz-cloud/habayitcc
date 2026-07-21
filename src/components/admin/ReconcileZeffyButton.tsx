@@ -3,12 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+/**
+ * Import is disabled after a bad run treated non-Chai Zeffy gifts as monthly partners.
+ * Re-enable only after ZEFFY_CHAI_CAMPAIGN_ID is set and campaign matching is verified.
+ */
 export function ReconcileZeffyButton() {
   const router = useRouter();
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const enabled = process.env.NEXT_PUBLIC_ZEFFY_RECONCILE_ENABLED === 'true';
 
   async function run() {
+    if (!enabled) return;
     setStatus('running');
     setMessage('');
     try {
@@ -37,7 +43,7 @@ export function ReconcileZeffyButton() {
       const recorded = data.recorded ?? 0;
       const duplicates = data.duplicates ?? 0;
       setMessage(
-        `Scanned ${data.scanned ?? 0} Zeffy payments → imported ${recorded}, already in CRM ${duplicates}.`
+        `Scanned ${data.scanned ?? 0} Zeffy payments → imported ${recorded}, already in CRM ${duplicates}. (No emails sent.)`
       );
       const newly = (data.results ?? []).filter((r) => r.status === 'recorded');
       if (newly.length) {
@@ -56,16 +62,18 @@ export function ReconcileZeffyButton() {
   return (
     <div className="mb-6 rounded-lg border border-[#d4cfc4] bg-white p-4">
       <p className="text-sm text-[#172643]">
-        <strong>Missing Zeffy Chai Partners?</strong> Pull recent gifts from Zeffy into CRM (safe to run
-        more than once). Does not charge anyone again.
+        <strong>Zeffy import</strong>
+        {enabled
+          ? ' — pulls recent Chai Partner–matched gifts only. Does not send email.'
+          : ' is temporarily disabled after a bad import emailed past one-time donors as monthly partners.'}
       </p>
       <button
         type="button"
         onClick={run}
-        disabled={status === 'running'}
+        disabled={!enabled || status === 'running'}
         className="mt-3 rounded bg-[#172643] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
       >
-        {status === 'running' ? 'Importing…' : 'Import from Zeffy'}
+        {!enabled ? 'Import disabled' : status === 'running' ? 'Importing…' : 'Import from Zeffy'}
       </button>
       {message ? (
         <p className={`mt-2 text-sm ${status === 'error' ? 'text-red-700' : 'text-[#4a6741]'}`}>

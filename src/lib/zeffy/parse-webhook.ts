@@ -155,6 +155,7 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
   };
 }
 
+/** Only Habayit Chai Partner form — never treat other Zeffy gifts as monthly partners. */
 export function isLikelyChaiPartnerPayment(parsed: ParsedZeffyPayment): boolean {
   const campaignFilter = process.env.ZEFFY_CHAI_CAMPAIGN_ID?.trim();
   if (campaignFilter) {
@@ -165,10 +166,5 @@ export function isLikelyChaiPartnerPayment(parsed: ParsedZeffyPayment): boolean 
   }
 
   const haystack = `${parsed.campaignTitle ?? ''} ${parsed.campaignId ?? ''} ${JSON.stringify(parsed.raw)}`.toLowerCase();
-  // Dedicated Chai Partner form (slug/title) — accept any amount including $1 tests.
-  if (/chai|habayit-chai-partner/.test(haystack)) return true;
-
-  // This webhook URL is only configured for HaBayit Chai Partner — accept all succeeded gifts.
-  // Set ZEFFY_CHAI_CAMPAIGN_ID if you later share this webhook with other Zeffy forms.
-  return parsed.amountDollars > 0;
+  return /habayit-chai-partner|\bchai partner\b|\bchai-partner\b/.test(haystack);
 }

@@ -21,13 +21,20 @@ function zeffyPaymentKey(paymentId: string): string {
   return `zeffy:${paymentId}`;
 }
 
+export type RecordZeffyOptions = {
+  /** When false, skip welcome / receipt emails (use for historical imports). Default true. */
+  sendEmails?: boolean;
+};
+
 /**
  * Upsert Chai Partner + payment ledger from a verified Zeffy payment.
  * Idempotent on Zeffy payment id (stored in stripe_payment_intent_id as zeffy:<id>).
  */
 export async function recordZeffyChaiPartnerPayment(
-  parsed: ParsedZeffyPayment
+  parsed: ParsedZeffyPayment,
+  options: RecordZeffyOptions = {}
 ): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
+  const sendEmails = options.sendEmails !== false;
   const supabase = createAdminClient();
   const paymentKey = zeffyPaymentKey(parsed.paymentId);
 
@@ -143,24 +150,26 @@ export async function recordZeffyChaiPartnerPayment(
       customerId: '',
     });
 
-    try {
-      await sendChaiPartnerWelcomeEmail({
-        firstName: parsed.firstName,
-        lastName: parsed.lastName,
-        email: parsed.email,
-        phone: parsed.phone,
-        monthlyAmount: parsed.amountDollars,
-        accessCode,
-        receiptUrl: buildChaiPartnerReceiptUrl({
+    if (sendEmails) {
+      try {
+        await sendChaiPartnerWelcomeEmail({
           firstName: parsed.firstName,
           lastName: parsed.lastName,
-          amount: parsed.amountDollars,
-        }),
-      });
-    } catch (err) {
-      console.error('[zeffy] welcome email failed:', err);
+          email: parsed.email,
+          phone: parsed.phone,
+          monthlyAmount: parsed.amountDollars,
+          accessCode,
+          receiptUrl: buildChaiPartnerReceiptUrl({
+            firstName: parsed.firstName,
+            lastName: parsed.lastName,
+            amount: parsed.amountDollars,
+          }),
+        });
+      } catch (err) {
+        console.error('[zeffy] welcome email failed:', err);
+      }
     }
-  } else {
+  } else if (sendEmails) {
     try {
       await sendDonationReceiptEmailFromRecord({
         email: parsed.email,

@@ -4,9 +4,8 @@ import { buildEmailHtml, getFromEmail, sendEmail } from '@/lib/email/client';
 
 export const dynamic = 'force-dynamic';
 
-const SKIP = new Set(['tamir@noetic.io', 'pessyr@gmail.com']);
-
-const RECIPIENTS = [
+/** Everyone who got the false welcome email. */
+const ALL_AFFECTED = [
   'jackshamah@gmail.com',
   'scdalmao@gmail.com',
   'chayale93@gmail.com',
@@ -19,24 +18,32 @@ const RECIPIENTS = [
   'etaitarazi@yahoo.com',
   'adir@adiry.com',
   'zev@renegadefurniture.com',
-].filter((e) => !SKIP.has(e.toLowerCase()));
+  'tamir@noetic.io',
+  'pessyr@gmail.com',
+];
 
 /**
  * One-shot apology for the false Chai Partner welcome emails.
  * POST /api/admin/send-zeffy-apology
- * Body: { confirm: true, only?: "email@example.com" }
+ * Body: { confirm: true, only?: "email@..." | ["email@...", ...] }
+ *
+ * Bulk (no `only`) skips tamir/pessyr. Explicit `only` can include them.
  */
 export async function POST(req: Request) {
   const denied = await requireCapabilityApi('crm_finance');
   if (denied) return denied;
 
   let confirm = false;
-  let only: string | undefined;
+  let onlyList: string[] = [];
   try {
-    const body = (await req.json()) as { confirm?: boolean; only?: string };
+    const body = (await req.json()) as { confirm?: boolean; only?: string | string[] };
     confirm = body.confirm === true;
     if (typeof body.only === 'string' && body.only.includes('@')) {
-      only = body.only.trim().toLowerCase();
+      onlyList = [body.only.trim().toLowerCase()];
+    } else if (Array.isArray(body.only)) {
+      onlyList = body.only
+        .filter((e): e is string => typeof e === 'string' && e.includes('@'))
+        .map((e) => e.trim().toLowerCase());
     }
   } catch {
     // ignore
@@ -45,14 +52,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Pass { confirm: true }.' }, { status: 400 });
   }
 
-  const targets = only
-    ? RECIPIENTS.filter((e) => e.toLowerCase() === only)
-    : RECIPIENTS;
+  const allowed = new Set(ALL_AFFECTED.map((e) => e.toLowerCase()));
+  let targets: string[];
 
-  if (only && targets.length === 0) {
-    return NextResponse.json(
-      { error: `Address not in apology list (or was skipped): ${only}` },
-      { status: 400 }
+  if (onlyList.length > 0) {
+    const invalid = onlyList.filter((e) => !allowed.has(e));
+    if (invalid.length) {
+      return NextResponse.json(
+        { error: `Address(es) not on affected list: ${invalid.join(', ')}` },
+        { status: 400 }
+      );
+    }
+    targets = onlyList;
+  } else {
+    // Bulk: historical default — omit the two held back earlier
+    targets = ALL_AFFECTED.filter(
+      (e) => e !== 'tamir@noetic.io' && e !== 'pessyr@gmail.com'
     );
   }
 
@@ -104,10 +119,9 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     subject,
-    only: only ?? null,
+    only: onlyList.length ? onlyList : null,
     sent: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
-    skipped: [...SKIP],
     results,
   });
 }

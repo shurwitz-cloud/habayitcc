@@ -23,21 +23,37 @@ const RECIPIENTS = [
 
 /**
  * One-shot apology for the false Chai Partner welcome emails.
- * POST /api/admin/send-zeffy-apology  { confirm: true }
+ * POST /api/admin/send-zeffy-apology
+ * Body: { confirm: true, only?: "email@example.com" }
  */
 export async function POST(req: Request) {
   const denied = await requireCapabilityApi('crm_finance');
   if (denied) return denied;
 
   let confirm = false;
+  let only: string | undefined;
   try {
-    const body = (await req.json()) as { confirm?: boolean };
+    const body = (await req.json()) as { confirm?: boolean; only?: string };
     confirm = body.confirm === true;
+    if (typeof body.only === 'string' && body.only.includes('@')) {
+      only = body.only.trim().toLowerCase();
+    }
   } catch {
     // ignore
   }
   if (!confirm) {
     return NextResponse.json({ error: 'Pass { confirm: true }.' }, { status: 400 });
+  }
+
+  const targets = only
+    ? RECIPIENTS.filter((e) => e.toLowerCase() === only)
+    : RECIPIENTS;
+
+  if (only && targets.length === 0) {
+    return NextResponse.json(
+      { error: `Address not in apology list (or was skipped): ${only}` },
+      { status: 400 }
+    );
   }
 
   const subject = 'Re: Thank you for becoming a HaBayit Chai Partner';
@@ -75,7 +91,7 @@ export async function POST(req: Request) {
   const from = getFromEmail();
   const results: Array<{ to: string; ok: boolean }> = [];
 
-  for (const to of RECIPIENTS) {
+  for (const to of targets) {
     const ok = await sendEmail({
       to,
       subject,
@@ -88,6 +104,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     subject,
+    only: only ?? null,
     sent: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
     skipped: [...SKIP],

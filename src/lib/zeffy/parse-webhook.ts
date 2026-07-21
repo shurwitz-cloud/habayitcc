@@ -137,6 +137,8 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
   const campaignTitle =
     pickString(campaign.title, campaign.name, (campaign as { urlPath?: string }).urlPath) || null;
 
+  const isMonthly = detectMonthlyIntent(payment, campaignId, campaignTitle, body);
+
   return {
     paymentId,
     amountDollars: toAmountDollars(rawAmount),
@@ -150,9 +152,35 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
     zip: pickString(address.postal_code, address.zip),
     campaignId,
     campaignTitle,
+    isMonthly,
     status,
     raw: body,
   };
+}
+
+function detectMonthlyIntent(
+  payment: ZeffyPaymentLike,
+  campaignId: string | null,
+  campaignTitle: string | null,
+  body: unknown
+): boolean {
+  if (payment.is_recurring === true) return true;
+  if (payment.recurring === true) return true;
+  if (typeof payment.recurring === 'object' && payment.recurring) {
+    const interval = String(payment.recurring.interval ?? '').toLowerCase();
+    if (interval.includes('month')) return true;
+  }
+  const freq = pickString(payment.frequency, (payment as { interval?: string }).interval).toLowerCase();
+  if (freq.includes('month') || freq === 'recurring' || freq === 'subscription') return true;
+
+  // Habayit Chai Partner Zeffy form is monthly by product design.
+  const formHaystack = `${campaignId ?? ''} ${campaignTitle ?? ''}`.toLowerCase();
+  if (/habayit-chai-partner|\bchai partner\b|\bchai-partner\b/.test(formHaystack)) return true;
+
+  const raw = JSON.stringify(body).toLowerCase();
+  if (/"is_recurring"\s*:\s*true/.test(raw)) return true;
+  if (/"frequency"\s*:\s*"[^"]*month/.test(raw)) return true;
+  return false;
 }
 
 /** Only Habayit Chai Partner form — never treat other Zeffy gifts as monthly partners. */
@@ -167,4 +195,24 @@ export function isLikelyChaiPartnerPayment(parsed: ParsedZeffyPayment): boolean 
 
   const haystack = `${parsed.campaignTitle ?? ''} ${parsed.campaignId ?? ''} ${JSON.stringify(parsed.raw)}`.toLowerCase();
   return /habayit-chai-partner|\bchai partner\b|\bchai-partner\b/.test(haystack);
+}
+
+/** Record in CRM as Chai Partner only when form matches + monthly + $150+. */
+export function shouldRecordAsChaiPartner(parsed: ParsedZeffyPayment): boolean {
+  return (
+    isLikelyChaiPartnerPayment(parsed) &&
+    parsed.isMonthly &&
+    parsed.amountDollars >= 150
+  );
+}
+
+/**
+ * Auto welcome email: live webhook only, never imports.
+ * Same gates as recording ($150+ monthly Chai form).
+ */
+export function shouldSendZeffyWelcomeEmail(
+  parsed: ParsedZeffyPayment,
+  source: 'webhook' | 'import'
+): boolean {
+  return source === 'webhook' && shouldRecordAsChaiPartner(parsed);
 }

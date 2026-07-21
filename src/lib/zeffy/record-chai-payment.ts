@@ -22,7 +22,11 @@ function zeffyPaymentKey(paymentId: string): string {
 }
 
 export type RecordZeffyOptions = {
-  /** When false, skip welcome / receipt emails (use for historical imports). Default true. */
+  /**
+   * Welcome / receipt emails. Default **false** (safe).
+   * Live webhook opts in only when shouldSendZeffyWelcomeEmail() is true.
+   * Imports must never pass true.
+   */
   sendEmails?: boolean;
 };
 
@@ -34,7 +38,8 @@ export async function recordZeffyChaiPartnerPayment(
   parsed: ParsedZeffyPayment,
   options: RecordZeffyOptions = {}
 ): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
-  const sendEmails = options.sendEmails !== false;
+  // Default OFF — never email unless caller explicitly opts in.
+  const sendEmails = options.sendEmails === true;
   const supabase = createAdminClient();
   const paymentKey = zeffyPaymentKey(parsed.paymentId);
 

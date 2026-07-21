@@ -64,7 +64,7 @@ export function ReconcileZeffyButton() {
       <p className="text-sm text-[#172643]">
         <strong>Zeffy import</strong>
         {enabled
-          ? ' — pulls recent Chai Partner–matched gifts only. Does not send email.'
+          ? ' — Chai Partner form only, $150+, monthly. Never sends email (approve welcomes manually later).'
           : ' is temporarily disabled after a bad import emailed past one-time donors as monthly partners.'}
       </p>
       <button

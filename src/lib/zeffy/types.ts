@@ -70,6 +70,8 @@ export type ParsedZeffyPayment = {
   zip: string;
   campaignId: string | null;
   campaignTitle: string | null;
+  /** True when Zeffy marks the gift recurring/monthly, or Habayit Chai Partner form. */
+  isMonthly: boolean;
   status: string;
   raw: unknown;
 };

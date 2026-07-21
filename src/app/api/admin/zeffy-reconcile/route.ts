@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
 import {
-  isLikelyChaiPartnerPayment,
   parseZeffyWebhook,
+  shouldRecordAsChaiPartner,
 } from '@/lib/zeffy/parse-webhook';
 import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
 
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       results.push({ status: 'skipped_unparsed' });
       continue;
     }
-    if (!isLikelyChaiPartnerPayment(parsed)) {
+    if (!shouldRecordAsChaiPartner(parsed)) {
       results.push({
         paymentId: parsed.paymentId,
         email: parsed.email,
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // Never email on backfill — historical donors must not get "you're monthly" mail.
+      // NEVER email on backfill — historical donors must not get welcome/monthly mail.
       const recorded = await recordZeffyChaiPartnerPayment(parsed, { sendEmails: false });
       results.push({
         paymentId: parsed.paymentId,

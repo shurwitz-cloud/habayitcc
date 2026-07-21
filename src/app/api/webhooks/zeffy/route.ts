@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  isLikelyChaiPartnerPayment,
   parseZeffyWebhook,
+  shouldRecordAsChaiPartner,
+  shouldSendZeffyWelcomeEmail,
 } from '@/lib/zeffy/parse-webhook';
 import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
 import type { ZeffyPaymentLike } from '@/lib/zeffy/types';
@@ -11,10 +12,10 @@ export const dynamic = 'force-dynamic';
 /**
  * Zeffy → HaBayit webhook.
  * Configure in Zeffy: Settings → Integrations → Webhook
- * URL: https://habayitcc.org/api/webhooks/zeffy
+ * URL: https://www.habayitcc.org/api/webhooks/zeffy
  *
- * When a payment completes, we upsert a Chai Partner (if campaign/amount matches)
- * and record the payment in CRM.
+ * Records + emails only for Habayit Chai Partner form gifts that are monthly and >= $150.
+ * Never emails historical/import traffic (that path uses a different route with sendEmails: false).
  */
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -42,20 +43,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!isLikelyChaiPartnerPayment(parsed)) {
-    console.info(
-      '[zeffy webhook] Skipping non-Chai payment',
-      parsed.paymentId,
-      parsed.amountDollars,
-      parsed.campaignTitle,
-      parsed.campaignId,
-      parsed.email
-    );
-    return NextResponse.json({ received: true, handled: false, reason: 'not_chai_partner' });
+  if (!shouldRecordAsChaiPartner(parsed)) {
+    console.info('[zeffy webhook] Skipping (not eligible Chai Partner)', {
+      paymentId: parsed.paymentId,
+      amount: parsed.amountDollars,
+      isMonthly: parsed.isMonthly,
+      campaignTitle: parsed.campaignTitle,
+      campaignId: parsed.campaignId,
+      email: parsed.email,
+    });
+    return NextResponse.json({
+      received: true,
+      handled: false,
+      reason: 'not_eligible_chai_partner',
+      amount: parsed.amountDollars,
+      isMonthly: parsed.isMonthly,
+    });
   }
 
+  const sendEmails = shouldSendZeffyWelcomeEmail(parsed, 'webhook');
+
   try {
-    const result = await recordZeffyChaiPartnerPayment(parsed);
+    const result = await recordZeffyChaiPartnerPayment(parsed, { sendEmails });
     if (!result.ok) {
       console.error('[zeffy webhook] Failed to record', parsed.paymentId);
       return NextResponse.json({ error: 'Failed to record payment.' }, { status: 500 });
@@ -66,12 +75,14 @@ export async function POST(req: NextRequest) {
       amount: parsed.amountDollars,
       partnerId: result.partnerId,
       duplicate: result.duplicate,
+      emailed: sendEmails && !result.duplicate,
     });
     return NextResponse.json({
       received: true,
       handled: true,
       duplicate: Boolean(result.duplicate),
       partnerId: result.partnerId,
+      emailed: sendEmails && !result.duplicate,
     });
   } catch (err) {
     console.error('[zeffy webhook] Error:', err);

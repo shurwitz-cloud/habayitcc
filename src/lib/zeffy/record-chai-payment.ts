@@ -28,6 +28,8 @@ export type RecordZeffyOptions = {
    * Imports must never pass true.
    */
   sendEmails?: boolean;
+  /** Override payment timestamp (e.g. manual Zeffy feed). */
+  paidAt?: string;
 };
 
 /**
@@ -40,6 +42,7 @@ export async function recordZeffyChaiPartnerPayment(
 ): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
   // Default OFF — never email unless caller explicitly opts in.
   const sendEmails = options.sendEmails === true;
+  const paidAt = options.paidAt ?? new Date().toISOString();
   const supabase = createAdminClient();
   const paymentKey = zeffyPaymentKey(parsed.paymentId);
 

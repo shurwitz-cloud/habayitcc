@@ -134,7 +134,7 @@ export function FamilyDetailDrawer({
                   <DetailField label="Grade" value={c.grade} />
                   <DetailField label="School" value={c.school_attending} />
                   <DetailField label="Hebrew level" value={c.hebrew_level} />
-                  <DetailField label="Attended before" value={c.attended_before} />
+                  <DetailField label="Attended Hebrew program before" value={c.attended_before} />
                   <DetailField label="Allergies" value={c.allergies} />
                   <DetailField label="Medications" value={c.medications} />
                   <DetailField label="Notes" value={c.notes} />

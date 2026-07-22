@@ -24,8 +24,24 @@ export interface ChildInput {
   grade: string;
   schoolAttending: string;
   attendedBefore: string;
+  previousProgramName: string;
+  hasIepOrNeeds: string;
+  iepOrNeedsDetails: string;
   hebrewLevel: string;
   allergies: string;
+}
+
+function buildChildNotes(child: ChildInput): string | null {
+  const parts: string[] = [];
+  if (child.attendedBefore === 'yes' && child.previousProgramName.trim()) {
+    parts.push(`Previous Hebrew program: ${child.previousProgramName.trim()}`);
+  }
+  if (child.hasIepOrNeeds === 'yes' && child.iepOrNeedsDetails.trim()) {
+    parts.push(`IEP / educational needs: ${child.iepOrNeedsDetails.trim()}`);
+  } else if (child.hasIepOrNeeds === 'no') {
+    parts.push('IEP / educational needs: none reported');
+  }
+  return parts.length ? parts.join('\n') : null;
 }
 
 export interface RegistrationInput {
@@ -84,6 +100,30 @@ export async function submitHebrewSchoolRegistration(
         return {
           success: false,
           error: 'Each child needs a first name, last name, and grade.',
+        };
+      }
+      if (!child.attendedBefore) {
+        return {
+          success: false,
+          error: `Please indicate whether ${child.firstName || 'each child'} has attended a Hebrew program before.`,
+        };
+      }
+      if (child.attendedBefore === 'yes' && !child.previousProgramName?.trim()) {
+        return {
+          success: false,
+          error: `Please enter the name of the previous Hebrew program for ${child.firstName || 'each child'}.`,
+        };
+      }
+      if (!child.hasIepOrNeeds) {
+        return {
+          success: false,
+          error: `Please indicate whether ${child.firstName || 'each child'} has an IEP or specific educational needs.`,
+        };
+      }
+      if (child.hasIepOrNeeds === 'yes' && !child.iepOrNeedsDetails?.trim()) {
+        return {
+          success: false,
+          error: `Please specify the IEP or educational needs for ${child.firstName || 'each child'}.`,
         };
       }
     }
@@ -274,6 +314,7 @@ export async function submitHebrewSchoolRegistration(
     for (let i = 0; i < input.children.length; i++) {
       const child = input.children[i];
 
+      const childNotes = buildChildNotes(child);
       const childRow = {
         family_id: family.id,
         first_name: child.firstName.trim(),
@@ -287,6 +328,7 @@ export async function submitHebrewSchoolRegistration(
         attended_before: child.attendedBefore?.trim() || null,
         hebrew_level: child.hebrewLevel?.trim() || null,
         allergies: child.allergies?.trim() || null,
+        notes: childNotes,
       };
 
       const childResult = await insertWithSchemaFallback(childRow, async (payload) =>
@@ -321,7 +363,16 @@ export async function submitHebrewSchoolRegistration(
           [
             paymentMethodNote,
             child.hebrewLevel ? `Hebrew level: ${child.hebrewLevel}` : '',
-            child.attendedBefore ? `Attended before: ${child.attendedBefore}` : '',
+            child.attendedBefore
+              ? child.attendedBefore === 'yes' && child.previousProgramName.trim()
+                ? `Attended Hebrew program before: yes (${child.previousProgramName.trim()})`
+                : `Attended Hebrew program before: ${child.attendedBefore}`
+              : '',
+            child.hasIepOrNeeds === 'yes' && child.iepOrNeedsDetails.trim()
+              ? `IEP / educational needs: ${child.iepOrNeedsDetails.trim()}`
+              : child.hasIepOrNeeds === 'no'
+                ? 'IEP / educational needs: none reported'
+                : '',
           ]
             .filter(Boolean)
             .join(' · ') || paymentMethodNote,

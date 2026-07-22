@@ -30,11 +30,36 @@ const emptyChild: ChildInput = {
   grade: '',
   schoolAttending: '',
   attendedBefore: '',
+  previousProgramName: '',
+  hasIepOrNeeds: '',
+  iepOrNeedsDetails: '',
   hebrewLevel: '',
   allergies: '',
 };
 
 const GRADES = ['K', '1st', '2nd', '3rd', '4th', '5th'];
+
+const PAYMENT_PLAN_OPTIONS: {
+  value: HebrewAdventurePaymentPlan;
+  title: string;
+  description: string;
+}[] = [
+  {
+    value: 'full',
+    title: 'Pay in full',
+    description: 'Charged upon acceptance.',
+  },
+  {
+    value: 'two_installments',
+    title: 'Two-payment plan',
+    description: 'Upon acceptance and December 1.',
+  },
+  {
+    value: 'three_installments',
+    title: 'Three-payment plan',
+    description: 'Upon acceptance, November 1, and December 1.',
+  },
+];
 
 export function RegistrationForm() {
   const [children, setChildren] = useState<ChildInput[]>([{ ...emptyChild }]);
@@ -50,7 +75,7 @@ export function RegistrationForm() {
   const [emergency, setEmergency] = useState({ contact: '', phone: '' });
   const [isChaiPartner, setIsChaiPartner] = useState(false);
   const [chaiCode, setChaiCode] = useState('');
-  const [paymentPlan, setPaymentPlan] = useState<HebrewAdventurePaymentPlan | ''>('');
+  const [paymentPlan, setPaymentPlan] = useState<HebrewAdventurePaymentPlan>('full');
   const [paymentMethod, setPaymentMethod] = useState<HebrewAdventurePaymentMethod | ''>('');
   const [agreedPolicies, setAgreedPolicies] = useState(false);
   const [notes, setNotes] = useState('');
@@ -68,6 +93,14 @@ export function RegistrationForm() {
     setChildren((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }
+
+  function updateChildFields(index: number, patch: Partial<ChildInput>) {
+    setChildren((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
       return next;
     });
   }
@@ -102,10 +135,6 @@ export function RegistrationForm() {
       setSubmitError('You must agree to the enrollment policies to continue.');
       return;
     }
-    if (!paymentPlan) {
-      setSubmitError('Please select a payment plan.');
-      return;
-    }
     if (!paymentMethod) {
       setSubmitError('Please select a payment method.');
       return;
@@ -113,6 +142,26 @@ export function RegistrationForm() {
     if (!parent1.email.trim()) {
       setSubmitError('Please enter Parent / Guardian 1 email.');
       return;
+    }
+    for (const child of children) {
+      if (child.attendedBefore === 'yes' && !child.previousProgramName.trim()) {
+        setSubmitError(
+          `Please enter the name of the previous Hebrew program for ${child.firstName || 'each child'}.`
+        );
+        return;
+      }
+      if (!child.hasIepOrNeeds) {
+        setSubmitError(
+          `Please indicate whether ${child.firstName || 'each child'} has an IEP or specific educational needs.`
+        );
+        return;
+      }
+      if (child.hasIepOrNeeds === 'yes' && !child.iepOrNeedsDetails.trim()) {
+        setSubmitError(
+          `Please specify the IEP or educational needs for ${child.firstName || 'each child'}.`
+        );
+        return;
+      }
     }
     if (
       motherStatus === 'jewish_by_conversion' &&
@@ -289,10 +338,16 @@ export function RegistrationForm() {
             <h4 className="font-display text-[1.25rem] text-navy font-bold mb-1">Hebrew Background</h4>
             <p className="text-muted text-[0.88rem] mb-4">This helps us place your child at the right level.</p>
             <div className="grid md:grid-cols-2 gap-4 mb-4">
-              <Field label={`Attended ${HEBREW_ADVENTURE_NAME} Before?`} required>
+              <Field label="Attended a Hebrew program before?" required>
                 <select
                   value={child.attendedBefore}
-                  onChange={(e) => updateChild(i, 'attendedBefore', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    updateChildFields(i, {
+                      attendedBefore: value,
+                      ...(value !== 'yes' ? { previousProgramName: '' } : {}),
+                    });
+                  }}
                   required
                 >
                   <option value="">Select</option>
@@ -314,6 +369,50 @@ export function RegistrationForm() {
                 </select>
               </Field>
             </div>
+            {child.attendedBefore === 'yes' && (
+              <div className="mb-4">
+                <Field label="Name of program" required>
+                  <input
+                    value={child.previousProgramName}
+                    onChange={(e) => updateChild(i, 'previousProgramName', e.target.value)}
+                    placeholder="e.g. synagogue Hebrew school, day school, tutoring"
+                    required
+                  />
+                </Field>
+              </div>
+            )}
+            <div className="mb-4">
+              <Field label="Does your child have an IEP or specific educational needs?" required>
+                <select
+                  value={child.hasIepOrNeeds}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    updateChildFields(i, {
+                      hasIepOrNeeds: value,
+                      ...(value !== 'yes' ? { iepOrNeedsDetails: '' } : {}),
+                    });
+                  }}
+                  required
+                >
+                  <option value="">Select</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </Field>
+            </div>
+            {child.hasIepOrNeeds === 'yes' && (
+              <div className="mb-4">
+                <Field label="Please specify" required>
+                  <textarea
+                    value={child.iepOrNeedsDetails}
+                    onChange={(e) => updateChild(i, 'iepOrNeedsDetails', e.target.value)}
+                    placeholder="Share anything that will help us support your child."
+                    rows={3}
+                    required
+                  />
+                </Field>
+              </div>
+            )}
             <Field label="Allergies / Medical Info">
               <input
                 value={child.allergies}
@@ -480,25 +579,23 @@ export function RegistrationForm() {
           )}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 mt-5">
-          <PaymentOption
-            selected={paymentPlan === 'full'}
-            onSelect={() => setPaymentPlan('full')}
-            title="Pay in Full"
-            description="Charged upon acceptance."
-          />
-          <PaymentOption
-            selected={paymentPlan === 'two_installments'}
-            onSelect={() => setPaymentPlan('two_installments')}
-            title="Two-Payment Plan"
-            description="Upon acceptance and December 1."
-          />
-          <PaymentOption
-            selected={paymentPlan === 'three_installments'}
-            onSelect={() => setPaymentPlan('three_installments')}
-            title="Three-Payment Plan"
-            description="Upon acceptance, November 1, and December 1."
-          />
+        <div className="mt-5">
+          <Field label="Payment plan" required>
+            <select
+              value={paymentPlan}
+              onChange={(e) => setPaymentPlan(e.target.value as HebrewAdventurePaymentPlan)}
+              required
+            >
+              {PAYMENT_PLAN_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.title} — {option.description}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <p className="text-muted text-[0.85rem] mt-2">
+            {PAYMENT_PLAN_OPTIONS.find((option) => option.value === paymentPlan)?.description}
+          </p>
         </div>
 
         <p className="text-[0.78rem] font-bold uppercase tracking-wide text-navy mt-6 mb-3">
@@ -548,7 +645,7 @@ export function RegistrationForm() {
               </strong>
             </div>
           )}
-          {paymentPlan && paymentMethod && (
+          {paymentMethod && (
             <div className="py-2.5 border-b border-black/[0.06] text-muted text-[0.88rem]">
               <span className="block font-semibold text-navy mb-1.5">Payment schedule</span>
               {getHebrewAdventureInstallmentAmounts(

@@ -57,16 +57,16 @@ export default function BarMitzvahPage() {
 
         <Section background="navy">
           <div className="text-center">
-            <h2 className="text-[clamp(2rem,3.6vw,3rem)] font-bold">Want to learn more?</h2>
+            <h2 className="text-[clamp(2rem,3.6vw,3rem)] font-bold">Ready to register?</h2>
             <p className="mt-2.5 text-white/70">
-              Full schedule and registration details will be available soon. Reach out with any
-              questions.
+              HaBayit Achim meets every Tuesday from September through May. Registration is open
+              now.
             </p>
             <a
-              href="/contact"
-              className="inline-block mt-7 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider border-[1.5px] border-white/50 text-white hover:bg-white hover:text-navy"
+              href="/achim/register"
+              className="inline-block mt-7 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
             >
-              Contact Us
+              Begin Achim Registration
             </a>
           </div>
         </Section>

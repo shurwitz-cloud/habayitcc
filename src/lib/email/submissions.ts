@@ -54,6 +54,11 @@ export const SUBMISSION_EMAILS = {
     handler: 'sendRegistrationReceivedEmail',
     trigger: 'src/app/hebrew-adventure/register/actions.ts → submitHebrewSchoolRegistration',
   },
+  achim_registration: {
+    description: 'Achim registration submitted — pending review confirmation',
+    handler: 'sendRegistrationReceivedEmail',
+    trigger: 'src/app/achim/register/actions.ts → submitAchimRegistration',
+  },
   hebrew_adventure_accepted: {
     description: 'Hebrew Adventure accepted — charge confirmation + schedule',
     handler: 'sendRegistrationAcceptedEmail',

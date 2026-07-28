@@ -40,8 +40,8 @@ export function StripeCheatSheet() {
           payment method → confirm.
         </li>
         <li>
-          For <strong>3-payment plan</strong> (~$1,000 tuition): bank ≈ $333.33 × 3; card (+3%) ≈
-          $343.33 × 3.
+          For installment plans, charge the amount shown on Accept (tuition already reflects any
+          pay-in-full / two-payment discount saved at registration). Card adds 3%.
         </li>
         <li>
           Enable ACH once:{' '}
@@ -95,9 +95,10 @@ export function AdminRegistrationsPanel({
       <AdminNav role={role} />
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-navy">Hebrew Adventure — Registrations</h1>
+        <h1 className="text-2xl font-bold text-navy">Program Registrations</h1>
         <p className="text-muted text-sm mt-1">
-          Accept pending registrations and charge saved Stripe payment methods.
+          Accept pending Hebrew Adventure and Achim registrations and charge saved Stripe payment
+          methods.
         </p>
       </div>
 
@@ -120,9 +121,15 @@ export function AdminRegistrationsPanel({
       ) : (
         <div className="space-y-4 mb-10">
           {pending.map((row) => (
-            <div key={row.familyId} className="bg-white border border-line rounded-2xl p-5">
+            <div
+              key={`${row.familyId}-${row.programSlug}`}
+              className="bg-white border border-line rounded-2xl p-5"
+            >
               <div className="flex flex-wrap justify-between gap-3 mb-3">
                 <div>
+                  <p className="text-[0.72rem] uppercase tracking-wider text-gold font-bold mb-1">
+                    {row.programName}
+                  </p>
                   <p className="font-bold text-navy text-lg">{row.parentName}</p>
                   <p className="text-muted text-sm">{row.parentEmail}</p>
                 </div>
@@ -165,7 +172,9 @@ export function AdminRegistrationsPanel({
                 <button
                   type="button"
                   disabled={isPending || !row.stripeCustomerId}
-                  onClick={() => runAction(() => acceptAndChargeFamily(row.familyId))}
+                  onClick={() =>
+                    runAction(() => acceptAndChargeFamily(row.familyId, row.programSlug))
+                  }
                   className="bg-gold text-white rounded-full px-5 py-2.5 font-bold text-sm uppercase tracking-wide disabled:opacity-50"
                 >
                   Accept & charge

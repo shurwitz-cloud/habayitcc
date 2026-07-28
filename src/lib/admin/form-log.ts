@@ -7,6 +7,7 @@ export type FormType =
   | 'donation'
   | 'chai_partner'
   | 'hebrew_adventure_registration'
+  | 'achim_registration'
   | 'rsvp'
   | 'other';
 

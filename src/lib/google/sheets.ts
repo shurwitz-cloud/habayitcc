@@ -12,12 +12,23 @@ const IDS = {
 
 const TAB = 'Responses'; // single tab in each spreadsheet
 
-function nowET(): string {
-  return new Date().toLocaleString('en-US', {
+/** Eastern time with date + time, e.g. "7/20/2026, 5:42 PM". */
+function nowET(date: Date = new Date()): string {
+  return date.toLocaleString('en-US', {
     timeZone: 'America/New_York',
-    dateStyle: 'short',
-    timeStyle: 'short',
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   });
+}
+
+function formatEtTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return nowET();
+  return nowET(d);
 }
 
 function getAuth() {
@@ -171,6 +182,23 @@ export const SHEET_CONFIGS = {
       'Child 3 Grade', 'Child 3 School', 'Child 3 Hebrew Level', 'Child 3 Allergies',
     ],
   },
+  achimRegistration: {
+    id: IDS.achim,
+    headers: [
+      'Timestamp',
+      'Parent 1 First', 'Parent 1 Last', 'Parent 1 Email', 'Parent 1 Phone',
+      'Parent 2 First', 'Parent 2 Last', 'Parent 2 Email', 'Parent 2 Phone',
+      'Street', 'City', 'State', 'ZIP',
+      'Emergency Contact', 'Emergency Phone',
+      'Chai Partner?', 'Chai Code', 'Payment Plan', 'Notes',
+      'Child 1 First', 'Child 1 Last', 'Child 1 Hebrew Name', 'Child 1 DOB',
+      'Child 1 Grade', 'Child 1 School', 'Child 1 Hebrew Level', 'Child 1 Allergies',
+      'Child 2 First', 'Child 2 Last', 'Child 2 Hebrew Name', 'Child 2 DOB',
+      'Child 2 Grade', 'Child 2 School', 'Child 2 Hebrew Level', 'Child 2 Allergies',
+      'Child 3 First', 'Child 3 Last', 'Child 3 Hebrew Name', 'Child 3 DOB',
+      'Child 3 Grade', 'Child 3 School', 'Child 3 Hebrew Level', 'Child 3 Allergies',
+    ],
+  },
 } as const;
 
 // ── Typed row helpers ────────────────────────────────────────────────────────
@@ -250,6 +278,8 @@ export async function appendRsvpToTab(
     phone: string;
     attending: number;
     notes: string;
+    /** Optional ISO timestamp — defaults to now (Eastern, date + time). */
+    createdAt?: string;
   }
 ): Promise<void> {
   try {
@@ -294,15 +324,17 @@ export async function appendRsvpToTab(
       });
     } catch { /* tab already existed */ }
 
-    // Append the RSVP row
+    const timestamp = data.createdAt ? formatEtTimestamp(data.createdAt) : nowET();
+
+    // RAW keeps the timestamp as text so Sheets doesn't drop the time portion.
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `'${tabName}'!A1`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
         values: [[
-          nowET(),
+          timestamp,
           data.firstName,
           data.lastName,
           data.email,
@@ -344,6 +376,42 @@ export function hebrewAdventureRow(data: {
   }
 
   return appendRow(IDS.hebrewAdventure, [
+    nowET(),
+    data.parent1First, data.parent1Last, data.parent1Email, data.parent1Phone,
+    data.parent2First, data.parent2Last, data.parent2Email, data.parent2Phone,
+    data.street, data.city, data.state, data.zip,
+    data.emergencyContact, data.emergencyPhone,
+    data.isChaiPartner ? 'Yes' : 'No', data.chaiCode,
+    data.paymentPlan, data.notes,
+    ...childCols,
+  ]);
+}
+
+export function achimRegistrationRow(data: {
+  parent1First: string; parent1Last: string; parent1Email: string; parent1Phone: string;
+  parent2First: string; parent2Last: string; parent2Email: string; parent2Phone: string;
+  street: string; city: string; state: string; zip: string;
+  emergencyContact: string; emergencyPhone: string;
+  isChaiPartner: boolean; chaiCode: string; paymentPlan: string; notes: string;
+  children: Array<{
+    firstName: string; lastName: string; hebrewName: string; dateOfBirth: string;
+    grade: string; schoolAttending: string; hebrewLevel: string; allergies: string;
+  }>;
+}) {
+  if (!IDS.achim) return;
+
+  const childCols: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const c = data.children[i];
+    if (c) {
+      childCols.push(c.firstName, c.lastName, c.hebrewName, c.dateOfBirth,
+        c.grade, c.schoolAttending, c.hebrewLevel, c.allergies);
+    } else {
+      childCols.push('', '', '', '', '', '', '', '');
+    }
+  }
+
+  return appendRow(IDS.achim, [
     nowET(),
     data.parent1First, data.parent1Last, data.parent1Email, data.parent1Phone,
     data.parent2First, data.parent2Last, data.parent2Email, data.parent2Phone,

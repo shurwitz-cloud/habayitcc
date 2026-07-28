@@ -1,0 +1,136 @@
+import Link from 'next/link';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { ProgramOpenHouse } from '@/components/events/ProgramOpenHouse';
+import { Hero } from '@/components/sections/Hero';
+import { HERO_HEIGHT } from '@/lib/hero-heights';
+import { Section, SectionTitle } from '@/components/sections/Section';
+import { ACHIM_NAME, ACHIM_REGISTER_PATH } from '@/lib/programs/names';
+import {
+  ACHIM_CHAI_DISCOUNT,
+  ACHIM_MONTHLY_TUITION,
+  ACHIM_PAY_IN_FULL_DISCOUNT,
+  ACHIM_SESSION_MONTHS,
+} from '@/lib/programs/achim-tuition';
+
+export const metadata = {
+  title: `${ACHIM_NAME} – HaBayit Jewish Center`,
+  description:
+    `${ACHIM_NAME} — a 6th grade boys program meeting every Tuesday from September through May.`,
+};
+
+const PILLARS = [
+  { title: 'Brotherhood', description: 'A close-knit group of 6th grade boys growing together.' },
+  { title: 'Jewish Pride', description: 'Building confidence and identity as young Jewish men.' },
+  { title: 'Meaningful Growth', description: 'Honest conversation, learning, and real connection.' },
+];
+
+export default function AchimPage() {
+  return (
+    <>
+      <Header />
+
+      <main className="flex-1">
+        <Hero
+          kicker="Programs"
+          minHeight={HERO_HEIGHT.page}
+          subtitle="For 6th grade boys — every Tuesday from September through May."
+        >
+          {ACHIM_NAME}
+        </Hero>
+
+        <ProgramOpenHouse eventSlug="achim" background="soft" />
+
+        <Section background="white">
+          <div className="max-w-[720px]">
+            <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
+              About the Program
+            </p>
+            <h2 className="text-[clamp(2rem,3.5vw,2.8rem)] leading-tight text-navy font-bold">
+              Brotherhood, pride, and growth.
+            </h2>
+            <p className="mt-4 text-muted text-[1.02rem]">
+              {ACHIM_NAME} gives 6th grade boys a warm, supportive space to build friendship,
+              Jewish identity, and confidence — week by week, throughout the school year.
+            </p>
+            <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
+              Classes meet every Tuesday, September through May.
+            </div>
+            <Link
+              href={ACHIM_REGISTER_PATH}
+              className="inline-block mt-8 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
+            >
+              Begin Registration
+            </Link>
+          </div>
+        </Section>
+
+        <Section background="cream">
+          <SectionTitle eyebrow="What Boys Experience">Three Pillars of Our Program</SectionTitle>
+          <div className="grid md:grid-cols-3 gap-6.5">
+            {PILLARS.map((pillar) => (
+              <div key={pillar.title} className="bg-white border border-line rounded-[18px] p-8">
+                <h3 className="text-[1.4rem] text-navy font-bold mb-2.5">{pillar.title}</h3>
+                <p className="text-muted text-[0.92rem]">{pillar.description}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section background="white">
+          <SectionTitle eyebrow="Tuition">Investing in Jewish Education</SectionTitle>
+          <div className="grid md:grid-cols-2 gap-6.5">
+            <div className="bg-soft border border-line rounded-[18px] p-8.5">
+              <h3 className="text-[1.25rem] text-navy font-bold">Standard Tuition</h3>
+              <div className="flex items-baseline gap-2.5 mt-3.5 mb-1">
+                <span className="text-[2.6rem] font-extrabold text-navy leading-none">
+                  ${ACHIM_MONTHLY_TUITION}
+                </span>
+                <span className="text-[1.15rem] font-bold text-gold uppercase tracking-[0.12em] leading-none">
+                  / month
+                </span>
+              </div>
+              <p className="text-muted text-[0.88rem] mb-4">
+                {ACHIM_SESSION_MONTHS}-month program (Sep–May) per student
+              </p>
+              <ul className="mt-4 space-y-2">
+                <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">
+                  Full school year of classes
+                </li>
+                <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">
+                  Materials &amp; supplies included
+                </li>
+              </ul>
+            </div>
+            <div className="bg-soft border border-gold rounded-[18px] p-8.5 relative">
+              <span className="absolute -top-3 left-7 bg-gold text-white text-[0.62rem] font-bold tracking-wider px-3.5 py-1 rounded-full">
+                CHAI PARTNER BENEFIT
+              </span>
+              <h3 className="text-[1.25rem] text-navy font-bold">HaBayit Chai Partners</h3>
+              <div className="text-[2.6rem] font-extrabold text-navy mt-3.5 mb-1">
+                ${ACHIM_CHAI_DISCOUNT} off
+              </div>
+              <p className="text-muted text-[0.88rem] mb-4">
+                with a valid HaBayit Chai Partner code
+              </p>
+              <ul className="mt-4 space-y-2">
+                <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">
+                  Full school year of classes
+                </li>
+                <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">
+                  Materials &amp; supplies included
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="bg-cream border-l-[3px] border-gold rounded-r-[12px] p-4.5 mt-6 text-[0.88rem] text-muted">
+            Pay in full and save ${ACHIM_PAY_IN_FULL_DISCOUNT}. Or choose two payments (upon
+            acceptance and by November 1).
+          </div>
+        </Section>
+      </main>
+
+      <Footer />
+    </>
+  );
+}

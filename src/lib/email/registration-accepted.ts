@@ -1,5 +1,5 @@
 import { buildEmailHtml, emailButton, getSiteUrl, sendEmail } from '@/lib/email/client';
-import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 import { formatUsd } from '@/lib/programs/hebrew-adventure-billing';
 
 export async function sendRegistrationAcceptedEmail(input: {
@@ -10,7 +10,12 @@ export async function sendRegistrationAcceptedEmail(input: {
   installmentNumber: number;
   installmentTotal: number;
   upcomingInstallments: Array<{ number: number; amount: number; dueDate: string }>;
+  programName?: string;
+  programPath?: string;
 }): Promise<boolean> {
+  const programName = input.programName ?? HEBREW_ADVENTURE_NAME;
+  const programPath = input.programPath ?? HEBREW_ADVENTURE_PATH;
+
   const childList =
     input.childNames.length === 1
       ? input.childNames[0]
@@ -36,7 +41,7 @@ export async function sendRegistrationAcceptedEmail(input: {
     <p>Hi ${input.parentFirstName},</p>
     <p>
       Great news — <strong>${childList}</strong> ${input.childNames.length === 1 ? 'is' : 'are'}
-      accepted for ${HEBREW_ADVENTURE_NAME}!
+      accepted for ${programName}!
     </p>
     <p>
       Payment ${input.installmentNumber} of ${input.installmentTotal}
@@ -45,12 +50,12 @@ export async function sendRegistrationAcceptedEmail(input: {
     </p>
     ${scheduleHtml}
     <p style="margin-top:20px;">We look forward to a wonderful year together.</p>
-    ${emailButton(`${getSiteUrl()}/hebrew-adventure`, 'Program details')}
+    ${emailButton(`${getSiteUrl()}${programPath}`, 'Program details')}
   `);
 
   return sendEmail({
     to: input.to,
-    subject: `${HEBREW_ADVENTURE_NAME} registration accepted`,
+    subject: `${programName} registration accepted`,
     html,
   });
 }

@@ -4,20 +4,36 @@ import { revalidatePath } from 'next/cache';
 import { requireCapability } from '@/lib/admin/auth';
 import { sendRegistrationAcceptedEmail } from '@/lib/email/registration-accepted';
 import {
+  getAchimFamilyTuitionBilling,
+  resolveAchimPaymentMethod,
+} from '@/lib/programs/achim-billing';
+import type { AchimPaymentPlan } from '@/lib/programs/achim-tuition';
+import {
   formatUsd,
   getFamilyTuitionBilling,
   resolvePaymentMethod,
   stripeCustomerUrl,
 } from '@/lib/programs/hebrew-adventure-billing';
-import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
+import type { HebrewAdventurePaymentPlan } from '@/lib/programs/hebrew-adventure-tuition';
+import {
+  ACHIM_NAME,
+  ACHIM_PATH,
+  ACHIM_SLUG,
+  HEBREW_ADVENTURE_NAME,
+  HEBREW_ADVENTURE_PATH,
+  HEBREW_ADVENTURE_SLUG,
+} from '@/lib/programs/names';
 import {
   chargeSavedTuitionPayment,
-  paymentIntentIsPaidOrPending,
 } from '@/lib/stripe/charge-tuition';
 import { createAdminClient } from '@/lib/supabase/server';
 
+const BILLABLE_PROGRAM_SLUGS = [HEBREW_ADVENTURE_SLUG, ACHIM_SLUG] as const;
+
 export type PendingFamilyRegistration = {
   familyId: string;
+  programSlug: string;
+  programName: string;
   familyName: string;
   parentName: string;
   parentEmail: string;
@@ -53,30 +69,66 @@ async function requireAdmin() {
   }
 }
 
+function programMeta(slug: string) {
+  if (slug === ACHIM_SLUG) {
+    return { name: ACHIM_NAME, path: ACHIM_PATH };
+  }
+  return { name: HEBREW_ADVENTURE_NAME, path: HEBREW_ADVENTURE_PATH };
+}
+
+function familyTuitionBilling(input: {
+  programSlug: string;
+  tuitionSubtotal: number;
+  paymentPlan: string;
+  paymentMethod: 'card' | 'bank';
+  term: string | null;
+}) {
+  if (input.programSlug === ACHIM_SLUG) {
+    const plan: AchimPaymentPlan =
+      input.paymentPlan === 'two_installments' ? 'two_installments' : 'full';
+    return getAchimFamilyTuitionBilling({
+      tuitionSubtotal: input.tuitionSubtotal,
+      paymentPlan: plan,
+      paymentMethod: input.paymentMethod,
+      term: input.term,
+    });
+  }
+
+  const plan = input.paymentPlan as HebrewAdventurePaymentPlan;
+  return getFamilyTuitionBilling({
+    tuitionSubtotal: input.tuitionSubtotal,
+    paymentPlan: plan,
+    paymentMethod: input.paymentMethod,
+    term: input.term,
+  });
+}
+
 export async function getPendingRegistrations(): Promise<PendingFamilyRegistration[]> {
   await requireAdmin();
   const supabase = createAdminClient();
 
-  const { data: program } = await supabase
+  const { data: programs } = await supabase
     .from('programs')
-    .select('id')
-    .eq('slug', HEBREW_ADVENTURE_SLUG)
-    .single();
+    .select('id, slug, name')
+    .in('slug', [...BILLABLE_PROGRAM_SLUGS]);
 
-  if (!program) return [];
+  if (!programs?.length) return [];
+
+  const programById = new Map(programs.map((p) => [p.id, p]));
+  const programIds = programs.map((p) => p.id);
 
   const { data: rows } = await supabase
     .from('program_registrations')
     .select(
       `
-      id, family_id, payment_plan, tuition_total, term, notes, created_at,
+      id, family_id, program_id, payment_plan, tuition_total, term, notes, created_at,
       families (
         family_name, stripe_customer_id, stripe_payment_method_id, payment_method_preference
       ),
       children ( first_name, last_name, grade )
     `
     )
-    .eq('program_id', program.id)
+    .in('program_id', programIds)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
@@ -106,9 +158,10 @@ export async function getPendingRegistrations(): Promise<PendingFamilyRegistrati
 
   const grouped = new Map<string, typeof rows>();
   for (const row of rows) {
-    const list = grouped.get(row.family_id) ?? [];
+    const key = `${row.family_id}::${row.program_id}`;
+    const list = grouped.get(key) ?? [];
     list.push(row);
-    grouped.set(row.family_id, list);
+    grouped.set(key, list);
   }
 
   const results: PendingFamilyRegistration[] = [];
@@ -126,26 +179,32 @@ export async function getPendingRegistrations(): Promise<PendingFamilyRegistrati
     return raw as FamilyJoin;
   }
 
-  for (const [familyId, regs] of grouped) {
+  for (const [, regs] of grouped) {
     const family = unwrapFamily(regs[0].families);
+    const program = programById.get(regs[0].program_id);
+    const programSlug = program?.slug ?? HEBREW_ADVENTURE_SLUG;
+    const meta = programMeta(programSlug);
 
-    const parent = parentByFamily.get(familyId);
+    const parent = parentByFamily.get(regs[0].family_id);
     const paymentPlan = regs[0].payment_plan ?? 'full';
     const term = regs[0].term;
-    const paymentMethod = resolvePaymentMethod(
-      family?.payment_method_preference,
-      regs[0].notes
-    );
+    const paymentMethod =
+      programSlug === ACHIM_SLUG
+        ? resolveAchimPaymentMethod(family?.payment_method_preference, regs[0].notes)
+        : resolvePaymentMethod(family?.payment_method_preference, regs[0].notes);
     const tuitionSubtotal = regs.reduce((sum, r) => sum + Number(r.tuition_total ?? 0), 0);
-    const billing = getFamilyTuitionBilling({
+    const billing = familyTuitionBilling({
+      programSlug,
       tuitionSubtotal,
-      paymentPlan: paymentPlan as 'full' | 'two_installments' | 'three_installments',
+      paymentPlan,
       paymentMethod,
       term,
     });
 
     results.push({
-      familyId,
+      familyId: regs[0].family_id,
+      programSlug,
+      programName: program?.name ?? meta.name,
       familyName: family?.family_name ?? 'Family',
       parentName: parent ? `${parent.first_name} ${parent.last_name}` : '—',
       parentEmail: parent?.email ?? '',
@@ -232,12 +291,14 @@ export async function getScheduledInstallments(): Promise<ScheduledInstallment[]
 }
 
 export async function acceptAndChargeFamily(
-  familyId: string
+  familyId: string,
+  programSlug: string = HEBREW_ADVENTURE_SLUG
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   await requireAdmin();
 
   try {
     const supabase = createAdminClient();
+    const meta = programMeta(programSlug);
 
     const { data: family } = await supabase
       .from('families')
@@ -254,12 +315,12 @@ export async function acceptAndChargeFamily(
 
     const { data: program } = await supabase
       .from('programs')
-      .select('id')
-      .eq('slug', HEBREW_ADVENTURE_SLUG)
+      .select('id, name')
+      .eq('slug', programSlug)
       .single();
 
     if (!program?.id) {
-      return { success: false, error: 'Hebrew Adventure program not found.' };
+      return { success: false, error: `${meta.name} program not found.` };
     }
 
     const { data: regs } = await supabase
@@ -281,16 +342,14 @@ export async function acceptAndChargeFamily(
       .maybeSingle();
 
     const parentEmail = parent?.email ?? '';
-    const paymentPlan = (regs[0].payment_plan ?? 'full') as
-      | 'full'
-      | 'two_installments'
-      | 'three_installments';
-    const paymentMethod = resolvePaymentMethod(
-      family.payment_method_preference,
-      regs[0].notes
-    );
+    const paymentPlan = regs[0].payment_plan ?? 'full';
+    const paymentMethod =
+      programSlug === ACHIM_SLUG
+        ? resolveAchimPaymentMethod(family.payment_method_preference, regs[0].notes)
+        : resolvePaymentMethod(family.payment_method_preference, regs[0].notes);
     const tuitionSubtotal = regs.reduce((sum, r) => sum + Number(r.tuition_total ?? 0), 0);
-    const billing = getFamilyTuitionBilling({
+    const billing = familyTuitionBilling({
+      programSlug,
       tuitionSubtotal,
       paymentPlan,
       paymentMethod,
@@ -318,7 +377,6 @@ export async function acceptAndChargeFamily(
     }
 
     const pi = charge.paymentIntent;
-    const piStatus = paymentIntentIsPaidOrPending(pi) ? 'succeeded' : pi.status;
 
     for (const reg of regs) {
       await supabase
@@ -382,6 +440,8 @@ export async function acceptAndChargeFamily(
           year: 'numeric',
         }),
       })),
+      programName: program.name ?? meta.name,
+      programPath: meta.path,
     });
 
     revalidatePath('/admin/registrations');

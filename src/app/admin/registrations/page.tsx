@@ -8,7 +8,7 @@ import { AdminRegistrationsPanel } from './AdminPanel';
 import { getPendingRegistrations, getScheduledInstallments } from './actions';
 
 export const metadata = {
-  title: 'Admin — Hebrew Adventure Registrations',
+  title: 'Admin — Program Registrations',
   robots: { index: false, follow: false },
 };
 

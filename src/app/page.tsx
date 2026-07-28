@@ -50,9 +50,9 @@ export default async function HomePage() {
               photo={primaryImageFromSlot(images['home.bar-mitzvah'])}
             />
             <ProgramCard
-              href="/bat-mitzvah"
-              title="Bat Mitzvah"
-              description="A warm and inspiring experience for girls celebrating this milestone."
+              href="/bloom"
+              title="HaBayit Bloom"
+              description="A warm Bat Mitzvah club for 6th grade girls — conversations, creativity, and mitzvah projects."
               photo={primaryImageFromSlot(images['home.bat-mitzvah'])}
             />
             <ProgramCard

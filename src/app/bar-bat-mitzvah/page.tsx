@@ -50,7 +50,7 @@ export default async function BarBatMitzvahPage() {
               photo={barPhoto}
             />
             <ProgramPanel
-              href="/bat-mitzvah"
+              href="/bloom"
               gradient="linear-gradient(rgba(23,38,67,.5),rgba(23,38,67,.68)), linear-gradient(135deg,#c79bab,#d9c08f)"
               program="HaBayit Bloom"
               title="Bat Mitzvah Club"

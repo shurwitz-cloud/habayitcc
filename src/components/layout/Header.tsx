@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
-import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
+import { ACHIM_NAME, ACHIM_PATH, BLOOM_NAME, BLOOM_PATH, HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 const PROGRAMS_LINKS = [
   { href: HEBREW_ADVENTURE_PATH, label: HEBREW_ADVENTURE_NAME },
+  { href: ACHIM_PATH, label: ACHIM_NAME },
+  { href: BLOOM_PATH, label: BLOOM_NAME },
   { href: '/bar-bat-mitzvah', label: 'Bar & Bat Mitzvah' },
 ];
 

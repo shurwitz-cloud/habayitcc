@@ -17,6 +17,9 @@ import {
   HEBREW_ADVENTURE_MONTHLY_TUITION,
   HEBREW_ADVENTURE_SESSION_MONTHS,
   HEBREW_ADVENTURE_CARD_PROCESSING_RATE,
+  HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT,
+  HEBREW_ADVENTURE_TWO_PAYMENT_DISCOUNT,
+  getHebrewAdventurePaymentPlanDiscount,
   type HebrewAdventurePaymentPlan,
   type HebrewAdventurePaymentMethod,
 } from '@/lib/programs/hebrew-adventure-tuition';
@@ -47,17 +50,17 @@ const PAYMENT_PLAN_OPTIONS: {
   {
     value: 'full',
     title: 'Pay in full',
-    description: 'Charged upon acceptance.',
+    description: `Upon acceptance — $${HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT} off.`,
   },
   {
     value: 'two_installments',
     title: 'Two-payment plan',
-    description: 'Upon acceptance and December 1.',
+    description: `Upon acceptance and by October 1 — $${HEBREW_ADVENTURE_TWO_PAYMENT_DISCOUNT} off.`,
   },
   {
     value: 'three_installments',
     title: 'Three-payment plan',
-    description: 'Upon acceptance, November 1, and December 1.',
+    description: 'Upon acceptance, October 1, and November 1.',
   },
 ];
 
@@ -114,7 +117,7 @@ export function RegistrationForm() {
   }
 
   function calculateTuitionSubtotal() {
-    const base = getHebrewAdventureSessionTuition(isChaiPartner);
+    const base = getHebrewAdventureSessionTuition(isChaiPartner, paymentPlan);
     return children.reduce((total, _, i) => total + (base - getHebrewAdventureSiblingDiscount(i)), 0);
   }
 
@@ -625,18 +628,34 @@ export function RegistrationForm() {
             Estimated Tuition Summary
           </p>
           {children.map((_, i) => {
-            const base = getHebrewAdventureSessionTuition(isChaiPartner);
-            const discount = getHebrewAdventureSiblingDiscount(i);
+            const sticker = getHebrewAdventureSessionTuition(isChaiPartner, 'three_installments');
+            const siblingDiscount = getHebrewAdventureSiblingDiscount(i);
             return (
               <div key={i} className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
                 <span>
                   Child {i + 1}
-                  {discount ? ` (sibling discount: -$${discount})` : ''}
+                  {siblingDiscount ? ` (sibling discount: -$${siblingDiscount})` : ''}
                 </span>
-                <strong className="tabular-nums">${(base - discount).toLocaleString()}</strong>
+                <strong className="tabular-nums">${(sticker - siblingDiscount).toLocaleString()}</strong>
               </div>
             );
           })}
+          {getHebrewAdventurePaymentPlanDiscount(paymentPlan) > 0 && (
+            <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
+              <span>
+                {paymentPlan === 'full' ? 'Pay-in-full discount' : 'Two-payment discount'}
+                {children.length > 1
+                  ? ` (−$${getHebrewAdventurePaymentPlanDiscount(paymentPlan)} × ${children.length})`
+                  : ''}
+              </span>
+              <strong className="tabular-nums">
+                −$
+                {(
+                  getHebrewAdventurePaymentPlanDiscount(paymentPlan) * children.length
+                ).toLocaleString()}
+              </strong>
+            </div>
+          )}
           {paymentMethod === 'card' && (
             <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
               <span>Card processing fee ({HEBREW_ADVENTURE_CARD_PROCESSING_RATE * 100}%)</span>
@@ -661,10 +680,10 @@ export function RegistrationForm() {
                       : i === 0
                         ? ' — upon acceptance'
                         : paymentPlan === 'two_installments'
-                          ? ' — December 1'
+                          ? ' — by October 1'
                           : i === 1
-                            ? ' — November 1'
-                            : ' — December 1'}
+                            ? ' — October 1'
+                            : ' — November 1'}
                   </span>
                   <strong className="tabular-nums">${formatCurrency(amount)}</strong>
                 </div>

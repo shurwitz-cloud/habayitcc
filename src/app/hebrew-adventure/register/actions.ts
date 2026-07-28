@@ -10,10 +10,12 @@ import { stripe } from '@/lib/stripe/server';
 import {
   getHebrewAdventureSessionTuition,
   getHebrewAdventureSiblingDiscount,
+  getHebrewAdventurePaymentPlanDiscount,
   type HebrewAdventurePaymentPlan,
   type HebrewAdventurePaymentMethod,
 } from '@/lib/programs/hebrew-adventure-tuition';
 import { sendRegistrationReceivedEmail } from '@/lib/email/registration-received';
+import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 
 export interface ChildInput {
   firstName: string;
@@ -83,6 +85,9 @@ export interface RegistrationResult {
 export async function submitHebrewSchoolRegistration(
   input: RegistrationInput
 ): Promise<RegistrationResult> {
+  const limited = await enforceActionRateLimit('hebrew-adventure-register', 8, 15 * 60 * 1000);
+  if (!limited.ok) return { success: false, error: limited.error };
+
   const ready = assertSupabaseWriteReady();
   if (!ready.ok) return { success: false, error: ready.error };
 
@@ -345,9 +350,11 @@ export async function submitHebrewSchoolRegistration(
         };
       }
 
-      const baseTuition = getHebrewAdventureSessionTuition(input.isChaiPartner);
+      const plan = input.paymentPlan || 'full';
+      const baseTuition = getHebrewAdventureSessionTuition(input.isChaiPartner, plan);
       const discount = getHebrewAdventureSiblingDiscount(i);
       const tuitionTotal = baseTuition - discount;
+      const planDiscount = getHebrewAdventurePaymentPlanDiscount(plan);
 
       const { error: regError } = await supabase.from('program_registrations').insert({
         program_id: program?.id ?? null,
@@ -357,11 +364,16 @@ export async function submitHebrewSchoolRegistration(
         status: 'pending',
         is_chai_partner_rate: input.isChaiPartner,
         chai_partner_code_used: input.isChaiPartner ? input.chaiPartnerCode.trim().toUpperCase() : null,
-        payment_plan: input.paymentPlan || 'full',
+        payment_plan: plan,
         tuition_total: tuitionTotal,
         notes:
           [
             paymentMethodNote,
+            planDiscount
+              ? plan === 'full'
+                ? `Pay-in-full discount: $${planDiscount}`
+                : `Two-payment discount: $${planDiscount}`
+              : '',
             child.hebrewLevel ? `Hebrew level: ${child.hebrewLevel}` : '',
             child.attendedBefore
               ? child.attendedBefore === 'yes' && child.previousProgramName.trim()

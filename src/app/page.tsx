@@ -8,7 +8,7 @@ import { ProgramCard, ProgramTile } from '@/components/sections/ProgramCard';
 import { getSiteImages } from '@/lib/site-images/store';
 import { primaryImageFromSlot } from '@/lib/site-images/slot-utils';
 import { HERO_HEIGHT, HERO_PADDING } from '@/lib/hero-heights';
-import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
+import { ACHIM_NAME, ACHIM_PATH, HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 
 export default async function HomePage() {
   const images = await getSiteImages();
@@ -42,11 +42,11 @@ export default async function HomePage() {
             photo={primaryImageFromSlot(images['home.hebrew-adventure'])}
           />
 
-          <div className="grid md:grid-cols-3 gap-5.5 mb-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5.5 mb-6">
             <ProgramCard
-              href="/bar-mitzvah"
-              title="Bar Mitzvah"
-              description="Meaningful preparation for boys entering Jewish adulthood."
+              href={ACHIM_PATH}
+              title={ACHIM_NAME}
+              description="A 6th grade boys program — brotherhood, Jewish pride, and meaningful growth every Tuesday."
               photo={primaryImageFromSlot(images['home.bar-mitzvah'])}
             />
             <ProgramCard
@@ -54,6 +54,12 @@ export default async function HomePage() {
               title="HaBayit Bloom"
               description="A warm Bat Mitzvah club for 6th grade girls — conversations, creativity, and mitzvah projects."
               photo={primaryImageFromSlot(images['home.bat-mitzvah'])}
+            />
+            <ProgramCard
+              href="/bar-mitzvah"
+              title="Bar Mitzvah"
+              description="Meaningful preparation for boys entering Jewish adulthood."
+              photo={primaryImageFromSlot(images['home.bar-mitzvah'])}
             />
             <ProgramCard
               href="/chai-partner"

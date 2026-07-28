@@ -108,10 +108,10 @@ export default function AchimPage() {
               </span>
               <h3 className="text-[1.25rem] text-navy font-bold">HaBayit Chai Partners</h3>
               <div className="text-[2.6rem] font-extrabold text-navy mt-3.5 mb-1">
-                ${ACHIM_CHAI_DISCOUNT} off
+                1 month off
               </div>
               <p className="text-muted text-[0.88rem] mb-4">
-                with a valid HaBayit Chai Partner code
+                ${ACHIM_CHAI_DISCOUNT} with a valid HaBayit Chai Partner code
               </p>
               <ul className="mt-4 space-y-2">
                 <li className="text-[0.88rem] text-muted pl-5 relative before:content-['✓'] before:absolute before:left-0 before:text-gold before:font-bold">

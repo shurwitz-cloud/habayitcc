@@ -1,16 +1,17 @@
-export const ACHIM_MONTHLY_TUITION = 65;
+export const ACHIM_MONTHLY_TUITION = 75;
 
 /** September through May */
 export const ACHIM_SESSION_MONTHS = 9;
 
 export const ACHIM_SESSION_TUITION = ACHIM_MONTHLY_TUITION * ACHIM_SESSION_MONTHS;
 
-export const ACHIM_CHAI_DISCOUNT = 65;
+/** One month off for HaBayit Chai Partners. */
+export const ACHIM_CHAI_DISCOUNT = ACHIM_MONTHLY_TUITION;
 
 export const ACHIM_CHAI_SESSION_TUITION = ACHIM_SESSION_TUITION - ACHIM_CHAI_DISCOUNT;
 
 /** Discount when paying the full year in one payment. */
-export const ACHIM_PAY_IN_FULL_DISCOUNT = 15;
+export const ACHIM_PAY_IN_FULL_DISCOUNT = 20;
 
 export type AchimPaymentPlan = 'full' | 'two_installments';
 

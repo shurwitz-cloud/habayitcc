@@ -503,10 +503,10 @@ export function RegistrationForm() {
               Chai Partner Benefit
             </span>
             <div className="text-[2.2rem] text-navy font-extrabold leading-none">
-              ${ACHIM_CHAI_DISCOUNT} off
+              1 month off
             </div>
             <div className="text-muted text-[0.85rem]">
-              for HaBayit Chai Partners with a valid code
+              ${ACHIM_CHAI_DISCOUNT} for HaBayit Chai Partners with a valid code
             </div>
           </div>
         </div>
@@ -522,7 +522,8 @@ export function RegistrationForm() {
             <span className="text-[1rem] font-bold text-navy">
               I am a HaBayit Chai Partner
               <span className="block text-muted text-[0.9rem] font-normal mt-0.5">
-                HaBayit Chai Partners receive ${ACHIM_CHAI_DISCOUNT} off with a valid code.{' '}
+                HaBayit Chai Partners receive 1 month off (${ACHIM_CHAI_DISCOUNT}) with a valid
+                code.{' '}
                 <a href="/chai-partner" className="text-gold font-semibold">
                   Become a Chai Partner
                 </a>

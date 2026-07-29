@@ -228,7 +228,7 @@ function DonateForm() {
         </p>
       )}
 
-      {/* ── One-Time / Monthly toggle ── */}
+      {/* ── One-Time / Monthly / Chai Partner toggle ── */}
       <div className="flex justify-center mb-7">
         <div className="inline-flex bg-soft border border-line rounded-full p-1.5">
           <ToggleButton active={mode === 'onetime'} onClick={() => setMode('onetime')}>
@@ -237,6 +237,12 @@ function DonateForm() {
           <ToggleButton active={mode === 'monthly'} onClick={() => setMode('monthly')}>
             Monthly
           </ToggleButton>
+          <Link
+            href="/chai-partner"
+            className="px-7.5 py-3 rounded-full text-[0.8rem] font-bold uppercase tracking-wider text-muted hover:text-navy transition-all"
+          >
+            Chai Partner
+          </Link>
         </div>
       </div>
 
@@ -418,16 +424,6 @@ function DonateForm() {
       <p className="text-center text-[0.75rem] text-muted mt-3">
         Secured by Stripe. Your card details are never stored by HaBayit.
       </p>
-
-      <div className="text-center mt-10 pt-8 border-t border-line">
-        <p className="text-muted text-[0.9rem] mb-3.5">Considering a monthly gift of $150 or more?</p>
-        <Link
-          href="/chai-partner"
-          className="inline-block bg-navy text-white rounded-full px-10 py-4 font-bold uppercase tracking-wider text-[0.84rem]"
-        >
-          Become a Chai Partner
-        </Link>
-      </div>
     </form>
   );
 }

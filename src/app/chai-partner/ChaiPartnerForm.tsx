@@ -7,7 +7,7 @@ import { stripePromise } from '@/lib/stripe/client';
 import { confirmChaiPartnerPayment } from './actions';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
-const AMOUNTS = [150, 180, 300, 500, 770, 1000, 1800];
+const AMOUNTS = [150, 180, 360, 500, 1800];
 
 const ZEFFY_CHAI_URL = process.env.NEXT_PUBLIC_ZEFFY_CHAI_PARTNER_URL?.trim() || '';
 const ZEFFY_LIVE = Boolean(ZEFFY_CHAI_URL);
@@ -73,26 +73,8 @@ function ChaiPartnerForm() {
       );
       return;
     }
-    if (!resolvedAmount || resolvedAmount < 150) {
-      setError('Please select a monthly amount of $150 or more.');
-      return;
-    }
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
-      setError('Please fill in all required fields before continuing to Zeffy.');
-      return;
-    }
-
-    const url = new URL(ZEFFY_CHAI_URL);
-    url.searchParams.set('Amount', String(resolvedAmount));
-    url.searchParams.set('firstname', firstName.trim());
-    url.searchParams.set('lastname', lastName.trim());
-    url.searchParams.set('email', email.trim());
-    if (street.trim()) url.searchParams.set('street', street.trim());
-    if (city.trim()) url.searchParams.set('city', city.trim());
-    if (zip.trim()) url.searchParams.set('postal', zip.trim());
-
-    // Prefills Zeffy; donor may still edit on their page. CRM confirms via webhook.
-    window.location.assign(url.toString());
+    // Outbound only — no prefill, no webhook back to HaBayit. Staff add partners manually in CRM.
+    window.location.assign(ZEFFY_CHAI_URL);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -300,7 +282,7 @@ function ChaiPartnerForm() {
       <p className="text-center text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-3.5">
         Monthly Partnership Amount
       </p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
         {AMOUNTS.map((amt) => (
           <AmountButton
             key={amt}
@@ -472,7 +454,7 @@ function ChaiPartnerForm() {
               </button>
               <p className="text-center text-[0.72rem] text-muted mt-3">
                 {ZEFFY_LIVE
-                  ? "You'll leave this page briefly to complete payment on Zeffy."
+                  ? "You'll complete payment on Zeffy. Our team will add you to the partnership list and email your member access code."
                   : 'Zeffy form URL not set yet — use card to join today.'}
               </p>
             </div>
@@ -538,7 +520,7 @@ function ChaiPartnerForm() {
           ? 'Secured by Stripe. Your card details are never stored by HaBayit.'
           : payMethod === 'zeffy'
             ? ZEFFY_LIVE
-              ? "Secured by Zeffy. After you finish, we'll confirm your partnership automatically."
+              ? 'Secured by Zeffy. After payment, our team will follow up with your member access code.'
               : 'Zeffy form URL not configured yet.'
             : 'Secured by Stripe. Bank debit (ACH) usually clears in a few business days.'}
       </p>

@@ -86,11 +86,17 @@ export function RegistrationForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [savedSetupIntentId, setSavedSetupIntentId] = useState<string | null>(null);
   const paymentSetupRef = useRef<HebrewAdventurePaymentSetupHandle>(null);
 
   const handlePaymentSetupError = useCallback((message: string) => {
     setSubmitError(message);
   }, []);
+
+  function selectPaymentMethod(method: 'card' | 'bank') {
+    setPaymentMethod(method);
+    setSavedSetupIntentId(null);
+  }
 
   function updateChild(index: number, field: keyof ChildInput, value: string) {
     setChildren((prev) => {
@@ -183,10 +189,14 @@ export function RegistrationForm() {
 
     setSubmitting(true);
 
-    const stripeSetupIntentId = await paymentSetupRef.current?.confirmSetup();
+    let stripeSetupIntentId = savedSetupIntentId;
     if (!stripeSetupIntentId) {
-      setSubmitting(false);
-      return;
+      stripeSetupIntentId = (await paymentSetupRef.current?.confirmSetup()) ?? null;
+      if (!stripeSetupIntentId) {
+        setSubmitting(false);
+        return;
+      }
+      setSavedSetupIntentId(stripeSetupIntentId);
     }
 
     const input: RegistrationInput = {
@@ -611,13 +621,13 @@ export function RegistrationForm() {
         <div className="grid md:grid-cols-2 gap-4">
           <PaymentOption
             selected={paymentMethod === 'bank'}
-            onSelect={() => setPaymentMethod('bank')}
+            onSelect={() => selectPaymentMethod('bank')}
             title="Bank Account (ACH)"
             description="No extra fee. Pay directly from your bank via Stripe."
           />
           <PaymentOption
             selected={paymentMethod === 'card'}
-            onSelect={() => setPaymentMethod('card')}
+            onSelect={() => selectPaymentMethod('card')}
             title="Credit Card"
             description={`${HEBREW_ADVENTURE_CARD_PROCESSING_RATE * 100}% processing fee added to tuition.`}
           />
@@ -704,6 +714,11 @@ export function RegistrationForm() {
               name={`${parent1.firstName} ${parent1.lastName}`.trim()}
               paymentMethod={paymentMethod}
               onError={handlePaymentSetupError}
+              returnUrl={
+                typeof window !== 'undefined'
+                  ? `${window.location.origin}/hebrew-adventure/register?setup=complete`
+                  : '/hebrew-adventure/register?setup=complete'
+              }
             />
             <p className="text-center text-[0.75rem] text-muted mt-4">
               Secured by Stripe. HaBayit never stores your full account or card numbers.

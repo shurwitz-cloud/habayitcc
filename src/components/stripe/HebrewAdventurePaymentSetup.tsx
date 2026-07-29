@@ -67,11 +67,24 @@ type InnerProps = {
   billingName: string;
   paymentMethod: HebrewAdventurePaymentMethod;
   isTestMode: boolean;
+  returnUrl: string;
 };
+
+async function resolveSucceededSetupIntentId(
+  stripe: NonNullable<ReturnType<typeof useStripe>>,
+  clientSecret: string
+): Promise<string | null> {
+  const existing = await stripe.retrieveSetupIntent(clientSecret);
+  const intent = existing.setupIntent;
+  if (intent?.status === 'succeeded' && intent.id) {
+    return intent.id;
+  }
+  return null;
+}
 
 const PaymentSetupInner = forwardRef<HebrewAdventurePaymentSetupHandle, InnerProps>(
   function PaymentSetupInner(
-    { clientSecret, onError, billingEmail, billingName, paymentMethod, isTestMode },
+    { clientSecret, onError, billingEmail, billingName, paymentMethod, isTestMode, returnUrl },
     ref
   ) {
     const stripe = useStripe();
@@ -105,6 +118,8 @@ const PaymentSetupInner = forwardRef<HebrewAdventurePaymentSetupHandle, InnerPro
           });
 
           if (error) {
+            const alreadySaved = await resolveSucceededSetupIntentId(stripe, clientSecret);
+            if (alreadySaved) return alreadySaved;
             onError(error.message ?? 'Could not save your card. Please try again.');
             return null;
           }
@@ -117,10 +132,17 @@ const PaymentSetupInner = forwardRef<HebrewAdventurePaymentSetupHandle, InnerPro
           return null;
         }
 
+        const { error: submitError } = await elements.submit();
+        if (submitError) {
+          onError(submitError.message ?? 'Please complete your bank details and try again.');
+          return null;
+        }
+
         const { error, setupIntent } = await stripe.confirmSetup({
           elements,
+          clientSecret,
           confirmParams: {
-            return_url: `${window.location.origin}/hebrew-adventure/register?setup=complete`,
+            return_url: returnUrl,
             payment_method_data: {
               billing_details: billingDetails,
             },
@@ -129,6 +151,8 @@ const PaymentSetupInner = forwardRef<HebrewAdventurePaymentSetupHandle, InnerPro
         });
 
         if (error) {
+          const alreadySaved = await resolveSucceededSetupIntentId(stripe, clientSecret);
+          if (alreadySaved) return alreadySaved;
           onError(error.message ?? 'Could not save your payment method. Please try again.');
           return null;
         }
@@ -136,6 +160,16 @@ const PaymentSetupInner = forwardRef<HebrewAdventurePaymentSetupHandle, InnerPro
         if (setupIntent?.status === 'succeeded' && setupIntent.id) {
           return setupIntent.id;
         }
+
+        if (setupIntent?.status === 'requires_action') {
+          onError(
+            'Your bank needs extra verification. Please use instant bank login if available, or try another account.'
+          );
+          return null;
+        }
+
+        const recovered = await resolveSucceededSetupIntentId(stripe, clientSecret);
+        if (recovered) return recovered;
 
         onError('Payment setup was not completed. Please try again.');
         return null;
@@ -194,15 +228,26 @@ type HebrewAdventurePaymentSetupProps = {
   name: string;
   paymentMethod: HebrewAdventurePaymentMethod;
   onError: (message: string) => void;
+  /** Where Stripe should return after bank auth redirects. */
+  returnUrl?: string;
 };
 
 export const HebrewAdventurePaymentSetup = forwardRef<
   HebrewAdventurePaymentSetupHandle,
   HebrewAdventurePaymentSetupProps
->(function HebrewAdventurePaymentSetup({ email, name, paymentMethod, onError }, ref) {
+>(function HebrewAdventurePaymentSetup(
+  { email, name, paymentMethod, onError, returnUrl },
+  ref
+) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+
+  const resolvedReturnUrl =
+    returnUrl ??
+    (typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?setup=complete`
+      : '/');
 
   useEffect(() => {
     if (!paymentMethod) {
@@ -296,6 +341,7 @@ export const HebrewAdventurePaymentSetup = forwardRef<
         billingName={name.trim()}
         paymentMethod={paymentMethod}
         isTestMode={isTestMode}
+        returnUrl={resolvedReturnUrl}
       />
     </Elements>
   );

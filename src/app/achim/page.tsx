@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { ProgramOpenHouse } from '@/components/events/ProgramOpenHouse';
 import { Hero } from '@/components/sections/Hero';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section, SectionTitle } from '@/components/sections/Section';
@@ -40,8 +39,6 @@ export default function AchimPage() {
         >
           {ACHIM_NAME}
         </Hero>
-
-        <ProgramOpenHouse eventSlug="achim" background="soft" />
 
         <Section background="white">
           <div className="max-w-[720px]">

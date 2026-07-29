@@ -12,11 +12,13 @@ import {
   getAchimCardProcessingFee,
   getAchimGrandTotal,
   getAchimInstallmentAmounts,
+  isAchimEarlyBirdActive,
   ACHIM_CHAI_DISCOUNT,
   ACHIM_MONTHLY_TUITION,
   ACHIM_SESSION_MONTHS,
   ACHIM_CARD_PROCESSING_RATE,
   ACHIM_PAY_IN_FULL_DISCOUNT,
+  ACHIM_EARLY_BIRD_DISCOUNT,
   type AchimPaymentPlan,
   type AchimPaymentMethod,
 } from '@/lib/programs/achim-tuition';
@@ -511,6 +513,13 @@ export function RegistrationForm() {
           </div>
         </div>
 
+        {isAchimEarlyBirdActive() && (
+          <div className="bg-soft border border-gold rounded-[18px] px-5 py-4 mb-5 text-[0.92rem] text-navy">
+            <strong>Early registration:</strong> ${ACHIM_EARLY_BIRD_DISCOUNT} off when you sign up
+            by July 31.
+          </div>
+        )}
+
         <div className="border border-line rounded-[18px] p-5">
           <label className="flex items-start gap-2.5">
             <input
@@ -591,9 +600,18 @@ export function RegistrationForm() {
           <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
             <span>Program tuition</span>
             <strong className="tabular-nums">
-              ${getAchimSessionTuition(isChaiPartner, 'two_installments').toLocaleString()}
+              $
+              {getAchimSessionTuition(isChaiPartner, 'two_installments', {
+                earlyBird: false,
+              }).toLocaleString()}
             </strong>
           </div>
+          {isAchimEarlyBirdActive() && (
+            <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
+              <span>Early registration (by July 31)</span>
+              <strong className="tabular-nums">-${ACHIM_EARLY_BIRD_DISCOUNT}</strong>
+            </div>
+          )}
           {paymentPlan === 'full' && (
             <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
               <span>Pay-in-full discount</span>

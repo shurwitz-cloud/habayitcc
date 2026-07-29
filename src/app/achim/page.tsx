@@ -8,9 +8,11 @@ import { Section, SectionTitle } from '@/components/sections/Section';
 import { ACHIM_NAME, ACHIM_REGISTER_PATH } from '@/lib/programs/names';
 import {
   ACHIM_CHAI_DISCOUNT,
+  ACHIM_EARLY_BIRD_DISCOUNT,
   ACHIM_MONTHLY_TUITION,
   ACHIM_PAY_IN_FULL_DISCOUNT,
   ACHIM_SESSION_MONTHS,
+  isAchimEarlyBirdActive,
 } from '@/lib/programs/achim-tuition';
 
 export const metadata = {
@@ -124,6 +126,11 @@ export default function AchimPage() {
             </div>
           </div>
           <div className="bg-cream border-l-[3px] border-gold rounded-r-[12px] p-4.5 mt-6 text-[0.88rem] text-muted">
+            {isAchimEarlyBirdActive() && (
+              <>
+                Register by July 31 and save ${ACHIM_EARLY_BIRD_DISCOUNT}.{' '}
+              </>
+            )}
             Pay in full and save ${ACHIM_PAY_IN_FULL_DISCOUNT}. Or choose two payments (upon
             acceptance and by November 1).
           </div>

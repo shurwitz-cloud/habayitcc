@@ -313,14 +313,35 @@ export async function submitAchimRegistration(
       return { success: false, error: 'Could not save parent information.' };
     }
 
-    const { data: program } = await supabase
+    const { data: existingProgram } = await supabase
       .from('programs')
       .select('id')
       .eq('slug', ACHIM_SLUG)
       .maybeSingle();
 
-    if (!program?.id) {
-      console.error('[achim registration] program not found for slug:', ACHIM_SLUG);
+    let programId = existingProgram?.id ?? null;
+    if (!programId) {
+      const { data: createdProgram, error: programError } = await supabase
+        .from('programs')
+        .upsert(
+          {
+            slug: ACHIM_SLUG,
+            name: ACHIM_NAME,
+            description: '6th grade boys program — every Tuesday, September through May',
+          },
+          { onConflict: 'slug' }
+        )
+        .select('id')
+        .single();
+
+      if (programError || !createdProgram?.id) {
+        console.error('[achim registration] could not create program:', programError);
+        return {
+          success: false,
+          error: 'Program setup is incomplete. Please contact HaBayit and try again shortly.',
+        };
+      }
+      programId = createdProgram.id;
     }
 
     for (let i = 0; i < input.children.length; i++) {
@@ -363,7 +384,7 @@ export async function submitAchimRegistration(
       );
 
       const { error: regError } = await supabase.from('program_registrations').insert({
-        program_id: program?.id ?? null,
+        program_id: programId,
         child_id: childRowData.id,
         family_id: family.id,
         term: '2026-2027',

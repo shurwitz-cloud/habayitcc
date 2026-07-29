@@ -4,7 +4,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section, SectionTitle } from '@/components/sections/Section';
-import { ACHIM_NAME, ACHIM_REGISTER_PATH } from '@/lib/programs/names';
+import { ACHIM_FLYER, ACHIM_NAME, ACHIM_REGISTER_PATH } from '@/lib/programs/names';
 import {
   ACHIM_CHAI_DISCOUNT,
   ACHIM_EARLY_BIRD_DISCOUNT,
@@ -40,27 +40,36 @@ export default function AchimPage() {
           {ACHIM_NAME}
         </Hero>
 
-        <Section background="white">
-          <div className="max-w-[720px]">
-            <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
-              About the Program
-            </p>
-            <h2 className="text-[clamp(2rem,3.5vw,2.8rem)] leading-tight text-navy font-bold">
-              Brotherhood, pride, and growth.
-            </h2>
-            <p className="mt-4 text-muted text-[1.02rem]">
-              {ACHIM_NAME} gives 6th grade boys a warm, supportive space to build friendship,
-              Jewish identity, and confidence — week by week, throughout the school year.
-            </p>
-            <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
-              Classes meet every Tuesday, September through May.
+        <Section background="soft">
+          <div className="grid md:grid-cols-[minmax(0,320px)_1fr] gap-10 md:gap-14 items-center max-w-[900px] mx-auto">
+            <div className="rounded-[18px] overflow-hidden border border-line shadow-sm bg-black">
+              <img
+                src={ACHIM_FLYER}
+                alt={`${ACHIM_NAME} flyer`}
+                className="w-full h-auto block"
+              />
             </div>
-            <Link
-              href={ACHIM_REGISTER_PATH}
-              className="inline-block mt-8 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
-            >
-              Begin Registration
-            </Link>
+            <div>
+              <p className="text-[0.72rem] tracking-[0.2em] uppercase text-gold font-bold mb-4.5">
+                About the Program
+              </p>
+              <h2 className="text-[clamp(2rem,3.5vw,2.8rem)] leading-tight text-navy font-bold">
+                Brotherhood, pride, and growth.
+              </h2>
+              <p className="mt-4 text-muted text-[1.02rem]">
+                {ACHIM_NAME} gives 6th grade boys a warm, supportive space to build friendship,
+                Jewish identity, and confidence — week by week, throughout the school year.
+              </p>
+              <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
+                Classes meet every Tuesday, September through May.
+              </div>
+              <Link
+                href={ACHIM_REGISTER_PATH}
+                className="inline-block mt-8 px-9 py-3.5 rounded-full text-[0.78rem] font-bold uppercase tracking-wider bg-gold text-white hover:bg-[#a37e24]"
+              >
+                Begin Registration
+              </Link>
+            </div>
           </div>
         </Section>
 

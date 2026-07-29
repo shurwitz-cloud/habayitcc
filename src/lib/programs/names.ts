@@ -9,6 +9,7 @@ export const ACHIM_NAME = 'HaBayit Achim';
 export const ACHIM_SLUG = 'achim';
 export const ACHIM_PATH = '/achim';
 export const ACHIM_REGISTER_PATH = '/achim/register';
+export const ACHIM_FLYER = '/flyers/achim.png';
 
 /** Display name and routes for HaBayit Bloom (6th grade girls / Bat Mitzvah club). */
 export const BLOOM_NAME = 'HaBayit Bloom';

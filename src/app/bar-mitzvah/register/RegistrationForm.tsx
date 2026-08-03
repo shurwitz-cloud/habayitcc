@@ -508,7 +508,7 @@ export function RegistrationForm() {
               </span>
             </div>
             <div className="text-muted text-[0.85rem] mt-2">
-              Every Thursday · {BMX_SESSION_MONTHS}-month program (Sep–May)
+              Every other Thursday, 7:00–8:30 PM · {BMX_SESSION_MONTHS}-month program (Sep–May)
             </div>
           </div>
           <div className="bg-soft border border-gold rounded-[18px] p-5.5">

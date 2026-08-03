@@ -19,7 +19,7 @@ import {
 export const metadata = {
   title: 'HaBayit BMX – Bar Mitzvah Experience',
   description:
-    'HaBayit BMX \u2014 a Bar Mitzvah experience for 7th grade boys built on Jewish pride, mitzvah projects, and meaningful discussion. Meeting every Thursday, September through May.',
+    'HaBayit BMX \u2014 a Bar Mitzvah experience for 7th grade boys built on Jewish pride, mitzvah projects, and meaningful discussion. Meeting every other Thursday, 7:00–8:30 PM, September through May.',
 };
 
 const PILLARS = [
@@ -37,7 +37,7 @@ export default function BarMitzvahPage() {
         <Hero
           kicker="HaBayit BMX"
           minHeight={HERO_HEIGHT.page}
-          subtitle="For 7th grade boys — Jewish pride, mitzvah projects, and meaningful discussion. Every Thursday, 6:30–8:00 PM."
+          subtitle="For 7th grade boys — Jewish pride, mitzvah projects, and meaningful discussion. Every other Thursday, 7:00–8:30 PM."
         >
           Bar Mitzvah Experience
         </Hero>
@@ -64,7 +64,7 @@ export default function BarMitzvahPage() {
                 who they are.
               </p>
               <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
-                Classes meet every Thursday, 6:30–8:00 PM, September through May.
+                Classes meet every other Thursday, 7:00–8:30 PM, September through May.
               </div>
               <div className="mt-8 flex flex-wrap gap-3.5">
                 <Link
@@ -160,7 +160,8 @@ export default function BarMitzvahPage() {
           <div className="text-center">
             <h2 className="text-[clamp(2rem,3.6vw,3rem)] font-bold">Ready to level up?</h2>
             <p className="mt-2.5 text-white/70">
-              {BMX_NAME} meets every Thursday from September through May. Registration is open now.
+              {BMX_NAME} meets every other Thursday, 7:00–8:30 PM, from September through May.
+              Registration is open now.
             </p>
             <Link
               href={BMX_REGISTER_PATH}

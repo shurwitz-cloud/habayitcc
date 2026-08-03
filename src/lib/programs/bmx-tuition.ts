@@ -1,4 +1,4 @@
-export const BMX_MONTHLY_TUITION = 75;
+export const BMX_MONTHLY_TUITION = 65;
 
 /** September through May */
 export const BMX_SESSION_MONTHS = 9;

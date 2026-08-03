@@ -63,10 +63,10 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     month: 'Aug',
     day: '13',
     dateLabel: 'Thursday, August 13th',
-    time: '6:30 PM',
-    startsAt: '2026-08-13T18:30:00-04:00',
+    time: '7:00 PM',
+    startsAt: '2026-08-13T19:00:00-04:00',
     description:
-      '6:30–8:00 PM — An evening for 7th grade boys to experience HaBayit BMX: Jewish pride, mitzvah projects, and real conversation. Parents are welcome to join for a program overview and Q&A.',
+      '7:00–8:30 PM — An evening for 7th grade boys to experience HaBayit BMX: Jewish pride, mitzvah projects, and real conversation. Parents are welcome to join for a program overview and Q&A.',
     locationPrivate: true,
     tabName: 'RSVP',
     rsvpLabel: 'Open House',

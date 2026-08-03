@@ -328,7 +328,7 @@ export async function submitBmxRegistration(
             slug: BMX_SLUG,
             name: BMX_NAME,
             description:
-              '7th grade boys Bar Mitzvah Experience — every Thursday, September through May',
+              '7th grade boys Bar Mitzvah Experience — every other Thursday, 7:00–8:30 PM, September through May',
           },
           { onConflict: 'slug' }
         )

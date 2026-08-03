@@ -51,7 +51,7 @@ export function Hero({
           {children}
         </h1>
         {subtitle && (
-          <p className="font-display text-[clamp(1.1rem,2.2vw,1.75rem)] font-medium leading-tight mx-auto whitespace-nowrap max-[520px]:whitespace-normal max-[520px]:text-[1.05rem]">
+          <p className="font-display text-[clamp(1.05rem,2.2vw,1.7rem)] font-medium leading-snug mx-auto max-w-[46rem] text-balance">
             {subtitle}
           </p>
         )}

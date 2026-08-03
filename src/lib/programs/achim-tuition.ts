@@ -17,7 +17,10 @@ export const ACHIM_PAY_IN_FULL_DISCOUNT = 15;
 export const ACHIM_EARLY_BIRD_DISCOUNT = 50;
 
 /** Inclusive last day for early-bird pricing (America/New_York calendar date). */
-export const ACHIM_EARLY_BIRD_LAST_DAY = '2026-07-31';
+export const ACHIM_EARLY_BIRD_LAST_DAY = '2026-08-05';
+
+/** Display label for early-bird deadline copy. */
+export const ACHIM_EARLY_BIRD_DEADLINE_LABEL = 'August 5';
 
 export type AchimPaymentPlan = 'full' | 'two_installments';
 

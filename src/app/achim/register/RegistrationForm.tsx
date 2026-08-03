@@ -18,6 +18,7 @@ import {
   ACHIM_SESSION_MONTHS,
   ACHIM_CARD_PROCESSING_RATE,
   ACHIM_PAY_IN_FULL_DISCOUNT,
+  ACHIM_EARLY_BIRD_DEADLINE_LABEL,
   ACHIM_EARLY_BIRD_DISCOUNT,
   type AchimPaymentPlan,
   type AchimPaymentMethod,
@@ -526,7 +527,7 @@ export function RegistrationForm() {
         {isAchimEarlyBirdActive() && (
           <div className="bg-soft border border-gold rounded-[18px] px-5 py-4 mb-5 text-[0.92rem] text-navy">
             <strong>Early registration:</strong> ${ACHIM_EARLY_BIRD_DISCOUNT} off when you sign up
-            by July 31.
+            by {ACHIM_EARLY_BIRD_DEADLINE_LABEL}.
           </div>
         )}
 
@@ -618,7 +619,7 @@ export function RegistrationForm() {
           </div>
           {isAchimEarlyBirdActive() && (
             <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
-              <span>Early registration (by July 31)</span>
+              <span>Early registration (by {ACHIM_EARLY_BIRD_DEADLINE_LABEL})</span>
               <strong className="tabular-nums">-${ACHIM_EARLY_BIRD_DISCOUNT}</strong>
             </div>
           )}

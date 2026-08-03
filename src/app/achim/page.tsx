@@ -7,6 +7,7 @@ import { Section, SectionTitle } from '@/components/sections/Section';
 import { ACHIM_FLYER, ACHIM_NAME, ACHIM_REGISTER_PATH } from '@/lib/programs/names';
 import {
   ACHIM_CHAI_DISCOUNT,
+  ACHIM_EARLY_BIRD_DEADLINE_LABEL,
   ACHIM_EARLY_BIRD_DISCOUNT,
   ACHIM_MONTHLY_TUITION,
   ACHIM_PAY_IN_FULL_DISCOUNT,
@@ -134,7 +135,8 @@ export default function AchimPage() {
           <div className="bg-cream border-l-[3px] border-gold rounded-r-[12px] p-4.5 mt-6 text-[0.88rem] text-muted">
             {isAchimEarlyBirdActive() && (
               <>
-                Register by July 31 and save ${ACHIM_EARLY_BIRD_DISCOUNT}.{' '}
+                Register by {ACHIM_EARLY_BIRD_DEADLINE_LABEL} and save $
+                {ACHIM_EARLY_BIRD_DISCOUNT}.{' '}
               </>
             )}
             Pay in full and save ${ACHIM_PAY_IN_FULL_DISCOUNT}. Or choose two payments (upon

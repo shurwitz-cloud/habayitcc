@@ -10,7 +10,6 @@ const PROGRAMS_LINKS = [
   { href: ACHIM_PATH, label: ACHIM_NAME },
   { href: BMX_PATH, label: BMX_NAME },
   { href: BLOOM_PATH, label: BLOOM_NAME },
-  { href: '/bar-bat-mitzvah', label: 'Bar & Bat Mitzvah' },
 ];
 
 const DONATE_LINKS = [

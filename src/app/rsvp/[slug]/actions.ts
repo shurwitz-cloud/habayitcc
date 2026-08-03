@@ -15,7 +15,7 @@ import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 const SHEET_IDS: Record<string, string | undefined> = {
   'hebrew-adventure': process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
   achim: process.env.GOOGLE_SHEETS_ACHIM_ID,
-  bmx: process.env.GOOGLE_SHEETS_BMX_ID,
+  bmx: process.env.GOOGLE_SHEETS_BMX_ID || '1agGNODdOzVy2VioqSRcQ4f9245GVS3TWsbG1wB3hIPk',
   bloom: process.env.GOOGLE_SHEETS_BLOOM_ID,
 };
 

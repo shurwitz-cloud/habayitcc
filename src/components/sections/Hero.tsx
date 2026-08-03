@@ -5,7 +5,7 @@ interface HeroProps {
   kicker?: string;
   hebrewKicker?: string;
   children: ReactNode;
-  subtitle?: string;
+  subtitle?: ReactNode;
   minHeight?: string;
   actions?: ReactNode;
 }
@@ -51,7 +51,7 @@ export function Hero({
           {children}
         </h1>
         {subtitle && (
-          <p className="font-display text-[clamp(1.05rem,2.2vw,1.7rem)] font-medium leading-snug mx-auto max-w-[46rem] text-balance">
+          <p className="font-display text-[clamp(1rem,1.9vw,1.45rem)] font-medium leading-snug mx-auto max-w-[52rem] text-balance">
             {subtitle}
           </p>
         )}

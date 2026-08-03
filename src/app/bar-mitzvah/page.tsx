@@ -37,7 +37,13 @@ export default function BarMitzvahPage() {
         <Hero
           kicker="HaBayit BMX"
           minHeight={HERO_HEIGHT.page}
-          subtitle="For 7th grade boys — Jewish pride, mitzvah projects, and meaningful discussion. Every other Thursday, 7:00–8:30 PM."
+          subtitle={
+            <>
+              For 7th grade boys — Jewish pride, mitzvah projects, and meaningful discussion.
+              <br />
+              Every other Thursday, 7:00–8:30 PM.
+            </>
+          }
         >
           Bar Mitzvah Experience
         </Hero>

@@ -1,7 +1,7 @@
 // Public event display data — safe to import in client or server components.
 // Sheet IDs live in actions.ts only (server-side).
 
-import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+import { BMX_FULL_NAME, HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 
 export interface EventConfig {
   slug: string;
@@ -45,16 +45,32 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     program: 'Achim — 6th Grade Boys',
     month: 'Jul',
     day: '28',
-    dateLabel: 'Monday, July 28th',
+    dateLabel: 'Tuesday, July 28th',
     time: '7:30 PM',
     startsAt: '2026-07-28T19:30:00-04:00',
     description:
-      'Open House and program for the boys. An exciting evening for 6th grade boys to experience what HaBayit Achim is all about.',
+      '7:30–8:30 PM — Fun program for the boys.\n8:30 PM — Parents are welcome to join for a program overview and Q&A.',
     locationPrivate: true,
     locationAddress: '4025 Augusta Ave\nEmbassy Lakes',
-    tabName: 'Open House - Jul 28',
+    tabName: 'RSVP',
     rsvpLabel: 'Open House',
     flyer: '/flyers/achim.png',
+  },
+  {
+    slug: 'bmx',
+    title: BMX_FULL_NAME,
+    program: 'BMX — Bar Mitzvah Experience, 7th Grade Boys',
+    month: 'Aug',
+    day: '13',
+    dateLabel: 'Thursday, August 13th',
+    time: '6:30 PM',
+    startsAt: '2026-08-13T18:30:00-04:00',
+    description:
+      '6:30–8:00 PM — An evening for 7th grade boys to experience HaBayit BMX: Jewish pride, mitzvah projects, and real conversation. Parents are welcome to join for a program overview and Q&A.',
+    locationPrivate: true,
+    tabName: 'RSVP',
+    rsvpLabel: 'Open House',
+    flyer: '/flyers/bmx.png',
   },
   {
     slug: 'bloom',

@@ -9,10 +9,13 @@ import { sendRsvpConfirmationEmail } from '@/lib/email/rsvp-confirmation';
 import { createAdminClient } from '@/lib/supabase/server';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
+import { ensureCrmContact } from '@/lib/admin/ensure-contact';
+import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 
 const SHEET_IDS: Record<string, string | undefined> = {
   'hebrew-adventure': process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
   achim: process.env.GOOGLE_SHEETS_ACHIM_ID,
+  bmx: process.env.GOOGLE_SHEETS_BMX_ID,
   bloom: process.env.GOOGLE_SHEETS_BLOOM_ID,
 };
 
@@ -32,6 +35,9 @@ export interface RsvpResult {
 }
 
 export async function submitRsvp(input: RsvpInput): Promise<RsvpResult> {
+  const limited = await enforceActionRateLimit('rsvp', 15, 15 * 60 * 1000);
+  if (!limited.ok) return { success: false, error: limited.error };
+
   const ready = assertSupabaseWriteReady();
   if (!ready.ok) return { success: false, error: ready.error };
 
@@ -85,6 +91,16 @@ export async function submitRsvp(input: RsvpInput): Promise<RsvpResult> {
       return { success: false, error: 'Could not save your RSVP. Please try again.' };
     }
 
+    await ensureCrmContact({
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email,
+      phone: input.phone,
+      interest: event.title,
+      note: `--- RSVP: ${event.title} ---\nGuests: ${input.attending}`,
+      isResolved: true,
+    });
+
     void logFormSubmission({
       formType: 'rsvp',
       email,
@@ -96,7 +112,24 @@ export async function submitRsvp(input: RsvpInput): Promise<RsvpResult> {
     if (!sheetId) {
       console.error(`[RSVP] No sheet ID configured for slug: ${input.slug}`);
     } else {
-      void appendRsvpToTab(sheetId, event.tabName, {
+      // Await so Vercel doesn't freeze the isolate before Sheets finishes.
+      try {
+        await appendRsvpToTab(sheetId, event.tabName, {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email,
+          phone: input.phone,
+          attending: input.attending,
+          notes: input.notes,
+        });
+      } catch (sheetErr) {
+        console.error('[RSVP] Sheets append failed (RSVP still saved):', sheetErr);
+      }
+    }
+
+    try {
+      await sendRsvpConfirmationEmail({
+        event,
         firstName: input.firstName,
         lastName: input.lastName,
         email,
@@ -104,17 +137,9 @@ export async function submitRsvp(input: RsvpInput): Promise<RsvpResult> {
         attending: input.attending,
         notes: input.notes,
       });
+    } catch (emailErr) {
+      console.error('[RSVP] Email failed (RSVP still saved):', emailErr);
     }
-
-    await sendRsvpConfirmationEmail({
-      event,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email,
-      phone: input.phone,
-      attending: input.attending,
-      notes: input.notes,
-    });
 
     return { success: true };
   } catch (err) {

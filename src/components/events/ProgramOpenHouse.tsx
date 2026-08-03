@@ -47,7 +47,7 @@ export function ProgramOpenHouse({ eventSlug, background = 'soft' }: ProgramOpen
           <p className="mt-3 text-gold font-semibold text-[0.95rem]">
             {event.dateLabel} · {event.time}
           </p>
-          <p className="mt-3 text-muted text-[1.02rem] max-w-[36rem]">{event.description}</p>
+          <p className="mt-3 text-muted text-[1.02rem] max-w-[36rem] whitespace-pre-line">{event.description}</p>
           {locationHint && (
             <p className="mt-2 text-muted text-[0.85rem]">{locationHint}</p>
           )}

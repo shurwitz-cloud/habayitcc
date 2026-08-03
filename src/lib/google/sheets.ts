@@ -7,6 +7,7 @@ const IDS = {
   chaiPartners: process.env.GOOGLE_SHEETS_CHAI_PARTNERS_ID,
   hebrewAdventure: process.env.GOOGLE_SHEETS_HEBREW_SCHOOL_ID,
   achim:        process.env.GOOGLE_SHEETS_ACHIM_ID,
+  bmx:          process.env.GOOGLE_SHEETS_BMX_ID,
   bloom:        process.env.GOOGLE_SHEETS_BLOOM_ID,
 } as const;
 
@@ -184,6 +185,23 @@ export const SHEET_CONFIGS = {
   },
   achimRegistration: {
     id: IDS.achim,
+    headers: [
+      'Timestamp',
+      'Parent 1 First', 'Parent 1 Last', 'Parent 1 Email', 'Parent 1 Phone',
+      'Parent 2 First', 'Parent 2 Last', 'Parent 2 Email', 'Parent 2 Phone',
+      'Street', 'City', 'State', 'ZIP',
+      'Emergency Contact', 'Emergency Phone',
+      'Chai Partner?', 'Chai Code', 'Payment Plan', 'Notes',
+      'Child 1 First', 'Child 1 Last', 'Child 1 Hebrew Name', 'Child 1 DOB',
+      'Child 1 Grade', 'Child 1 School', 'Child 1 Hebrew Level', 'Child 1 Allergies',
+      'Child 2 First', 'Child 2 Last', 'Child 2 Hebrew Name', 'Child 2 DOB',
+      'Child 2 Grade', 'Child 2 School', 'Child 2 Hebrew Level', 'Child 2 Allergies',
+      'Child 3 First', 'Child 3 Last', 'Child 3 Hebrew Name', 'Child 3 DOB',
+      'Child 3 Grade', 'Child 3 School', 'Child 3 Hebrew Level', 'Child 3 Allergies',
+    ],
+  },
+  bmxRegistration: {
+    id: IDS.bmx,
     headers: [
       'Timestamp',
       'Parent 1 First', 'Parent 1 Last', 'Parent 1 Email', 'Parent 1 Phone',
@@ -412,6 +430,42 @@ export function achimRegistrationRow(data: {
   }
 
   return appendRow(IDS.achim, [
+    nowET(),
+    data.parent1First, data.parent1Last, data.parent1Email, data.parent1Phone,
+    data.parent2First, data.parent2Last, data.parent2Email, data.parent2Phone,
+    data.street, data.city, data.state, data.zip,
+    data.emergencyContact, data.emergencyPhone,
+    data.isChaiPartner ? 'Yes' : 'No', data.chaiCode,
+    data.paymentPlan, data.notes,
+    ...childCols,
+  ]);
+}
+
+export function bmxRegistrationRow(data: {
+  parent1First: string; parent1Last: string; parent1Email: string; parent1Phone: string;
+  parent2First: string; parent2Last: string; parent2Email: string; parent2Phone: string;
+  street: string; city: string; state: string; zip: string;
+  emergencyContact: string; emergencyPhone: string;
+  isChaiPartner: boolean; chaiCode: string; paymentPlan: string; notes: string;
+  children: Array<{
+    firstName: string; lastName: string; hebrewName: string; dateOfBirth: string;
+    grade: string; schoolAttending: string; hebrewLevel: string; allergies: string;
+  }>;
+}) {
+  if (!IDS.bmx) return;
+
+  const childCols: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const c = data.children[i];
+    if (c) {
+      childCols.push(c.firstName, c.lastName, c.hebrewName, c.dateOfBirth,
+        c.grade, c.schoolAttending, c.hebrewLevel, c.allergies);
+    } else {
+      childCols.push('', '', '', '', '', '', '', '');
+    }
+  }
+
+  return appendRow(IDS.bmx, [
     nowET(),
     data.parent1First, data.parent1Last, data.parent1Email, data.parent1Phone,
     data.parent2First, data.parent2Last, data.parent2Email, data.parent2Phone,

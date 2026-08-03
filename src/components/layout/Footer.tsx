@@ -5,6 +5,8 @@ import {
   ACHIM_PATH,
   BLOOM_NAME,
   BLOOM_PATH,
+  BMX_NAME,
+  BMX_PATH,
   HEBREW_ADVENTURE_NAME,
   HEBREW_ADVENTURE_PATH,
 } from '@/lib/programs/names';
@@ -19,8 +21,8 @@ const EXPLORE_LINKS = [
 const PROGRAM_LINKS = [
   { href: HEBREW_ADVENTURE_PATH, label: HEBREW_ADVENTURE_NAME },
   { href: ACHIM_PATH, label: ACHIM_NAME },
+  { href: BMX_PATH, label: BMX_NAME },
   { href: BLOOM_PATH, label: BLOOM_NAME },
-  { href: '/bar-mitzvah', label: 'Bar Mitzvah' },
 ];
 
 export function Footer() {

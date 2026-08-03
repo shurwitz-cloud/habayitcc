@@ -8,6 +8,7 @@ export type FormType =
   | 'chai_partner'
   | 'hebrew_adventure_registration'
   | 'achim_registration'
+  | 'bmx_registration'
   | 'rsvp'
   | 'other';
 

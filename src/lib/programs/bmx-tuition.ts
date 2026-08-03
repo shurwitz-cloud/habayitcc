@@ -14,7 +14,7 @@ export const BMX_CHAI_SESSION_TUITION = BMX_SESSION_TUITION - BMX_CHAI_DISCOUNT;
 export const BMX_PAY_IN_FULL_DISCOUNT = 15;
 
 /** Early registration discount. */
-export const BMX_EARLY_BIRD_DISCOUNT = 50;
+export const BMX_EARLY_BIRD_DISCOUNT = 40;
 
 /** Inclusive last day for early-bird pricing (America/New_York calendar date). */
 export const BMX_EARLY_BIRD_LAST_DAY = '2026-08-18';

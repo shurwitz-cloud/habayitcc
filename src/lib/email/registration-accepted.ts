@@ -49,6 +49,9 @@ export async function sendRegistrationAcceptedEmail(input: {
       payment method. Bank (ACH) payments may take a few business days to complete.
     </p>
     ${scheduleHtml}
+    <p>
+      We&apos;ll keep you updated with the schedule and other details closer to the start.
+    </p>
     <p style="margin-top:20px;">We look forward to a wonderful year together.</p>
     ${emailButton(`${getSiteUrl()}${programPath}`, 'Program details')}
   `);

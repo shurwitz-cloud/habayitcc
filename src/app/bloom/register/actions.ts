@@ -327,7 +327,8 @@ export async function submitBloomRegistration(
           {
             slug: BLOOM_SLUG,
             name: BLOOM_NAME,
-            description: '6th grade girls Bat Mitzvah club — every Wednesday, September through May',
+            description:
+              '6th grade girls Bat Mitzvah club — every other Wednesday, September through May',
           },
           { onConflict: 'slug' }
         )

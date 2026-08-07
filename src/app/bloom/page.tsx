@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { ProgramOpenHouse } from '@/components/events/ProgramOpenHouse';
 import { Hero } from '@/components/sections/Hero';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section, SectionTitle } from '@/components/sections/Section';
@@ -18,7 +17,7 @@ import {
 
 export const metadata = {
   title: `${BLOOM_NAME} – Bat Mitzvah Club | HaBayit Jewish Center`,
-  description: `${BLOOM_NAME} — a Bat Mitzvah club for 6th grade girls built on meaningful conversations, creativity, and mitzvah projects. Meeting every Wednesday, September through May.`,
+  description: `${BLOOM_NAME} — a Bat Mitzvah club for 6th grade girls built on meaningful conversations, creativity, and mitzvah projects. Meeting every other Wednesday, September through May.`,
 };
 
 const PILLARS = [
@@ -72,7 +71,7 @@ export default function BloomPage() {
                 chapter.
               </p>
               <div className="mt-6 inline-flex items-center gap-2.5 font-semibold text-navy">
-                Classes meet every Wednesday, September through May.
+                Classes meet every other Wednesday, September through May.
               </div>
               <Link
                 href={BLOOM_REGISTER_PATH}
@@ -83,8 +82,6 @@ export default function BloomPage() {
             </div>
           </div>
         </Section>
-
-        <ProgramOpenHouse eventSlug="bloom" background="white" />
 
         <Section background="cream">
           <SectionTitle eyebrow="What Girls Experience">Three Pillars of Our Program</SectionTitle>
@@ -160,7 +157,8 @@ export default function BloomPage() {
           <div className="text-center">
             <h2 className="text-[clamp(2rem,3.6vw,3rem)] font-bold">Ready to bloom?</h2>
             <p className="mt-2.5 text-white/70">
-              {BLOOM_NAME} meets every Wednesday, September through May. Registration is open now.
+              {BLOOM_NAME} meets every other Wednesday, September through May. Registration is
+              open now.
             </p>
             <Link
               href={BLOOM_REGISTER_PATH}

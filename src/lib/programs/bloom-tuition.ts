@@ -1,6 +1,6 @@
 // Bloom tuition mirrors HaBayit Achim. All figures are centralized here so
 // pricing changes are a one-file edit.
-export const BLOOM_MONTHLY_TUITION = 75;
+export const BLOOM_MONTHLY_TUITION = 65;
 
 /** September through May */
 export const BLOOM_SESSION_MONTHS = 9;
@@ -16,7 +16,7 @@ export const BLOOM_CHAI_SESSION_TUITION = BLOOM_SESSION_TUITION - BLOOM_CHAI_DIS
 export const BLOOM_PAY_IN_FULL_DISCOUNT = 15;
 
 /** Signup by early registration deadline — early registration discount. */
-export const BLOOM_EARLY_BIRD_DISCOUNT = 50;
+export const BLOOM_EARLY_BIRD_DISCOUNT = 40;
 
 /** Inclusive last day for early-bird pricing (America/New_York calendar date). */
 export const BLOOM_EARLY_BIRD_LAST_DAY = '2026-08-12';

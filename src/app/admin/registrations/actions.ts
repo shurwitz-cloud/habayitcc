@@ -14,6 +14,11 @@ import {
 } from '@/lib/programs/bmx-billing';
 import type { BmxPaymentPlan } from '@/lib/programs/bmx-tuition';
 import {
+  getBloomFamilyTuitionBilling,
+  resolveBloomPaymentMethod,
+} from '@/lib/programs/bloom-billing';
+import type { BloomPaymentPlan } from '@/lib/programs/bloom-tuition';
+import {
   formatUsd,
   getFamilyTuitionBilling,
   resolvePaymentMethod,
@@ -24,6 +29,9 @@ import {
   ACHIM_NAME,
   ACHIM_PATH,
   ACHIM_SLUG,
+  BLOOM_NAME,
+  BLOOM_PATH,
+  BLOOM_SLUG,
   BMX_NAME,
   BMX_PATH,
   BMX_SLUG,
@@ -36,7 +44,7 @@ import {
 } from '@/lib/stripe/charge-tuition';
 import { createAdminClient } from '@/lib/supabase/server';
 
-const BILLABLE_PROGRAM_SLUGS = [HEBREW_ADVENTURE_SLUG, ACHIM_SLUG, BMX_SLUG] as const;
+const BILLABLE_PROGRAM_SLUGS = [HEBREW_ADVENTURE_SLUG, ACHIM_SLUG, BMX_SLUG, BLOOM_SLUG] as const;
 
 export type PendingFamilyRegistration = {
   familyId: string;
@@ -84,6 +92,9 @@ function programMeta(slug: string) {
   if (slug === BMX_SLUG) {
     return { name: BMX_NAME, path: BMX_PATH };
   }
+  if (slug === BLOOM_SLUG) {
+    return { name: BLOOM_NAME, path: BLOOM_PATH };
+  }
   return { name: HEBREW_ADVENTURE_NAME, path: HEBREW_ADVENTURE_PATH };
 }
 
@@ -109,6 +120,17 @@ function familyTuitionBilling(input: {
     const plan: BmxPaymentPlan =
       input.paymentPlan === 'two_installments' ? 'two_installments' : 'full';
     return getBmxFamilyTuitionBilling({
+      tuitionSubtotal: input.tuitionSubtotal,
+      paymentPlan: plan,
+      paymentMethod: input.paymentMethod,
+      term: input.term,
+    });
+  }
+
+  if (input.programSlug === BLOOM_SLUG) {
+    const plan: BloomPaymentPlan =
+      input.paymentPlan === 'two_installments' ? 'two_installments' : 'full';
+    return getBloomFamilyTuitionBilling({
       tuitionSubtotal: input.tuitionSubtotal,
       paymentPlan: plan,
       paymentMethod: input.paymentMethod,
@@ -215,7 +237,9 @@ export async function getPendingRegistrations(): Promise<PendingFamilyRegistrati
         ? resolveAchimPaymentMethod(family?.payment_method_preference, regs[0].notes)
         : programSlug === BMX_SLUG
           ? resolveBmxPaymentMethod(family?.payment_method_preference, regs[0].notes)
-          : resolvePaymentMethod(family?.payment_method_preference, regs[0].notes);
+          : programSlug === BLOOM_SLUG
+            ? resolveBloomPaymentMethod(family?.payment_method_preference, regs[0].notes)
+            : resolvePaymentMethod(family?.payment_method_preference, regs[0].notes);
     const tuitionSubtotal = regs.reduce((sum, r) => sum + Number(r.tuition_total ?? 0), 0);
     const billing = familyTuitionBilling({
       programSlug,
@@ -372,7 +396,9 @@ export async function acceptAndChargeFamily(
         ? resolveAchimPaymentMethod(family.payment_method_preference, regs[0].notes)
         : programSlug === BMX_SLUG
           ? resolveBmxPaymentMethod(family.payment_method_preference, regs[0].notes)
-          : resolvePaymentMethod(family.payment_method_preference, regs[0].notes);
+          : programSlug === BLOOM_SLUG
+            ? resolveBloomPaymentMethod(family.payment_method_preference, regs[0].notes)
+            : resolvePaymentMethod(family.payment_method_preference, regs[0].notes);
     const tuitionSubtotal = regs.reduce((sum, r) => sum + Number(r.tuition_total ?? 0), 0);
     const billing = familyTuitionBilling({
       programSlug,

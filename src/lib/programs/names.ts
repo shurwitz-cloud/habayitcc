@@ -16,6 +16,7 @@ export const BLOOM_NAME = 'HaBayit Bloom';
 export const BLOOM_SLUG = 'bloom';
 export const BLOOM_PATH = '/bloom';
 export const BLOOM_REGISTER_PATH = '/bloom/register';
+export const BLOOM_FLYER = '/flyers/bloom.png';
 
 /** Display name and routes for HaBayit BMX — Bar Mitzvah Experience (7th grade boys). */
 export const BMX_NAME = 'HaBayit BMX';

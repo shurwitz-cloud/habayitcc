@@ -8,6 +8,7 @@ const SHEET_TITLES: Record<string, string> = {
   chaiPartners: 'HaBayit Chai Partners',
   hebrewAdventure: 'HaBayit Hebrew Adventure',
   achimRegistration: 'HaBayit Achim Registrations',
+  bloomRegistration: 'HaBayit Bloom Registrations',
 };
 
 /**

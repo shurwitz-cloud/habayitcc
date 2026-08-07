@@ -59,6 +59,11 @@ export const SUBMISSION_EMAILS = {
     handler: 'sendRegistrationReceivedEmail',
     trigger: 'src/app/achim/register/actions.ts → submitAchimRegistration',
   },
+  bloom_registration: {
+    description: 'Bloom registration submitted — pending review confirmation',
+    handler: 'sendRegistrationReceivedEmail',
+    trigger: 'src/app/bloom/register/actions.ts → submitBloomRegistration',
+  },
   hebrew_adventure_accepted: {
     description: 'Hebrew Adventure accepted — charge confirmation + schedule',
     handler: 'sendRegistrationAcceptedEmail',

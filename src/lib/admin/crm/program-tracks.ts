@@ -1,4 +1,4 @@
-import { ACHIM_NAME, ACHIM_REGISTER_PATH, ACHIM_SLUG, BMX_FULL_NAME, BMX_REGISTER_PATH, BMX_SLUG, HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
+import { ACHIM_NAME, ACHIM_REGISTER_PATH, ACHIM_SLUG, BLOOM_NAME, BLOOM_REGISTER_PATH, BLOOM_SLUG, BMX_FULL_NAME, BMX_REGISTER_PATH, BMX_SLUG, HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 import type { CrmFamilyRecord } from '@/lib/admin/crm/types';
 
 /** CRM-facing definition for a program application track (tab + filters). */
@@ -49,14 +49,14 @@ export const CRM_PROGRAM_TRACKS: CrmProgramTrackDef[] = [
     registrationPath: BMX_REGISTER_PATH,
   },
   {
-    id: 'bat-mitzvah-club',
-    programSlug: 'bat-mitzvah-club',
-    tabLabel: 'Bat Mitzvah',
-    fullName: 'Bat Mitzvah Club (HaBayit Bloom)',
+    id: BLOOM_SLUG,
+    programSlug: BLOOM_SLUG,
+    tabLabel: 'Bloom',
+    fullName: `Bat Mitzvah Club (${BLOOM_NAME})`,
     contactInterests: ['bat mitzvah', 'bar / bat mitzvah', 'bloom'],
-    formTypes: ['bat_mitzvah_registration'],
+    formTypes: ['bloom_registration', 'bat_mitzvah_registration'],
     sortOrder: 30,
-    registrationPath: '/bloom',
+    registrationPath: BLOOM_REGISTER_PATH,
   },
   {
     id: 'teen',

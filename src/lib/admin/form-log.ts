@@ -9,6 +9,7 @@ export type FormType =
   | 'hebrew_adventure_registration'
   | 'achim_registration'
   | 'bmx_registration'
+  | 'bloom_registration'
   | 'rsvp'
   | 'other';
 

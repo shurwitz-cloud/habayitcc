@@ -1,7 +1,7 @@
 // Public event display data — safe to import in client or server components.
 // Sheet IDs live in actions.ts only (server-side).
 
-import { BMX_FULL_NAME, HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+import { BMX_FULL_NAME } from '@/lib/programs/names';
 
 export interface EventConfig {
   slug: string;
@@ -23,22 +23,6 @@ export interface EventConfig {
 }
 
 export const OPEN_HOUSE_EVENTS: EventConfig[] = [
-  {
-    slug: 'hebrew-adventure',
-    title: HEBREW_ADVENTURE_NAME,
-    program: HEBREW_ADVENTURE_NAME,
-    month: 'Aug',
-    day: '4',
-    dateLabel: 'Tuesday, August 4th',
-    time: '8:30 PM',
-    startsAt: '2026-08-04T20:30:00-04:00',
-    description:
-      `Meet & greet and Q&A for parents. Come discover ${HEBREW_ADVENTURE_NAME} for the upcoming year.`,
-    locationPrivate: true,
-    tabName: 'HaBayit Hebrew Adventure - Aug 4',
-    rsvpLabel: 'Meet & Greet',
-    flyer: '/flyers/hebrew-adventure.png',
-  },
   {
     slug: 'achim',
     title: 'HaBayit Achim',
@@ -71,22 +55,6 @@ export const OPEN_HOUSE_EVENTS: EventConfig[] = [
     tabName: 'RSVP',
     rsvpLabel: 'Open House',
     flyer: '/flyers/bmx.png',
-  },
-  {
-    slug: 'bloom',
-    title: 'HaBayit Bloom',
-    program: 'Bloom — Bat Mitzvah Program, 6th Grade Girls',
-    month: 'Aug',
-    day: '6',
-    dateLabel: 'Wednesday, August 6th',
-    time: '7:30 PM',
-    startsAt: '2026-08-06T19:30:00-04:00',
-    description:
-      'Open House and program for the girls. An exciting evening for 6th grade girls to experience what HaBayit Bloom is all about.',
-    locationPrivate: true,
-    tabName: 'Open House - Aug 6',
-    rsvpLabel: 'Open House',
-    flyer: '/flyers/bloom.png',
   },
 ];
 

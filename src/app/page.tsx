@@ -90,10 +90,10 @@ export default async function HomePage() {
           <SectionTitle eyebrow="">Upcoming at HaBayit</SectionTitle>
           <div className="grid md:grid-cols-3 border-t border-b border-line">
             <EventPreview
-              date="Aug 4"
-              title={`${HEBREW_ADVENTURE_NAME} Meet & Greet`}
-              description="Meet the team and learn about the year ahead."
-              href="/rsvp/hebrew-adventure"
+              date="Aug 13"
+              title="HaBayit BMX Open House"
+              description="An evening for 7th grade boys — Jewish pride, mitzvah projects, and real conversation."
+              href="/rsvp/bmx"
             />
             <EventPreview
               date="Weekly"

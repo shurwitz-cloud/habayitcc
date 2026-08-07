@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
-import { ProgramOpenHouse } from '@/components/events/ProgramOpenHouse';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section, SectionTitle } from '@/components/sections/Section';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_REGISTER_PATH } from '@/lib/programs/names';
@@ -38,8 +37,6 @@ export default function HebrewSchoolPage() {
         >
           {HEBREW_ADVENTURE_NAME}
         </SiteRotatingHero>
-
-        <ProgramOpenHouse eventSlug="hebrew-adventure" background="soft" />
 
         <Section background="white">
           <div className="max-w-[720px]">

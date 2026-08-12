@@ -18,6 +18,14 @@ export function buildActivityFeed(snapshot: CrmSnapshot): CrmActivityItem[] {
   const items: CrmActivityItem[] = [];
 
   for (const c of snapshot.contacts) {
+    // Keep Contacts tab complete; don't flood Activity with quiet historical imports.
+    const msg = (c.message || '').toLowerCase();
+    if (
+      msg.includes('--- event import') ||
+      msg.includes('--- stripe import')
+    ) {
+      continue;
+    }
     items.push({
       id: `contact-${c.id}`,
       type: 'contact',
@@ -62,6 +70,9 @@ export function buildActivityFeed(snapshot: CrmSnapshot): CrmActivityItem[] {
   }
 
   for (const f of snapshot.families) {
+    // Only real program applications — bare CRM families (event/Stripe import
+    // households) must not flood Activity as "Application" with today's date.
+    if (!f.registrations.length) continue;
     const primary = f.parents.find((p) => p.is_primary_contact) ?? f.parents[0];
     items.push({
       id: `family-${f.id}`,

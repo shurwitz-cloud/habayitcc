@@ -13,8 +13,27 @@ export const DONATION_CAMPAIGNS: Record<string, string> = {
   'bat-mitzvah': 'Bat Mitzvah',
 };
 
+/** Campaign values that are really just the payment method — not a gift memo. */
+export function isPaymentMethodCampaign(campaign?: string | null): boolean {
+  if (!campaign?.trim()) return false;
+  const slug = campaign.trim().toLowerCase().replace(/[_\s]+/g, '-');
+  return (
+    slug === 'zelle' ||
+    slug === 'zeffy' ||
+    slug === 'cash' ||
+    slug === 'check' ||
+    slug === 'cashapp' ||
+    slug === 'cash-app' ||
+    slug === 'ach' ||
+    slug === 'credit-card' ||
+    slug === 'other'
+  );
+}
+
 export function resolveDonationMemo(campaign?: string | null): string {
-  if (!campaign?.trim()) return DEFAULT_DONATION_MEMO;
+  if (!campaign?.trim() || isPaymentMethodCampaign(campaign)) {
+    return DEFAULT_DONATION_MEMO;
+  }
 
   const trimmed = campaign.trim();
   const slug = trimmed.toLowerCase();

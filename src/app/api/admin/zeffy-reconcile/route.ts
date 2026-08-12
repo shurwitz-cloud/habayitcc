@@ -6,18 +6,24 @@ import {
 } from '@/lib/zeffy/parse-webhook';
 import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
 
+import {
+  ZEFFY_INBOUND_DISABLED_MESSAGE,
+  ZEFFY_INBOUND_ENABLED,
+} from '@/lib/zeffy/inbound';
+
 export const dynamic = 'force-dynamic';
 
 /**
  * Pull recent Zeffy payments via API and record any missing Chai Partners.
- * Admin-only. Never sends emails. Only imports gifts that match the Chai Partner form.
- *
- * POST /api/admin/zeffy-reconcile
- * Optional body: { limit?: number }
+ * Admin-only. Disabled while inbound Zeffy sync is off.
  */
 export async function POST(req: NextRequest) {
   const denied = await requireCapabilityApi('crm_finance');
   if (denied) return denied;
+
+  if (!ZEFFY_INBOUND_ENABLED) {
+    return NextResponse.json({ error: ZEFFY_INBOUND_DISABLED_MESSAGE }, { status: 403 });
+  }
 
   // Kill switch — re-enable only with NEXT_PUBLIC_ZEFFY_RECONCILE_ENABLED=true after campaign filter is verified.
   if (process.env.NEXT_PUBLIC_ZEFFY_RECONCILE_ENABLED !== 'true') {

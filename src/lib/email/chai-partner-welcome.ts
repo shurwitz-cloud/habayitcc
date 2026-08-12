@@ -1,5 +1,6 @@
 import { buildEmailHtml, emailButton, getAdminEmail, sendEmail } from '@/lib/email/client';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+import { collectRecipientEmails, formatCoupleNames } from '@/lib/donations/couple-names';
 
 export interface ChaiPartnerWelcomeEmailInput {
   firstName: string;
@@ -10,6 +11,9 @@ export interface ChaiPartnerWelcomeEmailInput {
   accessCode: string;
   /** First monthly payment receipt — shown as a button at the bottom. */
   receiptUrl?: string;
+  spouseFirstName?: string | null;
+  spouseLastName?: string | null;
+  spouseEmail?: string | null;
 }
 
 function formatMonthlyAmount(amount: number): string {
@@ -19,8 +23,15 @@ function formatMonthlyAmount(amount: number): string {
 export async function sendChaiPartnerWelcomeEmail(
   input: ChaiPartnerWelcomeEmailInput
 ): Promise<boolean> {
-  const name = `${input.firstName} ${input.lastName}`.trim();
+  const names = formatCoupleNames({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    spouseFirstName: input.spouseFirstName,
+    spouseLastName: input.spouseLastName,
+  });
   const monthly = formatMonthlyAmount(input.monthlyAmount);
+  const recipients = collectRecipientEmails(input.email, input.spouseEmail);
+  if (!recipients.length) return false;
 
   const html = buildEmailHtml(`
     <p style="text-align:center;font-family:Georgia,'Times New Roman',serif;font-size:28px;color:#b8902a;margin:0 0 8px;">חי</p>
@@ -28,7 +39,7 @@ export async function sendChaiPartnerWelcomeEmail(
       Thank you for becoming a HaBayit Chai Partner
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
-      Dear ${input.firstName},
+      Dear ${names.greeting},
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
       We are grateful — <strong>thank you</strong>. Your monthly partnership of
@@ -82,21 +93,21 @@ export async function sendChaiPartnerWelcomeEmail(
 
   const [partnerSent] = await Promise.all([
     sendEmail({
-      to: input.email,
+      to: recipients,
       subject: 'Thank you for becoming a HaBayit Chai Partner',
       html,
     }),
     sendEmail({
       to: getAdminEmail(),
-      subject: `New Chai Partner: ${name} (${monthly})`,
+      subject: `New Chai Partner: ${names.receiptName} (${monthly})`,
       replyTo: input.email,
       html: buildEmailHtml(`
         <p style="font-size:16px;color:#172643;font-weight:bold;margin:0 0 12px;">
           New Chai Partner signup
         </p>
         <p style="margin:0 0 12px;line-height:1.7;">
-          <strong>${name}</strong><br>
-          Email: ${input.email}<br>
+          <strong>${names.receiptName}</strong><br>
+          Email: ${recipients.join(', ')}<br>
           Phone: ${input.phone}<br>
           Monthly amount: ${monthly}<br>
           Access code: <strong>${input.accessCode}</strong>

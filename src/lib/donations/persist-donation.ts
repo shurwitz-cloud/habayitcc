@@ -17,6 +17,8 @@ export interface PersistDonationInput {
   dedicationName?: string | null;
   dedicationType?: DedicationType | null;
   stripeChargeId?: string | null;
+  /** Actual payment time (late Zeffy/manual entry). Defaults to now. */
+  paidAt?: string | null;
 }
 
 export interface PersistDonationResult {
@@ -88,6 +90,11 @@ export async function persistDonation(
     };
   }
 
+  const paidAt =
+    input.paidAt && !Number.isNaN(new Date(input.paidAt).getTime())
+      ? new Date(input.paidAt).toISOString()
+      : new Date().toISOString();
+
   if (input.paymentIntentId) {
     const { error: paymentError } = await supabase.from('payments').insert({
       source_type: 'donation',
@@ -96,10 +103,21 @@ export async function persistDonation(
       stripe_payment_intent_id: input.paymentIntentId,
       stripe_charge_id: input.stripeChargeId ?? null,
       status: 'succeeded',
-      paid_at: new Date().toISOString(),
+      paid_at: paidAt,
     });
     if (paymentError) {
       console.error('[persistDonation] payments insert error:', paymentError);
+    }
+  }
+
+  // Keep donations.created_at aligned when backdating a late entry.
+  if (input.paidAt) {
+    const { error: dateErr } = await supabase
+      .from('donations')
+      .update({ created_at: paidAt })
+      .eq('id', donation.id);
+    if (dateErr) {
+      console.error('[persistDonation] backdate created_at error:', dateErr);
     }
   }
 

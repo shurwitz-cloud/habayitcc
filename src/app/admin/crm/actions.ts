@@ -68,7 +68,11 @@ const EVENT_TITLE_BY_SLUG = new Map(OPEN_HOUSE_EVENTS.map((e) => [e.slug, e.titl
 
 function eventTitleForRsvp(row: EventRegistration, eventsById: Map<string, string>): string {
   if (row.event_slug) {
-    return EVENT_TITLE_BY_SLUG.get(row.event_slug) ?? row.event_slug;
+    return (
+      EVENT_TITLE_BY_SLUG.get(row.event_slug) ??
+      eventsById.get(row.event_id) ??
+      row.event_slug
+    );
   }
   return eventsById.get(row.event_id) ?? 'Event';
 }

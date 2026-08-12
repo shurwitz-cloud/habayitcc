@@ -2,13 +2,20 @@ import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { DedicationType } from '@/types/database';
-import { DEFAULT_DONATION_MEMO, formatReceiptMemo, resolveDonationMemo } from './memo';
+import {
+  DEFAULT_DONATION_MEMO,
+  formatReceiptMemo,
+  isPaymentMethodCampaign,
+  resolveDonationMemo,
+} from './memo';
 
 export interface ReceiptUrlParams {
   name: string;
   amount: number;
   date?: Date;
   campaign?: string | null;
+  /** Explicit donation memo for the receipt (optional). */
+  memo?: string | null;
   dedicationName?: string | null;
   dedicationType?: DedicationType | null;
   method?: string;
@@ -83,8 +90,13 @@ export function resolveReceiptMemoFromParams(params: {
   dedicationType?: string;
   /** @deprecated legacy pre-formatted memo links */
   memo?: string;
+  /** Payment method — used so Zelle/etc. gifts without a real memo stay blank. */
+  method?: string;
 }): string {
-  const campaign = params.campaign?.trim();
+  const rawCampaign = params.campaign?.trim();
+  // Ignore payment-method "campaigns" (e.g. campaign=zelle) — Method column already shows that.
+  const campaign =
+    rawCampaign && !isPaymentMethodCampaign(rawCampaign) ? rawCampaign : undefined;
   const dedicationName = params.dedication?.trim();
   const dedicationType =
     params.dedicationType === 'honor' || params.dedicationType === 'memory'
@@ -98,7 +110,17 @@ export function resolveReceiptMemoFromParams(params: {
     });
   }
 
-  return params.memo?.trim() || DEFAULT_DONATION_MEMO;
+  if (params.memo?.trim()) return params.memo.trim();
+
+  // Manual/offline gifts: empty memo stays empty (don't invent "zelle" or "General Donation").
+  if (
+    (rawCampaign && isPaymentMethodCampaign(rawCampaign)) ||
+    isPaymentMethodCampaign(params.method)
+  ) {
+    return '';
+  }
+
+  return DEFAULT_DONATION_MEMO;
 }
 
 export function buildReceiptUrl(params: ReceiptUrlParams): string {
@@ -115,7 +137,12 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
   });
 
   const campaign = params.campaign?.trim();
-  if (campaign) search.set('campaign', campaign);
+  if (campaign && !isPaymentMethodCampaign(campaign)) {
+    search.set('campaign', campaign);
+  }
+
+  const memo = params.memo?.trim();
+  if (memo) search.set('memo', memo);
 
   const dedicationName = params.dedicationName?.trim();
   if (dedicationName) {
@@ -130,9 +157,10 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
     amount: amountStr,
     date: dateStr,
     method,
-    campaign,
+    campaign: campaign && !isPaymentMethodCampaign(campaign) ? campaign : undefined,
     dedication: dedicationName,
     dedicationType: params.dedicationType ?? undefined,
+    memo,
   });
 
   const sig = signReceiptPayload(payload);

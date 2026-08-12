@@ -115,15 +115,31 @@ export function parseZeffyWebhook(body: unknown): ParsedZeffyPayment | null {
   ).toLowerCase();
   if (!email) return null;
 
-  let firstName = pickString(contact.first_name, contact.firstName);
-  let lastName = pickString(contact.last_name, contact.lastName);
-  if ((!firstName || !lastName) && contact.name) {
-    const parts = String(contact.name).trim().split(/\s+/);
-    firstName = firstName || parts[0] || 'Friend';
-    lastName = lastName || parts.slice(1).join(' ') || 'Partner';
+  let firstName = pickString(
+    contact.first_name,
+    contact.firstName,
+    (payment as { first_name?: string }).first_name,
+    (payment as { firstName?: string }).firstName,
+  );
+  let lastName = pickString(
+    contact.last_name,
+    contact.lastName,
+    (payment as { last_name?: string }).last_name,
+    (payment as { lastName?: string }).lastName,
+  );
+  const fullName = pickString(
+    contact.name,
+    (payment as { name?: string }).name,
+    (payment as { full_name?: string }).full_name,
+  );
+  if ((!firstName || !lastName) && fullName) {
+    const parts = String(fullName).trim().split(/\s+/);
+    firstName = firstName || parts[0] || '';
+    lastName = lastName || parts.slice(1).join(' ') || '';
   }
-  if (!firstName) firstName = 'Friend';
-  if (!lastName) lastName = 'Partner';
+  // Never invent Friend/Partner placeholders — leave empty for repair later
+  if (!firstName) firstName = '';
+  if (!lastName) lastName = '';
 
   const campaignId =
     pickString(

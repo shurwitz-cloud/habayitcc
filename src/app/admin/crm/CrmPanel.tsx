@@ -52,8 +52,7 @@ import {
 import { setContactResolved, addImportantDate } from './actions';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
-import { ManualZeffyEntryForm } from '@/components/admin/ManualZeffyEntryForm';
-import { ManualDonationForm } from '@/components/admin/ManualDonationForm';
+import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -520,8 +519,8 @@ export function CrmPanel({
         <h1 className="text-3xl font-bold text-navy">CRM</h1>
         <p className="text-sm text-muted mt-1">
           {canSeeFinance
-            ? 'All form data from Supabase â€” contacts, RSVPs, registrations, donations, payments, and more.'
-            : 'Volunteer CRM â€” contacts, events, RSVPs, applications, and form log. Donations and Chai are admin-only.'}
+            ? 'All form data from Supabase — contacts, RSVPs, registrations, donations, payments, and more.'
+            : 'Volunteer CRM — contacts, events, RSVPs, applications, and form log. Donations and Chai are admin-only.'}
         </p>
       </div>
 
@@ -604,7 +603,7 @@ export function CrmPanel({
         <p className="px-4 py-2 text-xs text-muted border-b border-line">
           {rowCount} record{rowCount === 1 ? '' : 's'}
           <span className="ml-2">
-            Â· Sorted by {sortKey} ({sortDir === 'asc' ? 'Aâ†’Z / lowâ†’high' : 'Zâ†’A / highâ†’low'})
+            · Sorted by {sortKey} ({sortDir === 'asc' ? 'A→Z / low→high' : 'Z→A / high→low'})
           </span>
           {message && <span className="ml-3 text-navy font-medium">{message}</span>}
         </p>
@@ -634,13 +633,13 @@ export function CrmPanel({
           {view === 'donations' && canSeeFinance && (
             <>
               <ReconcileStripeButton />
-              <ManualZeffyEntryForm defaultType="donation" />
+              <ManualEntryForm defaultKind="one_time" />
               <DonationsTable rows={sortedDonations} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
           )}
           {view === 'chai' && canSeeFinance && (
             <>
-              <ManualZeffyEntryForm defaultType="chai_partner" />
+              <ManualEntryForm defaultKind="chai_partner" />
               <ReconcileZeffyButton />
               <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
@@ -943,7 +942,7 @@ type SortProps = {
 };
 
 function StatusPill({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted">â€”</span>;
+  if (!status) return <span className="text-muted">—</span>;
   return (
     <span
       className={`inline-block px-2.5 py-0.5 rounded-full text-[0.65rem] font-bold uppercase tracking-wide ${statusBadgeClass(status)}`}
@@ -980,7 +979,7 @@ function DetailGrid({ pairs }: { pairs: Array<[string, string | null | undefined
       {pairs.map(([label, value]) => (
         <div key={label}>
           <dt className="text-[0.65rem] uppercase tracking-wide text-muted font-bold">{label}</dt>
-          <dd className="text-navy whitespace-pre-wrap">{value || 'â€”'}</dd>
+          <dd className="text-navy whitespace-pre-wrap">{value || '—'}</dd>
         </div>
       ))}
     </dl>
@@ -1062,11 +1061,11 @@ function ActivityRow({
         <td className="px-4 py-3 whitespace-nowrap">{formatDate(row.createdAt)}</td>
         <td className="px-4 py-3">{activityTypeLabel(row.type)}</td>
         <td className="px-4 py-3 font-medium text-navy">{row.title}</td>
-        <td className="px-4 py-3">{row.email ?? 'â€”'}</td>
+        <td className="px-4 py-3">{row.email ?? '—'}</td>
         <td className="px-4 py-3">
           {row.amount != null && (row.type === 'donation' || row.type === 'chai' || row.type === 'payment')
             ? formatUsd(row.amount)
-            : 'â€”'}
+            : '—'}
         </td>
         <td className="px-4 py-3">
           <StatusPill status={row.status} />
@@ -1156,7 +1155,7 @@ function ContactsTable({
                   {c.first_name} {c.last_name}
                 </td>
                 <td className="px-4 py-3">{c.email}</td>
-                <td className="px-4 py-3">{c.interest ?? 'â€”'}</td>
+                <td className="px-4 py-3">{c.interest ?? '—'}</td>
                 <td className="px-4 py-3">
                   <StatusPill status={c.is_resolved ? 'resolved' : 'open'} />
                 </td>
@@ -1359,7 +1358,7 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
           rel="noopener noreferrer"
           className="inline-block mt-3 text-sm text-gold font-semibold"
         >
-          Open in Stripe â†’
+          Open in Stripe →
         </a>
       )}
     </>
@@ -1418,7 +1417,7 @@ function ApplicationsTable({
             >
               <td className="px-4 py-3">{formatDate(f.createdAt)}</td>
               <td className="px-4 py-3 font-medium text-navy">{f.familyName}</td>
-              <td className="px-4 py-3">{primary?.email ?? 'â€”'}</td>
+              <td className="px-4 py-3">{primary?.email ?? '—'}</td>
               <td className="px-4 py-3">{f.children.length}</td>
               <td className="px-4 py-3">
                 <StatusPill status={status} />
@@ -1465,10 +1464,10 @@ function EventsTable({
           >
             <td className="px-4 py-3 font-medium text-navy">{e.title}</td>
             <td className="px-4 py-3">{e.dateLabel ?? formatDateTime(e.startsAt)}</td>
-            <td className="px-4 py-3">{e.time ?? 'â€”'}</td>
+            <td className="px-4 py-3">{e.time ?? '—'}</td>
             <td className="px-4 py-3">{e.rsvpCount}</td>
             <td className="px-4 py-3">{e.guestTotal}</td>
-            <td className="px-4 py-3 text-muted">{e.location ?? 'â€”'}</td>
+            <td className="px-4 py-3 text-muted">{e.location ?? '—'}</td>
           </tr>
         ))}
       </tbody>
@@ -1498,8 +1497,8 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
                 {p.is_primary_contact && (
                   <span className="ml-2 text-[0.6rem] uppercase text-gold font-bold">Primary</span>
                 )}
-                <span className="text-muted"> Â· {p.email ?? 'no email'}</span>
-                {p.phone && <span className="text-muted"> Â· {p.phone}</span>}
+                <span className="text-muted"> · {p.email ?? 'no email'}</span>
+                {p.phone && <span className="text-muted"> · {p.phone}</span>}
                 {p.jewish_status && (
                   <span className="block text-muted text-xs">Jewish status: {p.jewish_status}</span>
                 )}
@@ -1515,12 +1514,12 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
             {f.children.map((c) => (
               <li key={c.id} className="text-navy">
                 {c.first_name} {c.last_name}
-                {c.grade && <span className="text-muted"> Â· Grade {c.grade}</span>}
-                {c.hebrew_name && <span className="text-muted"> Â· {c.hebrew_name}</span>}
-                {c.hebrew_level && <span className="text-muted"> Â· Level: {c.hebrew_level}</span>}
-                {c.attended_before && <span className="text-muted"> Â· Attended before: {c.attended_before}</span>}
-                {c.date_of_birth && <span className="text-muted"> Â· DOB: {c.date_of_birth}</span>}
-                {c.born_sunset_timing && <span className="text-muted"> Â· Birth timing: {c.born_sunset_timing}</span>}
+                {c.grade && <span className="text-muted"> · Grade {c.grade}</span>}
+                {c.hebrew_name && <span className="text-muted"> · {c.hebrew_name}</span>}
+                {c.hebrew_level && <span className="text-muted"> · Level: {c.hebrew_level}</span>}
+                {c.attended_before && <span className="text-muted"> · Attended before: {c.attended_before}</span>}
+                {c.date_of_birth && <span className="text-muted"> · DOB: {c.date_of_birth}</span>}
+                {c.born_sunset_timing && <span className="text-muted"> · Birth timing: {c.born_sunset_timing}</span>}
                 {c.allergies && (
                   <span className="block text-xs text-danger">Allergies: {c.allergies}</span>
                 )}
@@ -1537,12 +1536,12 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
           <ul className="space-y-2 text-sm">
             {f.registrations.map((r) => (
               <li key={r.id} className="text-navy">
-                {r.childName} â€” {r.programName}
+                {r.childName} — {r.programName}
                 <StatusPill status={r.status} />
                 {r.payment_plan && (
                   <span className="text-muted text-xs block">
                     Plan: {r.payment_plan}
-                    {r.tuition_total != null && ` Â· ${formatUsd(Number(r.tuition_total))}`}
+                    {r.tuition_total != null && ` · ${formatUsd(Number(r.tuition_total))}`}
                   </span>
                 )}
               </li>
@@ -1558,11 +1557,11 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
             rel="noopener noreferrer"
             className="text-sm text-gold font-semibold"
           >
-            Stripe customer â†’
+            Stripe customer →
           </a>
         )}
         <a href="/admin/registrations" className="text-sm text-gold font-semibold">
-          Billing admin â†’
+          Billing admin →
         </a>
       </div>
     </>
@@ -1613,8 +1612,8 @@ function PaymentsTable({
             <Fragment key={p.id}>
               <tr className="border-b border-line hover:bg-soft/40">
                 <td className="px-4 py-3">{formatDate(date)}</td>
-                <td className="px-4 py-3 font-medium text-navy">{party.name || 'â€”'}</td>
-                <td className="px-4 py-3">{party.email ?? 'â€”'}</td>
+                <td className="px-4 py-3 font-medium text-navy">{party.name || '—'}</td>
+                <td className="px-4 py-3">{party.email ?? '—'}</td>
                 <td className="px-4 py-3">{party.sourceLabel}</td>
                 <td className="px-4 py-3 font-semibold">{formatUsd(Number(p.amount))}</td>
                 <td className="px-4 py-3">
@@ -1667,7 +1666,7 @@ function PaymentDetailRow({
           rel="noopener noreferrer"
           className="inline-block mt-3 text-sm text-gold font-semibold"
         >
-          Open in Stripe â†’
+          Open in Stripe →
         </a>
       )}
     </>
@@ -1733,7 +1732,7 @@ function RsvpsTable({
                 <td className="px-4 py-3">
                   {r.first_name} {r.last_name}
                 </td>
-                <td className="px-4 py-3">{r.email ?? 'â€”'}</td>
+                <td className="px-4 py-3">{r.email ?? '—'}</td>
                 <td className="px-4 py-3">{r.guest_count}</td>
                 <td className="px-4 py-3 text-right">
                   <ExpandButton id={r.id} expandedId={expandedId} onToggle={onToggle} />
@@ -1838,7 +1837,7 @@ function ImportantDatesPanel({
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="text-[0.65rem] font-bold uppercase text-navy">Link to family (optional)</span>
           <select value={familyId} onChange={(e) => setFamilyId(e.target.value)}>
-            <option value="">â€” None â€”</option>
+            <option value="">— None —</option>
             {families.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.familyName}
@@ -1880,9 +1879,9 @@ function ImportantDatesPanel({
               <tr key={d.id} className="border-b border-line hover:bg-soft/40">
                 <td className="px-4 py-3 font-medium text-navy">{d.label}</td>
                 <td className="px-4 py-3 capitalize">{d.date_type}</td>
-                <td className="px-4 py-3">{d.gregorian_date ? formatDate(d.gregorian_date) : 'â€”'}</td>
-                <td className="px-4 py-3">{d.hebrew_date ?? 'â€”'}</td>
-                <td className="px-4 py-3">{d.notes ?? 'â€”'}</td>
+                <td className="px-4 py-3">{d.gregorian_date ? formatDate(d.gregorian_date) : '—'}</td>
+                <td className="px-4 py-3">{d.hebrew_date ?? '—'}</td>
+                <td className="px-4 py-3">{d.notes ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -1924,7 +1923,7 @@ function SubmissionsTable({
               <tr className="border-b border-line hover:bg-soft/40">
                 <td className="px-4 py-3">{formatDateTime(s.created_at)}</td>
                 <td className="px-4 py-3 capitalize">{s.form_type.replace(/_/g, ' ')}</td>
-                <td className="px-4 py-3">{s.email ?? 'â€”'}</td>
+                <td className="px-4 py-3">{s.email ?? '—'}</td>
                 <td className="px-4 py-3 text-right">
                   <ExpandButton id={s.id} expandedId={expandedId} onToggle={onToggle} />
                 </td>

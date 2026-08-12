@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
 import { persistDonation } from '@/lib/donations/persist-donation';
-import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
+import {
+  buildAbsoluteReceiptUrl,
+  buildChaiPartnerReceiptUrl,
+  sendDonationReceiptEmailFromRecord,
+} from '@/lib/email/donation-receipt';
 import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
 import type { ParsedZeffyPayment } from '@/lib/zeffy/types';
 
@@ -73,6 +77,12 @@ export async function POST(req: NextRequest) {
     `manual-${type}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}`;
 
   const sendEmail = body.sendEmail === true;
+  const paidAtRaw = (body.paidAt ?? '').trim();
+  const paidAt =
+    paidAtRaw && !Number.isNaN(new Date(paidAtRaw).getTime())
+      ? new Date(paidAtRaw).toISOString()
+      : undefined;
+  const receiptDate = paidAt ? new Date(paidAt) : new Date();
 
   if (type === 'chai_partner') {
     const parsed: ParsedZeffyPayment = {
@@ -95,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     const result = await recordZeffyChaiPartnerPayment(parsed, {
       sendEmails: sendEmail,
-      paidAt: body.paidAt,
+      paidAt,
     });
 
     if (!result.ok) {
@@ -110,11 +120,21 @@ export async function POST(req: NextRequest) {
       duplicate: Boolean(result.duplicate),
       emailed: sendEmail && !result.duplicate,
       paymentId,
+      paidAt: paidAt ?? null,
+      receiptUrl: result.duplicate
+        ? null
+        : buildChaiPartnerReceiptUrl({
+            firstName,
+            lastName,
+            amount,
+            date: receiptDate,
+          }),
     });
   }
 
   // One-time (or general) Zeffy donor
   const paymentIntentId = `zeffy:${paymentId}`;
+  const campaign = (body.campaign ?? '').trim() || 'zeffy';
   const persisted = await persistDonation({
     paymentIntentId,
     amountDollars: amount,
@@ -124,7 +144,8 @@ export async function POST(req: NextRequest) {
     phone: body.phone,
     donationType: 'One-Time',
     memo: body.memo?.trim() || 'Zeffy (manual CRM entry)',
-    campaign: (body.campaign ?? '').trim() || 'zeffy',
+    campaign,
+    paidAt,
   });
 
   if (!persisted.saved) {
@@ -141,8 +162,10 @@ export async function POST(req: NextRequest) {
       firstName,
       lastName,
       amountDollars: amount,
-      campaign: (body.campaign ?? '').trim() || 'zeffy',
+      campaign,
       donationType: 'One-Time',
+      method: 'Zeffy',
+      paidAt,
     });
   }
 
@@ -153,5 +176,15 @@ export async function POST(req: NextRequest) {
     duplicate: persisted.alreadyExisted,
     emailed,
     paymentId,
+    paidAt: paidAt ?? null,
+    receiptUrl: persisted.alreadyExisted
+      ? null
+      : buildAbsoluteReceiptUrl({
+          name: `${firstName} ${lastName}`.trim(),
+          amount,
+          date: receiptDate,
+          campaign,
+          method: 'Zeffy',
+        }),
   });
 }

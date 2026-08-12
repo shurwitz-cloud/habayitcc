@@ -6,7 +6,9 @@ import {
   buildChaiPartnerReceiptUrl,
   sendDonationReceiptEmailFromRecord,
 } from '@/lib/email/donation-receipt';
+import { formatCoupleNames } from '@/lib/donations/couple-names';
 import type { ParsedZeffyPayment } from './types';
+import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -28,8 +30,16 @@ export type RecordZeffyOptions = {
    * Imports must never pass true.
    */
   sendEmails?: boolean;
-  /** Override payment timestamp (e.g. manual Zeffy feed). */
+  /** When sendEmails is true, include tax-receipt button. Default true. */
+  includeReceiptLink?: boolean;
+  /** Override payment timestamp (e.g. manual late entry). */
   paidAt?: string;
+  /** Receipt / ledger method label (Zelle, Zeffy, Cash App, …). */
+  paymentMethod?: string;
+  spouseFirstName?: string | null;
+  spouseLastName?: string | null;
+  spouseEmail?: string | null;
+  spousePhone?: string | null;
 };
 
 /**
@@ -42,7 +52,19 @@ export async function recordZeffyChaiPartnerPayment(
 ): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
   // Default OFF — never email unless caller explicitly opts in.
   const sendEmails = options.sendEmails === true;
+  const includeReceiptLink = options.includeReceiptLink !== false;
   const paidAt = options.paidAt ?? new Date().toISOString();
+  const paymentMethodLabel = options.paymentMethod?.trim() || 'Credit Card';
+  const spouseFirstName = options.spouseFirstName?.trim() || '';
+  const spouseLastName = options.spouseLastName?.trim() || '';
+  const spouseEmail = options.spouseEmail?.trim().toLowerCase() || '';
+  const spousePhone = options.spousePhone?.trim() || '';
+  const coupleNames = formatCoupleNames({
+    firstName: parsed.firstName,
+    lastName: parsed.lastName,
+    spouseFirstName,
+    spouseLastName,
+  });
   const supabase = createAdminClient();
   const paymentKey = zeffyPaymentKey(parsed.paymentId);
 
@@ -73,8 +95,8 @@ export async function recordZeffyChaiPartnerPayment(
     const { data: partner, error: partnerError } = await supabase
       .from('chai_partners')
       .insert({
-        first_name: parsed.firstName,
-        last_name: parsed.lastName,
+        first_name: parsed.firstName || 'Member',
+        last_name: parsed.lastName || '',
         email: parsed.email,
         phone: parsed.phone || null,
         street_address: parsed.street || null,
@@ -95,21 +117,36 @@ export async function recordZeffyChaiPartnerPayment(
       return { ok: false };
     }
     partnerId = partner.id;
-  } else if (parsed.amountDollars > 0) {
-    // Keep monthly_amount in sync with latest successful Zeffy charge.
-    await supabase
-      .from('chai_partners')
-      .update({
-        monthly_amount: parsed.amountDollars,
-        status: 'active',
-        ...(parsed.phone ? { phone: parsed.phone } : {}),
-        ...(parsed.street ? { street_address: parsed.street } : {}),
-        ...(parsed.city ? { city: parsed.city } : {}),
-        ...(parsed.state ? { state: parsed.state } : {}),
-        ...(parsed.zip ? { zip: parsed.zip } : {}),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', partnerId);
+  } else {
+    const namePatch: Record<string, unknown> = {
+      status: 'active',
+      ...(parsed.phone ? { phone: parsed.phone } : {}),
+      ...(parsed.street ? { street_address: parsed.street } : {}),
+      ...(parsed.city ? { city: parsed.city } : {}),
+      ...(parsed.state ? { state: parsed.state } : {}),
+      ...(parsed.zip ? { zip: parsed.zip } : {}),
+      updated_at: new Date().toISOString(),
+    };
+    if (parsed.amountDollars > 0) {
+      namePatch.monthly_amount = parsed.amountDollars;
+    }
+    // Upgrade placeholder / empty names when Zeffy finally sends a real name
+    if (parsed.firstName) {
+      const { data: cur } = await supabase
+        .from('chai_partners')
+        .select('first_name, last_name')
+        .eq('id', partnerId)
+        .maybeSingle();
+      const badFirst = ['', 'friend', 'unknown', 'member'].includes(
+        String(cur?.first_name || '').toLowerCase(),
+      );
+      const badLast = ['', 'partner', 'unknown'].includes(
+        String(cur?.last_name || '').toLowerCase(),
+      );
+      if (badFirst) namePatch.first_name = parsed.firstName;
+      if (parsed.lastName && badLast) namePatch.last_name = parsed.lastName;
+    }
+    await supabase.from('chai_partners').update(namePatch).eq('id', partnerId);
   }
 
   const { error: paymentError } = await supabase.from('payments').insert({
@@ -119,12 +156,38 @@ export async function recordZeffyChaiPartnerPayment(
     stripe_payment_intent_id: paymentKey,
     stripe_charge_id: null,
     status: 'succeeded',
-    paid_at: new Date().toISOString(),
+    paid_at: paidAt,
   });
 
   if (paymentError) {
     console.error('[zeffy] payments insert error:', paymentError);
     return { ok: false };
+  }
+
+  await ensureCrmContact({
+    firstName: parsed.firstName,
+    lastName: parsed.lastName,
+    email: parsed.email,
+    phone: parsed.phone,
+    interest: 'Chai Partner',
+    note: `--- Synced from Zeffy Chai ---\nAmount: $${parsed.amountDollars.toFixed(2)}${
+      coupleNames.hasSpouse ? `\nSpouse: ${coupleNames.receiptName}` : ''
+    }`,
+    createdAt: paidAt,
+    isResolved: true,
+  });
+
+  if (spouseFirstName && spouseEmail.includes('@')) {
+    await ensureCrmContact({
+      firstName: spouseFirstName,
+      lastName: spouseLastName || parsed.lastName,
+      email: spouseEmail,
+      phone: spousePhone || null,
+      interest: 'Chai Partner',
+      note: `--- Spouse of Chai Partner ---\nPartner: ${parsed.firstName} ${parsed.lastName} (${parsed.email})`,
+      createdAt: paidAt,
+      isResolved: true,
+    });
   }
 
   void logFormSubmission({
@@ -139,6 +202,9 @@ export async function recordZeffyChaiPartnerPayment(
       campaignId: parsed.campaignId,
       campaignTitle: parsed.campaignTitle,
       accessCode,
+      spouseFirstName: spouseFirstName || undefined,
+      spouseLastName: spouseLastName || undefined,
+      spouseEmail: spouseEmail || undefined,
     },
   });
 
@@ -167,11 +233,19 @@ export async function recordZeffyChaiPartnerPayment(
           phone: parsed.phone,
           monthlyAmount: parsed.amountDollars,
           accessCode,
-          receiptUrl: buildChaiPartnerReceiptUrl({
-            firstName: parsed.firstName,
-            lastName: parsed.lastName,
-            amount: parsed.amountDollars,
-          }),
+          spouseFirstName,
+          spouseLastName,
+          spouseEmail,
+          receiptUrl: includeReceiptLink
+            ? buildChaiPartnerReceiptUrl({
+                firstName: parsed.firstName,
+                lastName: parsed.lastName,
+                amount: parsed.amountDollars,
+                date: new Date(paidAt),
+                method: paymentMethodLabel,
+                name: coupleNames.receiptName,
+              })
+            : undefined,
         });
       } catch (err) {
         console.error('[zeffy] welcome email failed:', err);
@@ -186,6 +260,12 @@ export async function recordZeffyChaiPartnerPayment(
         amountDollars: parsed.amountDollars,
         campaign: 'chai-partner',
         donationType: 'Monthly',
+        method: paymentMethodLabel,
+        paidAt,
+        includeReceiptLink,
+        spouseFirstName,
+        spouseLastName,
+        spouseEmail,
       });
     } catch (err) {
       console.error('[zeffy] renewal receipt failed:', err);

@@ -8,7 +8,12 @@ import {
   buildChaiPartnerReceiptUrl,
   sendDonationReceiptEmailFromRecord,
 } from '@/lib/email/donation-receipt';
-import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
+import { formatCheckPaymentMethod } from '@/lib/donations/receipt-method';
+import {
+  chaiMonthlyFromUpfront,
+  isChaiPaidUpfrontNote,
+  recordZeffyChaiPartnerPayment,
+} from '@/lib/zeffy/record-chai-payment';
 import type { ParsedZeffyPayment } from '@/lib/zeffy/types';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +25,11 @@ type EntryKind = 'one_time' | 'monthly' | 'chai_partner';
 function resolveMethodLabel(
   method: PaymentMethod,
   methodOther?: string | null,
+  checkNumber?: string | null,
 ): string {
+  if (method === 'Check') {
+    return formatCheckPaymentMethod(checkNumber);
+  }
   if (method === 'Other') {
     const other = (methodOther || '').trim();
     return other || 'Other';
@@ -50,6 +59,8 @@ export async function POST(req: NextRequest) {
     amount?: number;
     paymentMethod?: string;
     paymentMethodOther?: string;
+    /** Optional check number when paymentMethod is Check → receipt "Check #123". */
+    checkNumber?: string;
     paidAt?: string;
     paymentKey?: string;
     campaign?: string;
@@ -60,6 +71,10 @@ export async function POST(req: NextRequest) {
     spouseLastName?: string;
     spouseEmail?: string;
     spousePhone?: string;
+    /** Chai: amount is full prepaid gift; CRM monthly = monthlyAmount or amount÷12. */
+    paidUpfront?: boolean;
+    /** Chai effective monthly when paidUpfront (optional). */
+    monthlyAmount?: number;
   };
 
   try {
@@ -93,7 +108,11 @@ export async function POST(req: NextRequest) {
   const paymentMethod: PaymentMethod = (METHODS as readonly string[]).includes(rawMethod)
     ? (rawMethod as PaymentMethod)
     : 'Other';
-  const methodLabel = resolveMethodLabel(paymentMethod, body.paymentMethodOther);
+  const methodLabel = resolveMethodLabel(
+    paymentMethod,
+    body.paymentMethodOther,
+    paymentMethod === 'Check' ? body.checkNumber : undefined,
+  );
 
   if (!firstName || !lastName || !email.includes('@')) {
     return NextResponse.json(
@@ -107,11 +126,33 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ error: 'amount must be a positive number.' }, { status: 400 });
   }
-  if (kind === 'chai_partner' && amount < 150) {
-    return NextResponse.json(
-      { error: 'Chai Partner monthly amount must be at least $150.' },
-      { status: 400 },
-    );
+  const memo = (body.memo ?? '').trim();
+  const paidUpfront =
+    kind === 'chai_partner' &&
+    (body.paidUpfront === true || isChaiPaidUpfrontNote(memo));
+  const monthlyAmount = paidUpfront
+    ? Number.isFinite(body.monthlyAmount) && Number(body.monthlyAmount) > 0
+      ? Number(body.monthlyAmount)
+      : chaiMonthlyFromUpfront(amount)
+    : amount;
+
+  if (kind === 'chai_partner') {
+    if (paidUpfront) {
+      if (monthlyAmount < 150) {
+        return NextResponse.json(
+          {
+            error:
+              'Prepaid Chai Partner must equal at least $150/month (amount÷12 or monthlyAmount). Put "prepaid" in memo and enter the full amount paid.',
+          },
+          { status: 400 },
+        );
+      }
+    } else if (amount < 150) {
+      return NextResponse.json(
+        { error: 'Chai Partner monthly amount must be at least $150.' },
+        { status: 400 },
+      );
+    }
   }
 
   const sendEmailFlag = body.sendEmail === true;
@@ -164,6 +205,9 @@ export async function POST(req: NextRequest) {
       spouseLastName,
       spouseEmail,
       spousePhone,
+      paidUpfront,
+      monthlyAmount: paidUpfront ? monthlyAmount : undefined,
+      note: memo || undefined,
     });
 
     if (!result.ok) {
@@ -191,6 +235,8 @@ export async function POST(req: NextRequest) {
       includeReceiptLink: includeReceiptLink && sendEmailFlag,
       paymentMethod: methodLabel,
       paidAt: paidAt ?? null,
+      paidUpfront,
+      monthlyAmount: paidUpfront ? monthlyAmount : amount,
       receiptUrl,
       receiptName: coupleNames.receiptName,
       greeting: coupleNames.greeting,
@@ -207,7 +253,7 @@ export async function POST(req: NextRequest) {
   const campaign = (body.campaign ?? '').trim() || null;
 
   const memoParts = [
-    body.memo?.trim(),
+    memo || null,
     `via ${methodLabel}`,
     coupleNames.hasSpouse ? `Spouse: ${coupleNames.receiptName}` : null,
   ].filter(Boolean);
@@ -260,7 +306,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const userMemo = (body.memo ?? '').trim() || null;
+  const userMemo = memo || null;
 
   let emailed = false;
   if (sendEmailFlag && !persisted.alreadyExisted) {

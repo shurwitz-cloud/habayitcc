@@ -23,6 +23,23 @@ function zeffyPaymentKey(paymentId: string): string {
   return `zeffy:${paymentId}`;
 }
 
+/** Memo / note keywords that mean the entered amount is the full prepaid gift. */
+export function isChaiPaidUpfrontNote(text?: string | null): boolean {
+  const t = (text || '').toLowerCase();
+  return (
+    /\bprepaid\b/.test(t) ||
+    /\bupfront\b/.test(t) ||
+    /\bpaid\s+up\s*front\b/.test(t) ||
+    /\bfull\s+year\b/.test(t) ||
+    /\bannual\b/.test(t) ||
+    /\bpaid\s+in\s+full\b/.test(t)
+  );
+}
+
+export function chaiMonthlyFromUpfront(paidAmount: number): number {
+  return Math.round((paidAmount / 12) * 100) / 100;
+}
+
 export type RecordZeffyOptions = {
   /**
    * Welcome / receipt emails. Default **false** (safe).
@@ -40,6 +57,15 @@ export type RecordZeffyOptions = {
   spouseLastName?: string | null;
   spouseEmail?: string | null;
   spousePhone?: string | null;
+  /**
+   * Amount paid is the full prepaid gift (email/receipt show this).
+   * CRM `monthly_amount` uses monthlyAmount or paid÷12.
+   */
+  paidUpfront?: boolean;
+  /** Effective monthly rate when paidUpfront (default paid÷12). */
+  monthlyAmount?: number;
+  /** Optional admin note (e.g. memo "prepaid"). */
+  note?: string | null;
 };
 
 /**
@@ -59,6 +85,15 @@ export async function recordZeffyChaiPartnerPayment(
   const spouseLastName = options.spouseLastName?.trim() || '';
   const spouseEmail = options.spouseEmail?.trim().toLowerCase() || '';
   const spousePhone = options.spousePhone?.trim() || '';
+  const noteText = (options.note ?? '').trim();
+  const paidUpfront =
+    options.paidUpfront === true || isChaiPaidUpfrontNote(noteText);
+  const paidAmount = parsed.amountDollars;
+  const monthlyAmount = paidUpfront
+    ? Number.isFinite(options.monthlyAmount) && Number(options.monthlyAmount) > 0
+      ? Number(options.monthlyAmount)
+      : chaiMonthlyFromUpfront(paidAmount)
+    : paidAmount;
   const coupleNames = formatCoupleNames({
     firstName: parsed.firstName,
     lastName: parsed.lastName,
@@ -103,7 +138,7 @@ export async function recordZeffyChaiPartnerPayment(
         city: parsed.city || null,
         state: parsed.state || null,
         zip: parsed.zip || null,
-        monthly_amount: parsed.amountDollars,
+        monthly_amount: monthlyAmount,
         stripe_customer_id: null,
         stripe_subscription_id: null,
         access_code: accessCode,
@@ -127,8 +162,8 @@ export async function recordZeffyChaiPartnerPayment(
       ...(parsed.zip ? { zip: parsed.zip } : {}),
       updated_at: new Date().toISOString(),
     };
-    if (parsed.amountDollars > 0) {
-      namePatch.monthly_amount = parsed.amountDollars;
+    if (monthlyAmount > 0) {
+      namePatch.monthly_amount = monthlyAmount;
     }
     // Upgrade placeholder / empty names when Zeffy finally sends a real name
     if (parsed.firstName) {
@@ -152,7 +187,7 @@ export async function recordZeffyChaiPartnerPayment(
   const { error: paymentError } = await supabase.from('payments').insert({
     source_type: 'chai_partner',
     source_id: partnerId,
-    amount: parsed.amountDollars,
+    amount: paidAmount,
     stripe_payment_intent_id: paymentKey,
     stripe_charge_id: null,
     status: 'succeeded',
@@ -164,15 +199,19 @@ export async function recordZeffyChaiPartnerPayment(
     return { ok: false };
   }
 
+  const amountNote = paidUpfront
+    ? `Paid upfront: $${paidAmount.toFixed(2)}\nCRM monthly: $${monthlyAmount.toFixed(2)}`
+    : `Amount: $${paidAmount.toFixed(2)}`;
+
   await ensureCrmContact({
     firstName: parsed.firstName,
     lastName: parsed.lastName,
     email: parsed.email,
     phone: parsed.phone,
     interest: 'Chai Partner',
-    note: `--- Synced from Zeffy Chai ---\nAmount: $${parsed.amountDollars.toFixed(2)}${
-      coupleNames.hasSpouse ? `\nSpouse: ${coupleNames.receiptName}` : ''
-    }`,
+    note: `--- Synced from Zeffy Chai ---\n${amountNote}${
+      noteText ? `\nMemo: ${noteText}` : ''
+    }${coupleNames.hasSpouse ? `\nSpouse: ${coupleNames.receiptName}` : ''}`,
     createdAt: paidAt,
     isResolved: true,
   });
@@ -198,7 +237,9 @@ export async function recordZeffyChaiPartnerPayment(
       provider: 'zeffy',
       type: isNewPartner ? 'signup' : 'renewal',
       zeffyPaymentId: parsed.paymentId,
-      amountDollars: parsed.amountDollars,
+      amountDollars: paidAmount,
+      monthlyAmount,
+      paidUpfront,
       campaignId: parsed.campaignId,
       campaignTitle: parsed.campaignTitle,
       accessCode,
@@ -218,7 +259,7 @@ export async function recordZeffyChaiPartnerPayment(
       city: parsed.city,
       state: parsed.state,
       zip: parsed.zip,
-      monthlyAmount: parsed.amountDollars,
+      monthlyAmount,
       accessCode,
       subscriptionId: `zeffy:${parsed.paymentId}`,
       customerId: '',
@@ -231,7 +272,9 @@ export async function recordZeffyChaiPartnerPayment(
           lastName: parsed.lastName,
           email: parsed.email,
           phone: parsed.phone,
-          monthlyAmount: parsed.amountDollars,
+          monthlyAmount,
+          paidUpfront,
+          paidAmount,
           accessCode,
           spouseFirstName,
           spouseLastName,
@@ -240,7 +283,7 @@ export async function recordZeffyChaiPartnerPayment(
             ? buildChaiPartnerReceiptUrl({
                 firstName: parsed.firstName,
                 lastName: parsed.lastName,
-                amount: parsed.amountDollars,
+                amount: paidAmount,
                 date: new Date(paidAt),
                 method: paymentMethodLabel,
                 name: coupleNames.receiptName,
@@ -257,9 +300,9 @@ export async function recordZeffyChaiPartnerPayment(
         email: parsed.email,
         firstName: parsed.firstName || existingPartner?.first_name || '',
         lastName: parsed.lastName || existingPartner?.last_name || '',
-        amountDollars: parsed.amountDollars,
+        amountDollars: paidAmount,
         campaign: 'chai-partner',
-        donationType: 'Monthly',
+        donationType: paidUpfront ? 'One-Time' : 'Monthly',
         method: paymentMethodLabel,
         paidAt,
         includeReceiptLink,

@@ -21,6 +21,7 @@ const empty = {
   campaign: '',
   memo: '',
   methodOther: '',
+  checkNumber: '',
   spouseFirstName: '',
   spouseLastName: '',
   spouseEmail: '',
@@ -102,6 +103,10 @@ export function ManualEntryForm({
           amount,
           paymentMethod,
           paymentMethodOther: paymentMethod === 'Other' ? form.methodOther || undefined : undefined,
+          checkNumber:
+            paymentMethod === 'Check' && form.checkNumber.trim()
+              ? form.checkNumber.trim()
+              : undefined,
           paidAt,
           sendEmail,
           includeReceiptLink,
@@ -136,8 +141,16 @@ export function ManualEntryForm({
       if (data.duplicate) {
         setMessage('Already in CRM (duplicate). No new email sent.');
       } else {
-        const kindLabel =
-          kind === 'chai_partner' ? 'Chai Partner' : kind === 'monthly' ? 'Monthly gift' : 'Donation';
+        const prepaid =
+          kind === 'chai_partner' &&
+          /\b(prepaid|upfront|annual|full\s+year|paid\s+in\s+full)\b/i.test(form.memo);
+        const kindLabel = prepaid
+          ? 'Chai Partner (prepaid)'
+          : kind === 'chai_partner'
+            ? 'Chai Partner'
+            : kind === 'monthly'
+              ? 'Monthly gift'
+              : 'Donation';
         setMessage(
           `Saved ${kindLabel} via ${data.paymentMethod || paymentMethod}${
             data.greeting ? ` (${data.greeting})` : ''
@@ -225,6 +238,13 @@ export function ManualEntryForm({
                 onChange={(v) => setField('methodOther', v)}
                 placeholder="e.g. Venmo, wire…"
               />
+            ) : paymentMethod === 'Check' ? (
+              <Field
+                label="Check number (optional)"
+                value={form.checkNumber}
+                onChange={(v) => setField('checkNumber', v)}
+                placeholder="e.g. 123"
+              />
             ) : (
               <div className="hidden sm:block" />
             )}
@@ -241,7 +261,7 @@ export function ManualEntryForm({
             />
             <Field label="Phone" value={form.phone} onChange={(v) => setField('phone', v)} />
             <Field
-              label={kind === 'chai_partner' ? 'Monthly amount ($)' : 'Amount ($)'}
+              label={kind === 'chai_partner' ? 'Amount ($)' : 'Amount ($)'}
               type="number"
               value={form.amount}
               onChange={(v) => setField('amount', v)}
@@ -257,6 +277,18 @@ export function ManualEntryForm({
             />
             {kind === 'chai_partner' ? (
               <>
+                <Field
+                  label="Memo (optional)"
+                  value={form.memo}
+                  onChange={(v) => setField('memo', v)}
+                  className="sm:col-span-2"
+                  placeholder='Type "prepaid" or "upfront" if they paid the full year'
+                />
+                <p className="sm:col-span-2 text-xs text-[#6f6a60] -mt-1">
+                  Monthly: enter the monthly gift. Prepaid year: enter the <em>full</em> amount
+                  paid and put <strong>prepaid</strong> in memo — email/receipt show the full
+                  amount; CRM monthly = amount ÷ 12.
+                </p>
                 <Field label="Street" value={form.street} onChange={(v) => setField('street', v)} className="sm:col-span-2" />
                 <Field label="City" value={form.city} onChange={(v) => setField('city', v)} />
                 <Field label="State" value={form.state} onChange={(v) => setField('state', v)} />

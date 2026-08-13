@@ -39,6 +39,7 @@ export function ManualEntryForm({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Zelle');
   const [form, setForm] = useState(empty);
   const [includeSpouse, setIncludeSpouse] = useState(false);
+  const [paidUpfront, setPaidUpfront] = useState(false);
   const [sendEmail, setSendEmail] = useState(false);
   const [includeReceiptLink, setIncludeReceiptLink] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
@@ -110,6 +111,7 @@ export function ManualEntryForm({
           paidAt,
           sendEmail,
           includeReceiptLink,
+          paidUpfront: kind === 'chai_partner' && paidUpfront ? true : undefined,
           campaign: form.campaign || undefined,
           memo: form.memo || undefined,
           ...(includeSpouse
@@ -141,16 +143,14 @@ export function ManualEntryForm({
       if (data.duplicate) {
         setMessage('Already in CRM (duplicate). No new email sent.');
       } else {
-        const prepaid =
-          kind === 'chai_partner' &&
-          /\b(prepaid|upfront|annual|full\s+year|paid\s+in\s+full)\b/i.test(form.memo);
-        const kindLabel = prepaid
-          ? 'Chai Partner (prepaid)'
-          : kind === 'chai_partner'
-            ? 'Chai Partner'
-            : kind === 'monthly'
-              ? 'Monthly gift'
-              : 'Donation';
+        const kindLabel =
+          kind === 'chai_partner' && paidUpfront
+            ? 'Chai Partner (prepaid year)'
+            : kind === 'chai_partner'
+              ? 'Chai Partner'
+              : kind === 'monthly'
+                ? 'Monthly gift'
+                : 'Donation';
         setMessage(
           `Saved ${kindLabel} via ${data.paymentMethod || paymentMethod}${
             data.greeting ? ` (${data.greeting})` : ''
@@ -161,6 +161,7 @@ export function ManualEntryForm({
       }
       setForm(empty);
       setIncludeSpouse(false);
+      setPaidUpfront(false);
       router.refresh();
     } catch {
       setStatus('error');
@@ -208,12 +209,32 @@ export function ManualEntryForm({
                     type="radio"
                     name="manual-entry-kind"
                     checked={kind === value}
-                    onChange={() => setKind(value)}
+                    onChange={() => {
+                      setKind(value);
+                      if (value !== 'chai_partner') setPaidUpfront(false);
+                    }}
                   />
                   {label}
                 </label>
               ))}
             </div>
+            {kind === 'chai_partner' ? (
+              <label className="mt-3 flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={paidUpfront}
+                  onChange={(e) => setPaidUpfront(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-semibold">Paid full year upfront</span>
+                  <span className="mt-0.5 block text-[#6f6a60]">
+                    Enter the full amount paid. Email and receipt show that total; CRM monthly =
+                    amount ÷ 12.
+                  </span>
+                </span>
+              </label>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -261,12 +282,18 @@ export function ManualEntryForm({
             />
             <Field label="Phone" value={form.phone} onChange={(v) => setField('phone', v)} />
             <Field
-              label={kind === 'chai_partner' ? 'Amount ($)' : 'Amount ($)'}
+              label={
+                kind === 'chai_partner'
+                  ? paidUpfront
+                    ? 'Full amount paid ($)'
+                    : 'Monthly amount ($)'
+                  : 'Amount ($)'
+              }
               type="number"
               value={form.amount}
               onChange={(v) => setField('amount', v)}
               required
-              min={kind === 'chai_partner' ? 150 : 1}
+              min={kind === 'chai_partner' ? (paidUpfront ? 1800 : 150) : 1}
               step="0.01"
             />
             <Field
@@ -282,13 +309,8 @@ export function ManualEntryForm({
                   value={form.memo}
                   onChange={(v) => setField('memo', v)}
                   className="sm:col-span-2"
-                  placeholder='Type "prepaid" or "upfront" if they paid the full year'
+                  placeholder="Optional note"
                 />
-                <p className="sm:col-span-2 text-xs text-[#6f6a60] -mt-1">
-                  Monthly: enter the monthly gift. Prepaid year: enter the <em>full</em> amount
-                  paid and put <strong>prepaid</strong> in memo — email/receipt show the full
-                  amount; CRM monthly = amount ÷ 12.
-                </p>
                 <Field label="Street" value={form.street} onChange={(v) => setField('street', v)} className="sm:col-span-2" />
                 <Field label="City" value={form.city} onChange={(v) => setField('city', v)} />
                 <Field label="State" value={form.state} onChange={(v) => setField('state', v)} />

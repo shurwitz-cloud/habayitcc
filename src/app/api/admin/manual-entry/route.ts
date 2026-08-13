@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Prepaid Chai Partner must equal at least $150/month (amount÷12 or monthlyAmount). Put "prepaid" in memo and enter the full amount paid.',
+              'Prepaid Chai Partner must equal at least $150/month (full amount ÷ 12). Check “Paid full year upfront” and enter the full amount paid.',
           },
           { status: 400 },
         );

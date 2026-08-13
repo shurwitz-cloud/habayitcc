@@ -46,6 +46,15 @@ export function ManualEntryForm({
   const [message, setMessage] = useState('');
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
+  const amountNumber = Number(form.amount);
+  const prepaidMonthly =
+    kind === 'chai_partner' &&
+    paidUpfront &&
+    Number.isFinite(amountNumber) &&
+    amountNumber > 0
+      ? Math.round((amountNumber / 12) * 100) / 100
+      : null;
+
   function setField(key: keyof typeof empty, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -151,10 +160,14 @@ export function ManualEntryForm({
               : kind === 'monthly'
                 ? 'Monthly gift'
                 : 'Donation';
+        const monthlyNote =
+          kind === 'chai_partner' && paidUpfront && Number.isFinite(amount)
+            ? ` CRM monthly $${(Math.round((amount / 12) * 100) / 100).toFixed(2)}/mo.`
+            : '';
         setMessage(
           `Saved ${kindLabel} via ${data.paymentMethod || paymentMethod}${
             data.greeting ? ` (${data.greeting})` : ''
-          }.${data.accessCode ? ` Code ${data.accessCode}.` : ''}${
+          }.${monthlyNote}${data.accessCode ? ` Code ${data.accessCode}.` : ''}${
             data.emailed ? ' Email sent.' : ' No email sent.'
           }`,
         );
@@ -229,8 +242,8 @@ export function ManualEntryForm({
                 <span>
                   <span className="font-semibold">Paid full year upfront</span>
                   <span className="mt-0.5 block text-[#6f6a60]">
-                    Enter the full amount paid. Email and receipt show that total; CRM monthly =
-                    amount ÷ 12.
+                    Enter only the full amount they paid (e.g. 1800). CRM calculates monthly as
+                    amount ÷ 12 (e.g. $150). Email and receipt use the full amount.
                   </span>
                 </span>
               </label>
@@ -281,21 +294,39 @@ export function ManualEntryForm({
               className="sm:col-span-2"
             />
             <Field label="Phone" value={form.phone} onChange={(v) => setField('phone', v)} />
-            <Field
-              label={
-                kind === 'chai_partner'
-                  ? paidUpfront
-                    ? 'Full amount paid ($)'
-                    : 'Monthly amount ($)'
-                  : 'Amount ($)'
-              }
-              type="number"
-              value={form.amount}
-              onChange={(v) => setField('amount', v)}
-              required
-              min={kind === 'chai_partner' ? (paidUpfront ? 1800 : 150) : 1}
-              step="0.01"
-            />
+            <div>
+              <Field
+                label={
+                  kind === 'chai_partner'
+                    ? paidUpfront
+                      ? 'Full amount paid ($)'
+                      : 'Monthly amount ($)'
+                    : 'Amount ($)'
+                }
+                type="number"
+                value={form.amount}
+                onChange={(v) => setField('amount', v)}
+                required
+                min={kind === 'chai_partner' ? (paidUpfront ? 1800 : 150) : 1}
+                step="0.01"
+                placeholder={kind === 'chai_partner' && paidUpfront ? '1800' : undefined}
+              />
+              {prepaidMonthly != null ? (
+                <p className="mt-1.5 text-sm text-[#172643]">
+                  CRM monthly:{' '}
+                  <strong>
+                    ${prepaidMonthly.toFixed(2)}
+                    /mo
+                  </strong>{' '}
+                  <span className="text-[#6f6a60]">(full amount ÷ 12)</span>
+                  {prepaidMonthly < 150 ? (
+                    <span className="block text-red-700 mt-0.5">
+                      Must be at least $150/mo — enter at least $1,800 for a prepaid year.
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
+            </div>
             <Field
               label="Paid at (real date if entering late)"
               type="datetime-local"

@@ -53,6 +53,7 @@ import { setContactResolved, addImportantDate } from './actions';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
+import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -1256,18 +1257,25 @@ function DonationsTable({
 
 function DonationDetailRow({ d }: { d: CrmSnapshot['donations'][number] }) {
   return (
-    <DetailGrid
-      pairs={[
-        ['Phone', d.phone],
-        ['Type', d.donation_type],
-        ['Memo', d.memo],
-        ['Campaign', d.campaign],
-        ['Dedication', d.dedication_name],
-        ['Dedication type', d.dedication_type],
-        ['Stripe payment', d.stripe_payment_intent_id],
-        ['Submitted', formatDateTime(d.created_at)],
-      ]}
-    />
+    <>
+      <DetailGrid
+        pairs={[
+          ['Phone', d.phone],
+          ['Type', d.donation_type],
+          ['Memo', d.memo],
+          ['Campaign', d.campaign],
+          ['Dedication', d.dedication_name],
+          ['Dedication type', d.dedication_type],
+          ['Stripe payment', d.stripe_payment_intent_id],
+          ['Submitted', formatDateTime(d.created_at)],
+        ]}
+      />
+      <DeleteCrmEntryButton
+        kind="donation"
+        id={d.id}
+        label={`${d.first_name} ${d.last_name} · ${d.email} · ${formatUsd(Number(d.amount))}`}
+      />
+    </>
   );
 }
 
@@ -1361,6 +1369,11 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
           Open in Stripe →
         </a>
       )}
+      <DeleteCrmEntryButton
+        kind="chai_partner"
+        id={c.id}
+        label={`${c.first_name} ${c.last_name} · ${c.email} · ${formatUsd(Number(c.monthly_amount))}/mo`}
+      />
     </>
   );
 }

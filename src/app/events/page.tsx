@@ -3,45 +3,13 @@ import { Footer } from '@/components/layout/Footer';
 import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section } from '@/components/sections/Section';
-import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
 import { PAID_EVENTS, paidEventRegisterPath } from '@/lib/events/paid-events';
-import { registrationLocationHint } from '@/lib/events/location';
 
 export const metadata = {
   title: 'Events – HaBayit Jewish Center',
   description:
     'Upcoming events at HaBayit Jewish Center — Shabbat dinners, holiday celebrations, classes, and community gatherings.',
 };
-
-const GENERAL_EVENTS = [
-  {
-    month: 'Jul',
-    day: '18',
-    title: 'Shabbat Dinner',
-    meta: 'Friday · 6:30 PM · HaBayit Center',
-    description:
-      'A warm, home-style Shabbat dinner. Beautiful blessings, delicious food, great company. All are welcome.',
-    rsvpHref: '/contact',
-  },
-  {
-    month: 'Jul',
-    day: '25',
-    title: 'Torah & Coffee',
-    meta: 'Sunday · 10:00 AM · HaBayit Center',
-    description:
-      'A relaxed weekly class exploring timeless Torah wisdom with real-life relevance. Great coffee included.',
-    rsvpHref: '/contact',
-  },
-  {
-    month: 'Aug',
-    day: '1',
-    title: 'Family Shabbat',
-    meta: 'Friday · 6:30 PM · HaBayit Center',
-    description:
-      'A special Shabbat experience designed for families with young children. Songs, stories, candle lighting together.',
-    rsvpHref: '/contact',
-  },
-];
 
 export default function EventsPage() {
   return (
@@ -53,22 +21,21 @@ export default function EventsPage() {
           slotId="events.hero"
           kicker="What's Happening"
           minHeight={HERO_HEIGHT.page}
-          subtitle="Shabbat dinners, holiday celebrations, classes, and community gatherings."
+          subtitle="Rosh Hashana gatherings, community dinners, and family programs."
         >
           Upcoming Events
         </SiteRotatingHero>
 
-        {/* Open House / Featured events — card grid with flyers */}
         <Section background="soft">
           <div className="max-w-[960px] mx-auto">
             <p className="text-gold text-[0.75rem] font-extrabold uppercase tracking-[0.14em] mb-6 text-center">
-              Open Houses &amp; Special Events
+              Rosh Hashana
             </p>
             <div className="grid md:grid-cols-3 gap-6">
-              {OPEN_HOUSE_EVENTS.map((event) => (
+              {PAID_EVENTS.map((event) => (
                 <a
                   key={event.slug}
-                  href={`/rsvp/${event.slug}`}
+                  href={paidEventRegisterPath(event.slug)}
                   className="group bg-white border border-line rounded-[20px] overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
                 >
                   {event.flyer ? (
@@ -91,81 +58,16 @@ export default function EventsPage() {
                       <span className="text-muted text-[0.72rem]">· {event.time}</span>
                     </div>
                     <h3 className="text-navy font-bold text-[1.1rem] leading-snug">{event.title}</h3>
-                    {registrationLocationHint(event) && (
-                      <p className="text-muted text-[0.78rem]">{registrationLocationHint(event)}</p>
+                    {event.location && (
+                      <p className="text-muted text-[0.78rem]">{event.location}</p>
                     )}
                     <span className="mt-2 inline-block text-[0.75rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-0.5 w-fit group-hover:text-gold transition-colors">
-                      RSVP →
+                      Register →
                     </span>
                   </div>
                 </a>
               ))}
             </div>
-          </div>
-        </Section>
-
-        {/* Rosh Hashana & ticketed events */}
-        <Section background="white">
-          <div className="max-w-[960px] mx-auto">
-            <p className="text-gold text-[0.75rem] font-extrabold uppercase tracking-[0.14em] mb-6 text-center">
-              Rosh Hashana &amp; Ticketed Events
-            </p>
-            <div className="grid md:grid-cols-3 gap-6">
-              {PAID_EVENTS.map((event) => (
-                <a
-                  key={event.slug}
-                  href={paidEventRegisterPath(event.slug)}
-                  className="group bg-white border border-line rounded-[20px] overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col p-6"
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-gold text-[0.72rem] font-extrabold uppercase tracking-wider">
-                      {event.month} {event.day}
-                    </span>
-                    <span className="text-muted text-[0.72rem]">· {event.time}</span>
-                  </div>
-                  <h3 className="text-navy font-bold text-[1.1rem] leading-snug mb-2">{event.title}</h3>
-                  <p className="text-muted text-[0.85rem] flex-1">{event.description}</p>
-                  <span className="mt-4 inline-block text-[0.75rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-0.5 w-fit group-hover:text-gold transition-colors">
-                    Register →
-                  </span>
-                </a>
-              ))}
-            </div>
-          </div>
-        </Section>
-
-        {/* Regular recurring events — list */}
-        <Section background="cream">
-          <div className="max-w-[840px] mx-auto">
-            <p className="text-gold text-[0.75rem] font-extrabold uppercase tracking-[0.14em] mb-6 text-center">
-              Ongoing &amp; Recurring Events
-            </p>
-            {GENERAL_EVENTS.map((event, i) => (
-              <div
-                key={event.title}
-                className={`grid grid-cols-[80px_1fr] md:grid-cols-[120px_1fr_auto] gap-5 md:gap-7 items-center py-7 border-b border-line ${
-                  i === 0 ? 'border-t' : ''
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-[0.7rem] tracking-[0.12em] uppercase text-gold font-bold">
-                    {event.month}
-                  </div>
-                  <div className="text-[2.2rem] text-navy font-bold leading-none">{event.day}</div>
-                </div>
-                <div className="col-span-2 md:col-span-1">
-                  <h3 className="text-[1.4rem] text-navy font-bold mb-1.5">{event.title}</h3>
-                  <div className="text-[0.85rem] text-gold font-semibold mb-2">{event.meta}</div>
-                  <p className="text-muted text-[0.92rem]">{event.description}</p>
-                </div>
-                <a
-                  href={event.rsvpHref}
-                  className="col-span-2 md:col-span-1 justify-self-start md:justify-self-auto text-[0.78rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-1 hover:text-gold mt-2 md:mt-0"
-                >
-                  RSVP →
-                </a>
-              </div>
-            ))}
           </div>
         </Section>
       </main>

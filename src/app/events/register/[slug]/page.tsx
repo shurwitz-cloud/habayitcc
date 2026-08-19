@@ -40,6 +40,12 @@ export default async function PaidEventRegisterPage({
             <span>{event.dateLabel}</span>
             <span>·</span>
             <span>{event.time}</span>
+            {event.location && (
+              <>
+                <span>·</span>
+                <span>{event.location}</span>
+              </>
+            )}
           </div>
           <p className="text-white/80 text-[1rem] max-w-[520px] mx-auto leading-relaxed">
             {event.description}
@@ -48,6 +54,15 @@ export default async function PaidEventRegisterPage({
 
         <Section background="soft">
           <div className="max-w-[560px] mx-auto">
+            {event.flyer && (
+              <div className="mb-8 rounded-[18px] overflow-hidden border border-line shadow-sm bg-black">
+                <img
+                  src={event.flyer}
+                  alt={`${event.title} flyer`}
+                  className="w-full h-auto block"
+                />
+              </div>
+            )}
             <div className="bg-white border border-line rounded-[22px] p-8 md:p-10 shadow-sm">
               <h2 className="text-[1.6rem] text-navy font-bold mb-6 text-center leading-snug">
                 Register

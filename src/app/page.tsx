@@ -90,10 +90,10 @@ export default async function HomePage() {
           <SectionTitle eyebrow="">Upcoming at HaBayit</SectionTitle>
           <div className="grid md:grid-cols-3 border-t border-b border-line">
             <EventPreview
-              date="Aug 13"
-              title="HaBayit BMX Open House"
-              description="An evening for 7th grade boys — Jewish pride, mitzvah projects, and real conversation."
-              href="/rsvp/bmx"
+              date="Sep 1"
+              title="The Art of Kintsugi"
+              description="A HaBayit Ladies evening to welcome Rosh Hashana and Yom Kippur in a meaningful way."
+              href="/events/register/pre-rosh-hashana-womens"
             />
             <EventPreview
               date="Weekly"

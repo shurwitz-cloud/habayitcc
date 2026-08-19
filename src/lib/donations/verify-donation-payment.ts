@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe/server';
-
+import { normalizeDonorEmail } from '@/lib/donations/normalize-donor';
 export type VerifiedDonationPayment = {
   amountDollars: number;
   donorEmail?: string;
@@ -24,7 +24,8 @@ export async function verifyDonationPaymentIntent(
   }
 
   const meta = pi.metadata ?? {};
-
+  let donorEmail = meta.donor_email ? normalizeDonorEmail(meta.donor_email) : undefined;
+  let donorName = meta.donor_name?.trim();
   if (donationType === 'One-Time') {
     if (meta.type !== 'donation' || meta.donation_type !== 'one_time') {
       return { ok: false, error: 'Invalid payment reference.' };
@@ -59,14 +60,49 @@ export async function verifyDonationPaymentIntent(
     if (subscription.metadata?.type !== 'monthly_donation') {
       return { ok: false, error: 'Invalid payment reference.' };
     }
+
+    donorEmail = subscription.metadata?.donor_email
+      ? normalizeDonorEmail(subscription.metadata.donor_email)
+      : donorEmail;
+    donorName = subscription.metadata?.donor_name ?? donorName;
   }
 
   return {
     ok: true,
     payment: {
       amountDollars: pi.amount / 100,
-      donorEmail: meta.donor_email,
-      donorName: meta.donor_name,
+      donorEmail,
+      donorName,
     },
+  };
+}
+
+/** Prefer Stripe metadata for CRM; reject email mismatch with payment. */
+export function resolveVerifiedDonorIdentity(
+  verified: VerifiedDonationPayment,
+  input: { firstName: string; lastName: string; email: string }
+): { ok: true; firstName: string; lastName: string; email: string } | { ok: false; error: string } {
+  const clientEmail = normalizeDonorEmail(input.email);
+  const stripeEmail = verified.donorEmail ? normalizeDonorEmail(verified.donorEmail) : undefined;
+
+  if (stripeEmail && stripeEmail !== clientEmail) {
+    return { ok: false, error: 'Email does not match the payment on file.' };
+  }
+
+  if (verified.donorName?.trim()) {
+    const [firstName, ...rest] = verified.donorName.trim().split(/\s+/);
+    return {
+      ok: true,
+      firstName: firstName || input.firstName.trim(),
+      lastName: rest.join(' ') || input.lastName.trim(),
+      email: stripeEmail || clientEmail,
+    };
+  }
+
+  return {
+    ok: true,
+    firstName: input.firstName.trim(),
+    lastName: input.lastName.trim(),
+    email: clientEmail,
   };
 }

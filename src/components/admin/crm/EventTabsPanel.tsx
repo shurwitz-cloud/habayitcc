@@ -2,7 +2,7 @@
 
 import type { CrmEventRecord } from '@/lib/admin/crm/types';
 import { eventsOutsideTabs, pickEventTabList } from '@/lib/admin/crm/event-tabs';
-import { formatDate } from '@/lib/admin/crm/utils';
+import { formatDate, formatUsd } from '@/lib/admin/crm/utils';
 
 export function EventTabsPanel({
   events,
@@ -117,23 +117,47 @@ export function EventTabsSummary({
   if (!event) return null;
 
   return (
-    <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted flex flex-wrap gap-x-6 gap-y-1">
-      <span>
-        <strong className="text-navy">{event.title}</strong>
-        {(event.dateLabel || event.startsAt) && (
-          <> · {event.dateLabel ?? formatDate(event.startsAt)}</>
-        )}
-      </span>
-      <span>
-        <strong className="text-navy">{event.rsvpCount}</strong> RSVP
-        {event.rsvpCount === 1 ? '' : 's'}
-      </span>
-      <span>
-        <strong className="text-navy">{event.guestTotal}</strong> guest
-        {event.guestTotal === 1 ? '' : 's'}
-      </span>
-      {event.location && <span>{event.location}</span>}
-      {mode === 'events' && event.time && <span>{event.time}</span>}
+    <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted space-y-2">
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        <span>
+          <strong className="text-navy">{event.title}</strong>
+          {(event.dateLabel || event.startsAt) && (
+            <> · {event.dateLabel ?? formatDate(event.startsAt)}</>
+          )}
+        </span>
+        <span>
+          <strong className="text-navy">{event.rsvpCount}</strong> submission
+          {event.rsvpCount === 1 ? '' : 's'}
+        </span>
+        <span>
+          <strong className="text-navy">{event.guestTotal}</strong> people
+        </span>
+        {event.hasAdultsKids ? (
+          <>
+            <span>
+              <strong className="text-navy">{event.adultsTotal ?? 0}</strong> adults
+            </span>
+            <span>
+              <strong className="text-navy">{event.kidsTotal ?? 0}</strong> kids
+            </span>
+          </>
+        ) : null}
+        {event.location && <span>{event.location}</span>}
+        {mode === 'events' && event.time && <span>{event.time}</span>}
+      </div>
+      {event.hasMoney ? (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-navy">
+          <span>
+            Tickets <strong>{formatUsd(event.ticketTotal)}</strong>
+          </span>
+          <span>
+            Donations <strong>{formatUsd(event.donationTotal)}</strong>
+          </span>
+          <span>
+            Total <strong>{formatUsd(event.revenueTotal)}</strong>
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

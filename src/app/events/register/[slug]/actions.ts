@@ -192,6 +192,7 @@ export async function submitPaidEventRegistration(
       fair: input.fair,
       womens: input.womens,
       fairChildLines: pricing.fairChildLines,
+      ticketSubtotal: pricing.ticketSubtotal,
       coverFee: input.coverFee,
     };
 

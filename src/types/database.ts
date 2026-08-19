@@ -121,6 +121,14 @@ export interface EventRegistration {
   phone: string | null;
   guest_count: number;
   notes: string | null;
+  /** Grand total charged (tickets + sponsor + card fee). */
+  amount?: number | null;
+  /** Optional sponsorship / donation add-on. */
+  sponsor_amount?: number | null;
+  card_fee?: number | null;
+  stripe_payment_intent_id?: string | null;
+  /** Structured ticket breakdown (dinner/fair/womens + ticketSubtotal). */
+  registration_details?: Record<string, unknown> | null;
   created_at: string;
 }
 

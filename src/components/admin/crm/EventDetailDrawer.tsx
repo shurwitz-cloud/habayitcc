@@ -1,7 +1,11 @@
 'use client';
 
-import type { CrmEventRecord } from '@/lib/admin/crm/types';
-import { formatDateTime } from '@/lib/admin/crm/utils';
+import type { CrmEventRecord, CrmRsvpRecord } from '@/lib/admin/crm/types';
+import {
+  parseEventMoney,
+  parseEventPeople,
+} from '@/lib/admin/crm/event-registration-stats';
+import { formatDateTime, formatUsd } from '@/lib/admin/crm/utils';
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -10,6 +14,61 @@ function SectionCard({ title, children }: { title: string; children: React.React
       {children}
     </section>
   );
+}
+
+function StatTile({
+  label,
+  value,
+  emphasize,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-line px-3 py-2.5 ${
+        emphasize ? 'bg-navy text-white border-navy' : 'bg-white'
+      }`}
+    >
+      <p
+        className={`text-[0.62rem] uppercase tracking-wider font-bold ${
+          emphasize ? 'text-gold-light' : 'text-muted'
+        }`}
+      >
+        {label}
+      </p>
+      <p className={`text-lg font-bold mt-0.5 tabular-nums ${emphasize ? 'text-white' : 'text-navy'}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function peopleLine(r: CrmRsvpRecord): string {
+  const people = parseEventPeople(r);
+  if (people.adults != null && people.kids != null) {
+    return `${people.adults} adult${people.adults === 1 ? '' : 's'} · ${people.kids} kid${
+      people.kids === 1 ? '' : 's'
+    }`;
+  }
+  if (people.adults != null) {
+    return `${people.adults} adult${people.adults === 1 ? '' : 's'}`;
+  }
+  if (people.kids != null) {
+    return `${people.kids} kid${people.kids === 1 ? '' : 's'}`;
+  }
+  return `${people.guests} guest${people.guests === 1 ? '' : 's'}`;
+}
+
+function moneyLine(r: CrmRsvpRecord): string | null {
+  const money = parseEventMoney(r);
+  if (!money.hasMoney) return null;
+  const parts = [`Tickets ${formatUsd(money.ticket)}`];
+  if (money.donation > 0) parts.push(`Donation ${formatUsd(money.donation)}`);
+  if (money.fee > 0) parts.push(`Fee ${formatUsd(money.fee)}`);
+  parts.push(`Total ${formatUsd(money.total)}`);
+  return parts.join(' · ');
 }
 
 export function EventDetailDrawer({
@@ -46,17 +105,33 @@ export function EventDetailDrawer({
               ×
             </button>
           </div>
-          <div className="flex flex-wrap gap-2 mt-4">
-            <span className="inline-block px-2.5 py-0.5 rounded-full text-[0.65rem] font-bold bg-white/15">
-              {event.rsvpCount} RSVP{event.rsvpCount === 1 ? '' : 's'}
-            </span>
-            <span className="inline-block px-2.5 py-0.5 rounded-full text-[0.65rem] font-bold bg-white/15">
-              {event.guestTotal} guest{event.guestTotal === 1 ? '' : 's'}
-            </span>
-          </div>
         </div>
 
         <div className="p-6 space-y-5">
+          <SectionCard title="Summary">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <StatTile label="Submissions" value={String(event.rsvpCount)} />
+              <StatTile label="Total people" value={String(event.guestTotal)} />
+              {event.hasAdultsKids ? (
+                <>
+                  <StatTile label="Adults" value={String(event.adultsTotal ?? 0)} />
+                  <StatTile label="Kids" value={String(event.kidsTotal ?? 0)} />
+                </>
+              ) : null}
+              {event.hasMoney ? (
+                <>
+                  <StatTile label="Tickets" value={formatUsd(event.ticketTotal)} />
+                  <StatTile label="Donations" value={formatUsd(event.donationTotal)} />
+                  <StatTile
+                    label="Total collected"
+                    value={formatUsd(event.revenueTotal)}
+                    emphasize
+                  />
+                </>
+              ) : null}
+            </div>
+          </SectionCard>
+
           <SectionCard title="Event details">
             <dl className="grid sm:grid-cols-2 gap-4 text-sm">
               <div>
@@ -73,46 +148,58 @@ export function EventDetailDrawer({
               </div>
               {event.description && (
                 <div className="sm:col-span-2">
-                  <dt className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">Description</dt>
+                  <dt className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">
+                    Description
+                  </dt>
                   <dd className="text-navy mt-0.5">{event.description}</dd>
                 </div>
               )}
               {event.program && (
                 <div>
-                  <dt className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">Program</dt>
+                  <dt className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">
+                    Program
+                  </dt>
                   <dd className="text-navy mt-0.5">{event.program}</dd>
                 </div>
               )}
             </dl>
           </SectionCard>
 
-          <SectionCard title={`RSVPs (${event.rsvpCount})`}>
+          <SectionCard title={`Submissions (${event.rsvpCount}) · newest first`}>
             {!event.rsvps.length ? (
-              <p className="text-sm text-muted">No RSVPs yet.</p>
+              <p className="text-sm text-muted">No submissions yet.</p>
             ) : (
               <ul className="divide-y divide-line">
-                {event.rsvps.map((r) => (
-                  <li key={r.id} className="py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-navy">
-                          {r.first_name} {r.last_name}
-                        </p>
-                        <p className="text-sm text-muted">{r.email}</p>
-                        {r.phone && <p className="text-sm text-muted">{r.phone}</p>}
+                {event.rsvps.map((r) => {
+                  const money = moneyLine(r);
+                  return (
+                    <li key={r.id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-navy">
+                            {r.first_name} {r.last_name}
+                          </p>
+                          <p className="text-sm text-muted">{r.email}</p>
+                          {r.phone && <p className="text-sm text-muted">{r.phone}</p>}
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-navy text-right">
+                          {peopleLine(r)}
+                        </span>
                       </div>
-                      <span className="shrink-0 text-sm font-bold text-navy">
-                        {r.guest_count} guest{r.guest_count === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    {r.notes && (
-                      <p className="text-xs text-muted mt-2 bg-white rounded-lg px-3 py-2 border border-line">
-                        {r.notes}
+                      {money ? (
+                        <p className="text-xs text-navy/80 mt-2 font-medium">{money}</p>
+                      ) : null}
+                      {r.notes && (
+                        <p className="text-xs text-muted mt-2 bg-white rounded-lg px-3 py-2 border border-line whitespace-pre-line">
+                          {r.notes}
+                        </p>
+                      )}
+                      <p className="text-[0.62rem] text-muted mt-1">
+                        {formatDateTime(r.created_at)}
                       </p>
-                    )}
-                    <p className="text-[0.62rem] text-muted mt-1">{formatDateTime(r.created_at)}</p>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </SectionCard>

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { getAdminRole, isAdminAuthenticated } from '@/lib/admin/auth';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
+import { PAID_EVENTS } from '@/lib/events/paid-events';
+import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
 import {
   contactMatchesTrack,
   familiesForProgram,
@@ -64,7 +66,10 @@ function redactCrmSnapshotForVolunteer(snapshot: CrmSnapshot): CrmSnapshot {
   };
 }
 
-const EVENT_TITLE_BY_SLUG = new Map(OPEN_HOUSE_EVENTS.map((e) => [e.slug, e.title]));
+const EVENT_TITLE_BY_SLUG = new Map([
+  ...OPEN_HOUSE_EVENTS.map((e) => [e.slug, e.title] as const),
+  ...PAID_EVENTS.map((e) => [e.slug, e.title] as const),
+]);
 
 function eventTitleForRsvp(row: EventRegistration, eventsById: Map<string, string>): string {
   if (row.event_slug) {
@@ -75,6 +80,50 @@ function eventTitleForRsvp(row: EventRegistration, eventsById: Map<string, strin
     );
   }
   return eventsById.get(row.event_id) ?? 'Event';
+}
+
+function sortRsvpsNewestFirst(rsvps: CrmRsvpRecord[]): CrmRsvpRecord[] {
+  return [...rsvps].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+}
+
+function toCrmEventRecord(input: {
+  id: string;
+  slug: string | null;
+  title: string;
+  description: string | null;
+  startsAt: string;
+  location: string | null;
+  dateLabel: string | null;
+  time: string | null;
+  program: string | null;
+  rsvps: CrmRsvpRecord[];
+}): CrmEventRecord {
+  const rsvps = sortRsvpsNewestFirst(input.rsvps);
+  const stats = aggregateEventRegistrations(rsvps);
+  return {
+    id: input.id,
+    slug: input.slug,
+    title: input.title,
+    description: input.description,
+    startsAt: input.startsAt,
+    location: input.location,
+    dateLabel: input.dateLabel,
+    time: input.time,
+    program: input.program,
+    rsvpCount: stats.submissionCount,
+    guestTotal: stats.guestTotal,
+    adultsTotal: stats.adultsTotal,
+    kidsTotal: stats.kidsTotal,
+    hasAdultsKids: stats.hasAdultsKids,
+    ticketTotal: stats.ticketTotal,
+    donationTotal: stats.donationTotal,
+    feeTotal: stats.feeTotal,
+    revenueTotal: stats.revenueTotal,
+    hasMoney: stats.hasMoney,
+    rsvps,
+  };
 }
 
 function buildEventRecords(dbEvents: Event[], rsvps: CrmRsvpRecord[]): CrmEventRecord[] {
@@ -90,45 +139,67 @@ function buildEventRecords(dbEvents: Event[], rsvps: CrmRsvpRecord[]): CrmEventR
       (r) => r.event_slug === config.slug || (db != null && r.event_id === db.id),
     );
 
-    records.push({
-      id: db?.id ?? `slug:${config.slug}`,
-      slug: config.slug,
-      title: db?.title ?? config.title,
-      description: db?.description ?? config.description,
-      startsAt: db?.starts_at ?? config.startsAt,
-      location:
-        db?.location ??
-        (config.locationPrivate ? 'Provided upon registration' : 'HaBayit Jewish Center'),
-      dateLabel: config.dateLabel,
-      time: config.time,
-      program: config.program,
-      rsvpCount: eventRsvps.length,
-      guestTotal: eventRsvps.reduce((sum, r) => sum + r.guest_count, 0),
-      rsvps: [...eventRsvps].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      ),
-    });
+    records.push(
+      toCrmEventRecord({
+        id: db?.id ?? `slug:${config.slug}`,
+        slug: config.slug,
+        title: db?.title ?? config.title,
+        description: db?.description ?? config.description,
+        startsAt: db?.starts_at ?? config.startsAt,
+        location:
+          db?.location ??
+          (config.locationPrivate ? 'Provided upon registration' : 'HaBayit Jewish Center'),
+        dateLabel: config.dateLabel,
+        time: config.time,
+        program: config.program,
+        rsvps: eventRsvps,
+      }),
+    );
+  }
+
+  for (const config of PAID_EVENTS) {
+    const db = bySlug.get(config.slug);
+    if (db) usedDbIds.add(db.id);
+
+    const eventRsvps = rsvps.filter(
+      (r) => r.event_slug === config.slug || (db != null && r.event_id === db.id),
+    );
+
+    records.push(
+      toCrmEventRecord({
+        id: db?.id ?? `slug:${config.slug}`,
+        slug: config.slug,
+        title: db?.title ?? config.title,
+        description: db?.description ?? config.description,
+        startsAt: db?.starts_at ?? config.startsAt,
+        location: db?.location ?? config.location ?? 'HaBayit Jewish Center',
+        dateLabel: config.dateLabel,
+        time: config.time,
+        program: config.program,
+        rsvps: eventRsvps,
+      }),
+    );
   }
 
   for (const db of dbEvents) {
     if (usedDbIds.has(db.id)) continue;
-    const eventRsvps = rsvps.filter((r) => r.event_id === db.id);
-    records.push({
-      id: db.id,
-      slug: db.slug,
-      title: db.title,
-      description: db.description,
-      startsAt: db.starts_at,
-      location: db.location,
-      dateLabel: null,
-      time: null,
-      program: null,
-      rsvpCount: eventRsvps.length,
-      guestTotal: eventRsvps.reduce((sum, r) => sum + r.guest_count, 0),
-      rsvps: [...eventRsvps].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      ),
-    });
+    const eventRsvps = rsvps.filter(
+      (r) => r.event_id === db.id || (db.slug != null && r.event_slug === db.slug),
+    );
+    records.push(
+      toCrmEventRecord({
+        id: db.id,
+        slug: db.slug,
+        title: db.title,
+        description: db.description,
+        startsAt: db.starts_at,
+        location: db.location,
+        dateLabel: null,
+        time: null,
+        program: null,
+        rsvps: eventRsvps,
+      }),
+    );
   }
 
   return records.sort(

@@ -54,6 +54,10 @@ import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton'
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
 import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
+import {
+  parseEventMoney,
+  parseEventPeople,
+} from '@/lib/admin/crm/event-registration-stats';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -1695,15 +1699,22 @@ function PaymentDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) 
 function RsvpDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) {
   const r = snapshot.rsvps.find((x) => x.id === id);
   if (!r) return null;
+  const people = parseEventPeople(r);
+  const money = parseEventMoney(r);
   return (
     <DetailGrid
       pairs={[
         ['Event', r.eventTitle],
         ['Phone', r.phone],
-        ['Guests', String(r.guest_count)],
+        ['Guests', String(people.guests)],
+        people.adults != null ? ['Adults', String(people.adults)] : null,
+        people.kids != null ? ['Kids', String(people.kids)] : null,
+        money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
+        money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
+        money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
         ['Notes', r.notes],
         ['Submitted', formatDateTime(r.created_at)],
-      ]}
+      ].filter(Boolean) as Array<[string, string | null | undefined]>}
     />
   );
 }
@@ -1754,15 +1765,27 @@ function RsvpsTable({
               {open && (
                 <tr className="bg-soft/30">
                   <td colSpan={6} className="px-4 py-4">
-                    <DetailGrid
-                      pairs={[
-                        ['Phone', r.phone],
-                        ['Notes', r.notes],
-                        ['Event slug', r.event_slug],
-                        ['Family linked', r.family_id ? 'Yes' : 'No'],
-                        ['Submitted', formatDateTime(r.created_at)],
-                      ]}
-                    />
+                    {(() => {
+                      const people = parseEventPeople(r);
+                      const money = parseEventMoney(r);
+                      return (
+                        <DetailGrid
+                          pairs={[
+                            ['Phone', r.phone],
+                            ['Guests', String(people.guests)],
+                            people.adults != null ? ['Adults', String(people.adults)] : null,
+                            people.kids != null ? ['Kids', String(people.kids)] : null,
+                            money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
+                            money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
+                            money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
+                            ['Notes', r.notes],
+                            ['Event slug', r.event_slug],
+                            ['Family linked', r.family_id ? 'Yes' : 'No'],
+                            ['Submitted', formatDateTime(r.created_at)],
+                          ].filter(Boolean) as Array<[string, string | null | undefined]>}
+                        />
+                      );
+                    })()}
                   </td>
                 </tr>
               )}

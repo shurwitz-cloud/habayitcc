@@ -22,7 +22,7 @@ function getEventConfigForSync(slug: string) {
       description: paid.description,
       startsAt: paid.startsAt,
       locationPrivate: false,
-      locationAddress: undefined as string | undefined,
+      locationAddress: paid.location,
     };
   }
 

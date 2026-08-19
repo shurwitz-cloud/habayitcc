@@ -91,7 +91,7 @@ export default async function HomePage() {
           <div className="grid md:grid-cols-3 border-t border-b border-line">
             <EventPreview
               date="Sep 1"
-              title="The Art of Kintsugi"
+              title="The Art of Kintsugi — For Women"
               description="A HaBayit Ladies evening to welcome Rosh Hashana and Yom Kippur in a meaningful way."
               href="/events/register/pre-rosh-hashana-womens"
             />

@@ -50,10 +50,11 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
   const [adults, setAdults] = useState(1);
   const [kids, setKids] = useState(0);
   const [women, setWomen] = useState(1);
-  const [fairChildren, setFairChildren] = useState<FairChildEntry[]>([{ hebrewCode: '' }]);
+  const [fairChildCount, setFairChildCount] = useState(1);
+  const [hebrewStudent, setHebrewStudent] = useState(false);
+  const [hebrewCodes, setHebrewCodes] = useState<string[]>(['']);
   const [fairCodeStatus, setFairCodeStatus] = useState<Record<number, 'valid' | 'invalid' | 'checking'>>({});
 
-  const [sponsorEnabled, setSponsorEnabled] = useState(false);
   const [sponsorPreset, setSponsorPreset] = useState<number | 'other' | null>(null);
   const [sponsorOther, setSponsorOther] = useState('');
   const [coverFee, setCoverFee] = useState(false);
@@ -64,18 +65,26 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
   const [receiptUrl, setReceiptUrl] = useState('');
 
   const sponsorAmount = useMemo(() => {
-    if (!sponsorEnabled) return 0;
     if (sponsorPreset === 'other') return parseFloat(sponsorOther) || 0;
     return sponsorPreset ?? 0;
-  }, [sponsorEnabled, sponsorPreset, sponsorOther]);
+  }, [sponsorPreset, sponsorOther]);
+
+  const fairChildren: FairChildEntry[] = useMemo(
+    () =>
+      Array.from({ length: fairChildCount }, (_, i) => ({
+        hebrewCode: hebrewStudent ? hebrewCodes[i] ?? '' : '',
+      })),
+    [fairChildCount, hebrewStudent, hebrewCodes]
+  );
 
   const fairFreeChildIndices = useMemo(() => {
     const set = new Set<number>();
+    if (!hebrewStudent) return set;
     fairChildren.forEach((child, i) => {
       if (child.hebrewCode?.trim() && fairCodeStatus[i] === 'valid') set.add(i);
     });
     return set;
-  }, [fairChildren, fairCodeStatus]);
+  }, [hebrewStudent, fairChildren, fairCodeStatus]);
 
   const pricing = useMemo(
     () =>
@@ -105,13 +114,32 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
     setFairCodeStatus((s) => ({ ...s, [index]: result.valid ? 'valid' : 'invalid' }));
   }
 
-  function updateFairChild(index: number, code: string) {
-    setFairChildren((prev) => {
+  function updateHebrewCode(index: number, code: string) {
+    setHebrewCodes((prev) => {
       const next = [...prev];
-      next[index] = { hebrewCode: code };
+      next[index] = code;
       return next;
     });
     void verifyFairCode(index, code);
+  }
+
+  function addHebrewCodeField() {
+    setHebrewCodes((prev) => {
+      if (prev.length >= fairChildCount) return prev;
+      return [...prev, ''];
+    });
+  }
+
+  function setFairCount(n: number) {
+    setFairChildCount(n);
+    setHebrewCodes((prev) => prev.slice(0, n));
+    setFairCodeStatus((s) => {
+      const next = { ...s };
+      Object.keys(next).forEach((key) => {
+        if (Number(key) >= n) delete next[Number(key)];
+      });
+      return next;
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -127,7 +155,7 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
       setError('Please enter at least one adult or child.');
       return;
     }
-    if (event.type === 'family-fair' && fairChildren.length < 1) {
+    if (event.type === 'family-fair' && fairChildCount < 1) {
       setError('Please add at least one child.');
       return;
     }
@@ -136,11 +164,21 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
       return;
     }
 
-    for (let i = 0; i < fairChildren.length; i++) {
-      const code = fairChildren[i]?.hebrewCode?.trim();
-      if (code && fairCodeStatus[i] !== 'valid') {
-        setError(`Please enter a valid HaBayit Hebrew code for child ${i + 1}, or leave it blank.`);
+    if (event.type === 'family-fair' && hebrewStudent) {
+      if (!hebrewCodes[0]?.trim()) {
+        setError('Please enter a HaBayit Hebrew code.');
         return;
+      }
+      for (let i = 0; i < hebrewCodes.length; i++) {
+        const code = hebrewCodes[i]?.trim();
+        if (!code) {
+          setError(`Please enter a HaBayit Hebrew code for child ${i + 1}.`);
+          return;
+        }
+        if (fairCodeStatus[i] !== 'valid') {
+          setError(`Please enter a valid HaBayit Hebrew code for child ${i + 1}.`);
+          return;
+        }
       }
     }
 
@@ -301,46 +339,69 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
 
       {event.type === 'family-fair' && (
         <div className="space-y-4 border-t border-line pt-5">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">
-              Children (ages 3–10) — ${FAIR_CHILD_PRICE} each
+          <StepperField
+            label={`Children (ages 3–10) — $${FAIR_CHILD_PRICE} each`}
+            value={fairChildCount}
+            onChange={setFairCount}
+            min={1}
+            required
+          />
+
+          <div className="space-y-3">
+            <p className="text-[0.78rem] font-bold uppercase tracking-wide text-navy">
+              Free Admission For Children at HaBayit Hebrew
             </p>
-            <StepperCompact
-              value={fairChildren.length}
-              onChange={(n) => {
-                setFairChildren((prev) => {
-                  if (n > prev.length) return [...prev, { hebrewCode: '' }];
-                  return prev.slice(0, n);
-                });
-              }}
-              min={1}
-            />
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hebrewStudent}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setHebrewStudent(checked);
+                  if (!checked) {
+                    setHebrewCodes(['']);
+                    setFairCodeStatus({});
+                  }
+                }}
+              />
+              <span className="text-[0.92rem] text-navy">My child is in HaBayit Hebrew</span>
+            </label>
+
+            {hebrewStudent && (
+              <div className="space-y-3">
+                {hebrewCodes.map((code, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <Field label={i === 0 ? 'HaBayit Hebrew Code' : `HaBayit Hebrew Code ${i + 1}`}>
+                      <input
+                        value={code}
+                        onChange={(e) => updateHebrewCode(i, e.target.value)}
+                        placeholder="HA-XXXXXX"
+                        className="uppercase"
+                      />
+                    </Field>
+                    {fairCodeStatus[i] === 'checking' && (
+                      <p className="text-[0.8rem] text-muted">Checking code…</p>
+                    )}
+                    {fairCodeStatus[i] === 'valid' && (
+                      <p className="text-[0.8rem] text-green-700 font-semibold">Code confirmed — free admission</p>
+                    )}
+                    {fairCodeStatus[i] === 'invalid' && (
+                      <p className="text-[0.8rem] text-red-700">Code not recognized.</p>
+                    )}
+                  </div>
+                ))}
+                {fairChildCount > 1 && hebrewCodes.length < fairChildCount && (
+                  <button
+                    type="button"
+                    onClick={addHebrewCodeField}
+                    className="text-[0.85rem] font-bold text-navy border-b border-gold pb-0.5 hover:text-gold"
+                  >
+                    Add another HaBayit Hebrew Code
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          {fairChildren.map((child, i) => (
-            <div key={i} className="bg-soft rounded-xl p-4 space-y-2">
-              <p className="text-[0.85rem] font-bold text-navy">Child {i + 1}</p>
-              <Field label="HaBayit Hebrew code (free admission)">
-                <input
-                  value={child.hebrewCode ?? ''}
-                  onChange={(e) => updateFairChild(i, e.target.value)}
-                  placeholder="HA-XXXXXX (optional)"
-                  className="uppercase"
-                />
-              </Field>
-              {fairCodeStatus[i] === 'checking' && (
-                <p className="text-[0.8rem] text-muted">Checking code…</p>
-              )}
-              {fairCodeStatus[i] === 'valid' && (
-                <p className="text-[0.8rem] text-green-700 font-semibold">HaBayit Hebrew — free admission</p>
-              )}
-              {fairCodeStatus[i] === 'invalid' && (
-                <p className="text-[0.8rem] text-red-700">Code not recognized. Leave blank to pay ${FAIR_CHILD_PRICE}.</p>
-              )}
-              {!child.hebrewCode?.trim() && (
-                <p className="text-[0.8rem] text-muted">${FAIR_CHILD_PRICE} for this child</p>
-              )}
-            </div>
-          ))}
         </div>
       )}
 
@@ -358,8 +419,6 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
 
       <SponsorSection
         presets={event.sponsorPresets}
-        enabled={sponsorEnabled}
-        onEnabledChange={setSponsorEnabled}
         preset={sponsorPreset}
         onPresetChange={setSponsorPreset}
         otherAmount={sponsorOther}
@@ -425,16 +484,12 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
 
 function SponsorSection({
   presets,
-  enabled,
-  onEnabledChange,
   preset,
   onPresetChange,
   otherAmount,
   onOtherChange,
 }: {
   presets: number[];
-  enabled: boolean;
-  onEnabledChange: (v: boolean) => void;
   preset: number | 'other' | null;
   onPresetChange: (v: number | 'other' | null) => void;
   otherAmount: string;
@@ -442,60 +497,45 @@ function SponsorSection({
 }) {
   return (
     <div className="border-t border-line pt-5 space-y-3">
-      <label className="flex items-center gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => {
-            onEnabledChange(e.target.checked);
-            if (!e.target.checked) onPresetChange(null);
-          }}
-        />
-        <span className="text-[0.88rem] font-semibold text-navy">
-          Be a sponsor to help cover this event <span className="text-muted font-normal">(optional)</span>
-        </span>
-      </label>
-
-      {enabled && (
-        <div className="flex flex-wrap gap-2">
-          {presets.map((amt) => (
-            <button
-              key={amt}
-              type="button"
-              onClick={() => onPresetChange(amt)}
-              className={`px-4 py-2 rounded-full text-[0.8rem] font-bold border transition-colors ${
-                preset === amt
-                  ? 'bg-gold text-white border-gold'
-                  : 'bg-white text-navy border-line hover:border-gold'
-              }`}
-            >
-              ${amt}
-            </button>
-          ))}
+      <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Become a Sponsor</p>
+      <div className="flex flex-wrap gap-2">
+        {presets.map((amt) => (
           <button
+            key={amt}
             type="button"
-            onClick={() => onPresetChange('other')}
+            onClick={() => onPresetChange(preset === amt ? null : amt)}
             className={`px-4 py-2 rounded-full text-[0.8rem] font-bold border transition-colors ${
-              preset === 'other'
+              preset === amt
                 ? 'bg-gold text-white border-gold'
                 : 'bg-white text-navy border-line hover:border-gold'
             }`}
           >
-            Other
+            ${amt}
           </button>
-          {preset === 'other' && (
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={otherAmount}
-              onChange={(e) => onOtherChange(e.target.value)}
-              placeholder="Amount"
-              className="w-28 px-3 py-2 rounded-xl border border-line"
-            />
-          )}
-        </div>
-      )}
+        ))}
+        <button
+          type="button"
+          onClick={() => onPresetChange(preset === 'other' ? null : 'other')}
+          className={`px-4 py-2 rounded-full text-[0.8rem] font-bold border transition-colors ${
+            preset === 'other'
+              ? 'bg-gold text-white border-gold'
+              : 'bg-white text-navy border-line hover:border-gold'
+          }`}
+        >
+          Other
+        </button>
+        {preset === 'other' && (
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={otherAmount}
+            onChange={(e) => onOtherChange(e.target.value)}
+            placeholder="Amount"
+            className="w-28 px-3 py-2 rounded-xl border border-line"
+          />
+        )}
+      </div>
     </div>
   );
 }

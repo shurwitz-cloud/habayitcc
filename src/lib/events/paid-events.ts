@@ -30,7 +30,7 @@ export const CARD_PROCESSING_RATE = 0.03;
 export const PAID_EVENTS: PaidEventConfig[] = [
   {
     slug: 'pre-rosh-hashana-womens',
-    title: 'The Art of Kintsugi',
+    title: 'The Art of Kintsugi \u2014 For Women',
     program: 'HaBayit Ladies',
     month: 'Sep',
     day: '1',

@@ -107,11 +107,14 @@ export async function ensureHebrewFairCodesForAll(): Promise<{
       ? `${child.first_name} ${child.last_name}`.trim()
       : 'Unknown';
 
-    if (reg.fair_access_code) {
+    const existingCode =
+      typeof reg.fair_access_code === 'string' ? reg.fair_access_code : null;
+
+    if (existingCode) {
       codes.push({
         registrationId: reg.id,
         childName,
-        code: reg.fair_access_code,
+        code: existingCode,
       });
       continue;
     }

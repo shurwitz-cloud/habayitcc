@@ -4,6 +4,7 @@ import { SiteRotatingHero } from '@/components/site-images/SiteRotatingHero';
 import { HERO_HEIGHT } from '@/lib/hero-heights';
 import { Section } from '@/components/sections/Section';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
+import { PAID_EVENTS, paidEventRegisterPath } from '@/lib/events/paid-events';
 import { registrationLocationHint } from '@/lib/events/location';
 
 export const metadata = {
@@ -103,8 +104,38 @@ export default function EventsPage() {
           </div>
         </Section>
 
-        {/* Regular recurring events — list */}
+        {/* Rosh Hashana & ticketed events */}
         <Section background="white">
+          <div className="max-w-[960px] mx-auto">
+            <p className="text-gold text-[0.75rem] font-extrabold uppercase tracking-[0.14em] mb-6 text-center">
+              Rosh Hashana &amp; Ticketed Events
+            </p>
+            <div className="grid md:grid-cols-3 gap-6">
+              {PAID_EVENTS.map((event) => (
+                <a
+                  key={event.slug}
+                  href={paidEventRegisterPath(event.slug)}
+                  className="group bg-white border border-line rounded-[20px] overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col p-6"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-gold text-[0.72rem] font-extrabold uppercase tracking-wider">
+                      {event.month} {event.day}
+                    </span>
+                    <span className="text-muted text-[0.72rem]">· {event.time}</span>
+                  </div>
+                  <h3 className="text-navy font-bold text-[1.1rem] leading-snug mb-2">{event.title}</h3>
+                  <p className="text-muted text-[0.85rem] flex-1">{event.description}</p>
+                  <span className="mt-4 inline-block text-[0.75rem] font-bold uppercase tracking-wider text-navy border-b border-gold pb-0.5 w-fit group-hover:text-gold transition-colors">
+                    Register →
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        {/* Regular recurring events — list */}
+        <Section background="cream">
           <div className="max-w-[840px] mx-auto">
             <p className="text-gold text-[0.75rem] font-extrabold uppercase tracking-[0.14em] mb-6 text-center">
               Ongoing &amp; Recurring Events

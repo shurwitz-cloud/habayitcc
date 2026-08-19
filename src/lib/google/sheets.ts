@@ -9,6 +9,9 @@ const IDS = {
   achim:        process.env.GOOGLE_SHEETS_ACHIM_ID,
   bmx:          process.env.GOOGLE_SHEETS_BMX_ID || '1agGNODdOzVy2VioqSRcQ4f9245GVS3TWsbG1wB3hIPk',
   bloom:        process.env.GOOGLE_SHEETS_BLOOM_ID,
+  roshHashanaDinner: process.env.GOOGLE_SHEETS_ROSH_HASHANA_DINNER_ID,
+  roshHashanaFair: process.env.GOOGLE_SHEETS_ROSH_HASHANA_FAIR_ID,
+  preRhWomens: process.env.GOOGLE_SHEETS_PRE_RH_WOMENS_ID,
 } as const;
 
 const TAB = 'Responses'; // single tab in each spreadsheet
@@ -381,6 +384,90 @@ export async function appendRsvpToTab(
     });
   } catch (err) {
     console.error('[Sheets] RSVP append failed:', err);
+  }
+}
+
+const PAID_EVENT_HEADERS: Record<string, string[]> = {
+  dinner: [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Adults', 'Kids (12 & under)', 'Ticket Subtotal', 'Sponsor Amount',
+    'Card Fee', 'Total Charged', 'Stripe Payment Intent ID',
+  ],
+  'family-fair': [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Children Count', 'Child Details', 'Ticket Subtotal', 'Sponsor Amount',
+    'Card Fee', 'Total Charged', 'Stripe Payment Intent ID',
+  ],
+  womens: [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Women Attending', 'Ticket Subtotal', 'Sponsor Amount',
+    'Card Fee', 'Total Charged', 'Stripe Payment Intent ID',
+  ],
+};
+
+/**
+ * Appends a paid event registration row to the Responses tab.
+ * Creates the tab + headers on first submission.
+ */
+export async function appendPaidEventRow(
+  spreadsheetId: string,
+  eventType: 'dinner' | 'family-fair' | 'womens',
+  values: (string | number)[]
+): Promise<void> {
+  const tabName = 'Responses';
+  const headers = PAID_EVENT_HEADERS[eventType];
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+
+    try {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+      });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${tabName}'!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [headers] },
+      });
+      const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
+      const sheetId =
+        meta.data.sheets?.find((s) => s.properties?.title === tabName)?.properties?.sheetId ?? 0;
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              repeatCell: {
+                range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+                cell: { userEnteredFormat: { textFormat: { bold: true } } },
+                fields: 'userEnteredFormat.textFormat.bold',
+              },
+            },
+            {
+              updateSheetProperties: {
+                properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+                fields: 'gridProperties.frozenRowCount',
+              },
+            },
+          ],
+        },
+      });
+    } catch {
+      /* tab exists */
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `'${tabName}'!A1`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [values.map(String)] },
+    });
+  } catch (err) {
+    console.error('[Sheets] paid event append failed:', err);
+    throw err;
   }
 }
 

@@ -419,6 +419,7 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
 
       <SponsorSection
         presets={event.sponsorPresets}
+        note={event.sponsorNote}
         preset={sponsorPreset}
         onPresetChange={setSponsorPreset}
         otherAmount={sponsorOther}
@@ -484,12 +485,14 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
 
 function SponsorSection({
   presets,
+  note,
   preset,
   onPresetChange,
   otherAmount,
   onOtherChange,
 }: {
   presets: number[];
+  note?: string;
   preset: number | 'other' | null;
   onPresetChange: (v: number | 'other' | null) => void;
   otherAmount: string;
@@ -498,6 +501,7 @@ function SponsorSection({
   return (
     <div className="border-t border-line pt-5 space-y-3">
       <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Become a Sponsor</p>
+      {note && <p className="text-[0.92rem] text-muted leading-relaxed">{note}</p>}
       <div className="flex flex-wrap gap-2">
         {presets.map((amt) => (
           <button

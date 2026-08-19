@@ -20,6 +20,8 @@ export interface PaidEventConfig {
   type: PaidEventType;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
+  /** Extra line under Become a Sponsor — dinner only. */
+  sponsorNote?: string;
   /** Env var name for this event's Google Sheet ID. */
   sheetEnvVar: string;
 }
@@ -75,6 +77,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     flyer: '/flyers/rosh-hashana-dinner.png',
     type: 'dinner',
     sponsorPresets: [54, 72, 180, 360, 1000],
+    sponsorNote: 'Sponsorship makes this meal possible.',
     sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_DINNER_ID',
   },
 ];

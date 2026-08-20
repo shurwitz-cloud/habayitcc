@@ -69,7 +69,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     program: 'Community',
     month: 'Sep',
     day: '11',
-    dateLabel: 'Thursday, September 11th',
+    dateLabel: 'Friday, September 11th',
     time: '6:30 PM',
     startsAt: '2026-09-11T18:30:00-04:00',
     description:

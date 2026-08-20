@@ -12,9 +12,12 @@ export async function sendRegistrationAcceptedEmail(input: {
   upcomingInstallments: Array<{ number: number; amount: number; dueDate: string }>;
   programName?: string;
   programPath?: string;
+  /** When set, payment was recorded offline (check/Zelle/etc.) — not charged on Stripe. */
+  offlinePaymentMethod?: string | null;
 }): Promise<boolean> {
   const programName = input.programName ?? HEBREW_ADVENTURE_NAME;
   const programPath = input.programPath ?? HEBREW_ADVENTURE_PATH;
+  const offline = (input.offlinePaymentMethod || '').trim();
 
   const childList =
     input.childNames.length === 1
@@ -34,6 +37,18 @@ export async function sendRegistrationAcceptedEmail(input: {
              .join('')}
          </ul>`;
 
+  const paymentParagraph = offline
+    ? `<p>
+      Payment ${input.installmentNumber} of ${input.installmentTotal}
+      (<strong>$${formatUsd(input.amountCharged)}</strong>) is recorded as paid via
+      <strong>${offline}</strong>. Thank you — if anything is still outstanding, we&apos;ll be in touch.
+    </p>`
+    : `<p>
+      Payment ${input.installmentNumber} of ${input.installmentTotal}
+      (<strong>$${formatUsd(input.amountCharged)}</strong>) has been submitted to your saved
+      payment method. Bank (ACH) payments may take a few business days to complete.
+    </p>`;
+
   const html = buildEmailHtml(`
     <p style="font-size:18px;color:#172643;font-weight:bold;margin:0 0 12px;">
       Registration accepted
@@ -43,11 +58,7 @@ export async function sendRegistrationAcceptedEmail(input: {
       Great news — <strong>${childList}</strong> ${input.childNames.length === 1 ? 'is' : 'are'}
       accepted for ${programName}!
     </p>
-    <p>
-      Payment ${input.installmentNumber} of ${input.installmentTotal}
-      (<strong>$${formatUsd(input.amountCharged)}</strong>) has been submitted to your saved
-      payment method. Bank (ACH) payments may take a few business days to complete.
-    </p>
+    ${paymentParagraph}
     ${scheduleHtml}
     <p>
       We&apos;ll keep you updated with the schedule and other details closer to the start.

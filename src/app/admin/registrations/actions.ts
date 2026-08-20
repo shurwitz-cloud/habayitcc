@@ -43,6 +43,10 @@ import {
   chargeSavedTuitionPayment,
 } from '@/lib/stripe/charge-tuition';
 import { createAdminClient } from '@/lib/supabase/server';
+import {
+  isOfflineTuitionMethod,
+  type OfflineTuitionMethod,
+} from '@/lib/programs/offline-tuition-methods';
 
 const BILLABLE_PROGRAM_SLUGS = [HEBREW_ADVENTURE_SLUG, ACHIM_SLUG, BMX_SLUG, BLOOM_SLUG] as const;
 
@@ -509,6 +513,193 @@ export async function acceptAndChargeFamily(
     };
   } catch (err) {
     console.error('acceptAndChargeFamily error:', err);
+    return { success: false, error: 'Something went wrong.' };
+  }
+}
+
+/** Admin-only offline payment methods when accepting without charging Stripe. */
+
+/**
+ * Accept pending registrations without charging the saved Stripe method.
+ * Records payment 1 in the ledger as paid via the chosen offline method (check, Zelle, etc.).
+ */
+export async function acceptFamilyOffline(
+  familyId: string,
+  programSlug: string = HEBREW_ADVENTURE_SLUG,
+  options: {
+    paymentMethod: OfflineTuitionMethod;
+    /** Optional detail (check #, Other label). */
+    paymentDetail?: string;
+    /** Amount to record (defaults to installment 1). */
+    amountPaid?: number;
+  }
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  await requireAdmin();
+
+  try {
+    const supabase = createAdminClient();
+    const meta = programMeta(programSlug);
+    const method = options.paymentMethod;
+    if (!isOfflineTuitionMethod(method)) {
+      return { success: false, error: 'Choose a payment method (Zelle, Cash, Check, …).' };
+    }
+
+    const detail = (options.paymentDetail ?? '').trim();
+    const methodLabel =
+      method === 'Check' && detail
+        ? `Check #${detail.replace(/^#+/, '')}`
+        : method === 'Other' && detail
+          ? detail
+          : method;
+
+    const { data: family } = await supabase
+      .from('families')
+      .select('*')
+      .eq('id', familyId)
+      .single();
+
+    if (!family) {
+      return { success: false, error: 'Family not found.' };
+    }
+
+    const { data: program } = await supabase
+      .from('programs')
+      .select('id, name')
+      .eq('slug', programSlug)
+      .single();
+
+    if (!program?.id) {
+      return { success: false, error: `${meta.name} program not found.` };
+    }
+
+    const { data: regs } = await supabase
+      .from('program_registrations')
+      .select('id, payment_plan, tuition_total, term, notes, status')
+      .eq('family_id', familyId)
+      .eq('program_id', program.id)
+      .eq('status', 'pending');
+
+    if (!regs?.length) {
+      return { success: false, error: 'No pending registrations for this family.' };
+    }
+
+    const { data: parent } = await supabase
+      .from('parents')
+      .select('first_name, email')
+      .eq('family_id', familyId)
+      .eq('is_primary_contact', true)
+      .maybeSingle();
+
+    const parentEmail = parent?.email ?? '';
+    const paymentPlan = regs[0].payment_plan ?? 'full';
+    const paymentMethod =
+      programSlug === ACHIM_SLUG
+        ? resolveAchimPaymentMethod(family.payment_method_preference, regs[0].notes)
+        : programSlug === BMX_SLUG
+          ? resolveBmxPaymentMethod(family.payment_method_preference, regs[0].notes)
+          : programSlug === BLOOM_SLUG
+            ? resolveBloomPaymentMethod(family.payment_method_preference, regs[0].notes)
+            : resolvePaymentMethod(family.payment_method_preference, regs[0].notes);
+    const tuitionSubtotal = regs.reduce((sum, r) => sum + Number(r.tuition_total ?? 0), 0);
+    const billing = familyTuitionBilling({
+      programSlug,
+      tuitionSubtotal,
+      paymentPlan,
+      paymentMethod,
+      term: regs[0].term,
+    });
+
+    const first = billing.installments[0];
+    if (!first) {
+      return { success: false, error: 'Could not calculate first payment.' };
+    }
+
+    const amountPaid =
+      options.amountPaid != null && Number.isFinite(options.amountPaid) && options.amountPaid > 0
+        ? Math.round(options.amountPaid * 100) / 100
+        : first.amount;
+
+    const paidAt = new Date().toISOString();
+    const paymentKey = `manual:tuition-${method.toLowerCase()}-${familyId.slice(0, 8)}-${Date.now()}`;
+
+    for (const reg of regs) {
+      const noteLine = `Accepted offline via ${methodLabel} · payment 1 $${amountPaid.toFixed(2)}`;
+      const nextNotes = [reg.notes?.trim(), noteLine].filter(Boolean).join('\n');
+      await supabase
+        .from('program_registrations')
+        .update({ status: 'accepted', notes: nextNotes })
+        .eq('id', reg.id);
+    }
+
+    await supabase.from('payments').insert({
+      source_type: 'program_registration',
+      source_id: regs[0].id,
+      amount: amountPaid,
+      stripe_payment_intent_id: paymentKey,
+      stripe_charge_id: null,
+      status: 'succeeded',
+      paid_at: paidAt,
+    });
+
+    for (const inst of billing.installments.slice(1)) {
+      await supabase.from('tuition_installments').upsert(
+        {
+          family_id: familyId,
+          installment_number: inst.number,
+          amount: inst.amount,
+          due_date: inst.dueDate.toISOString().slice(0, 10),
+          status: 'scheduled',
+        },
+        { onConflict: 'family_id,installment_number' }
+      );
+    }
+
+    const { data: childRegs } = await supabase
+      .from('program_registrations')
+      .select('children(first_name, last_name)')
+      .eq('family_id', familyId)
+      .eq('program_id', program.id);
+
+    const childNames =
+      childRegs?.map((r) => {
+        const raw = r.children as
+          | { first_name: string; last_name: string }
+          | { first_name: string; last_name: string }[];
+        const c = Array.isArray(raw) ? raw[0] : raw;
+        return `${c.first_name} ${c.last_name}`;
+      }) ?? [];
+
+    if (parentEmail) {
+      await sendRegistrationAcceptedEmail({
+        to: parentEmail,
+        parentFirstName: parent?.first_name ?? 'there',
+        childNames,
+        amountCharged: amountPaid,
+        installmentNumber: 1,
+        installmentTotal: billing.installments.length,
+        upcomingInstallments: billing.installments.slice(1).map((i) => ({
+          number: i.number,
+          amount: i.amount,
+          dueDate: i.dueDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          }),
+        })),
+        programName: program.name ?? meta.name,
+        programPath: meta.path,
+        offlinePaymentMethod: methodLabel,
+      });
+    }
+
+    revalidatePath('/admin/registrations');
+
+    return {
+      success: true,
+      message: `Accepted offline via ${methodLabel}. Recorded $${formatUsd(amountPaid)} (payment 1 of ${billing.installments.length}). No Stripe charge.`,
+    };
+  } catch (err) {
+    console.error('acceptFamilyOffline error:', err);
     return { success: false, error: 'Something went wrong.' };
   }
 }

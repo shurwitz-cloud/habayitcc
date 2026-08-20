@@ -8,8 +8,10 @@ import type {
 } from './actions';
 import {
   acceptAndChargeFamily,
+  acceptFamilyOnly,
   acceptFamilyOffline,
   chargeScheduledInstallment,
+  recordOfflineInstallmentPayment,
 } from './actions';
 import {
   OFFLINE_TUITION_METHODS,
@@ -63,9 +65,56 @@ export function StripeCheatSheet() {
       </ol>
       <p className="mt-4 text-[0.85rem] text-muted">
         ACH payments may show as <strong>Processing</strong> for a few business days before they
-        succeed. To accept without charging Stripe (check, Zelle, cash, etc.), use{' '}
-        <strong>Accept offline</strong> on the pending card.
+        succeed. To accept without charging Stripe: use <strong>Accept only</strong> (record payment
+        later) or <strong>Accept &amp; record payment</strong> if you already have the check/Zelle.
       </p>
+    </div>
+  );
+}
+
+function OfflineMethodFields({
+  method,
+  detail,
+  onMethod,
+  onDetail,
+}: {
+  method: OfflineTuitionMethod;
+  detail: string;
+  onMethod: (m: OfflineTuitionMethod) => void;
+  onDetail: (d: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 items-end">
+      <label className="text-sm text-navy">
+        <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">
+          Payment method
+        </span>
+        <select
+          value={method}
+          onChange={(e) => onMethod(e.target.value as OfflineTuitionMethod)}
+          className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
+        >
+          {OFFLINE_TUITION_METHODS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </label>
+      {method === 'Check' || method === 'Other' ? (
+        <label className="text-sm text-navy">
+          <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">
+            {method === 'Check' ? 'Check number (optional)' : 'Other detail (optional)'}
+          </span>
+          <input
+            type="text"
+            value={detail}
+            onChange={(e) => onDetail(e.target.value)}
+            placeholder={method === 'Check' ? 'e.g. 123' : 'e.g. Venmo'}
+            className="rounded-lg border border-line bg-white px-3 py-2 text-sm w-36"
+          />
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -73,11 +122,13 @@ export function StripeCheatSheet() {
 function OfflineAcceptControls({
   row,
   disabled,
-  onAccept,
+  onAcceptOnly,
+  onAcceptAndRecord,
 }: {
   row: PendingFamilyRegistration;
   disabled: boolean;
-  onAccept: (method: OfflineTuitionMethod, detail?: string) => void;
+  onAcceptOnly: () => void;
+  onAcceptAndRecord: (method: OfflineTuitionMethod, detail?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState<OfflineTuitionMethod>('Check');
@@ -91,69 +142,120 @@ function OfflineAcceptControls({
         onClick={() => setOpen(true)}
         className="border border-line rounded-full px-5 py-2.5 text-sm font-semibold text-navy hover:bg-soft disabled:opacity-50"
       >
-        Accept offline…
+        Accept without charging…
       </button>
     );
   }
 
   return (
-    <div className="w-full sm:w-auto rounded-xl border border-line bg-soft/40 p-3 space-y-3">
+    <div className="w-full rounded-xl border border-line bg-soft/40 p-3 space-y-3">
       <p className="text-xs text-muted">
-        Accept without charging Stripe. Records payment 1 ($
-        {row.firstInstallment.toFixed(2)}) as paid via the method below.
+        No Stripe charge. Payment 1 is ${row.firstInstallment.toFixed(2)}.
       </p>
-      <div className="flex flex-wrap gap-2 items-end">
-        <label className="text-sm text-navy">
-          <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">
-            Payment method
-          </span>
-          <select
-            value={method}
-            onChange={(e) => setMethod(e.target.value as OfflineTuitionMethod)}
-            className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
-          >
-            {OFFLINE_TUITION_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        {method === 'Check' || method === 'Other' ? (
-          <label className="text-sm text-navy">
-            <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">
-              {method === 'Check' ? 'Check number (optional)' : 'Other detail (optional)'}
-            </span>
-            <input
-              type="text"
-              value={detail}
-              onChange={(e) => setDetail(e.target.value)}
-              placeholder={method === 'Check' ? 'e.g. 123' : 'e.g. Venmo'}
-              className="rounded-lg border border-line bg-white px-3 py-2 text-sm w-36"
-            />
-          </label>
-        ) : null}
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={disabled}
           onClick={() => {
             const ok = window.confirm(
-              `Accept ${row.parentName} for ${row.programName} without charging Stripe?\n\nRecord payment 1 ($${row.firstInstallment.toFixed(2)}) as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}.`,
+              `Accept ${row.parentName} for ${row.programName} now without recording payment?\n\nYou can add check/Zelle/etc. later under Scheduled installments.`,
             );
             if (!ok) return;
-            onAccept(method, detail.trim() || undefined);
+            onAcceptOnly();
           }}
           className="bg-navy text-white rounded-full px-5 py-2.5 font-bold text-sm uppercase tracking-wide disabled:opacity-50"
         >
-          Confirm offline accept
+          Accept only
         </button>
         <button
           type="button"
           disabled={disabled}
+          onClick={() => setOpen(false)}
+          className="text-sm text-muted px-2 py-2"
+        >
+          Cancel
+        </button>
+      </div>
+      <div className="border-t border-line pt-3 space-y-2">
+        <p className="text-xs font-semibold text-navy">Or accept &amp; record payment now</p>
+        <OfflineMethodFields
+          method={method}
+          detail={detail}
+          onMethod={setMethod}
+          onDetail={setDetail}
+        />
+        <button
+          type="button"
+          disabled={disabled}
           onClick={() => {
-            setOpen(false);
-            setDetail('');
+            const ok = window.confirm(
+              `Accept ${row.parentName} and record payment 1 ($${row.firstInstallment.toFixed(2)}) as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}?`,
+            );
+            if (!ok) return;
+            onAcceptAndRecord(method, detail.trim() || undefined);
           }}
+          className="border border-navy text-navy rounded-full px-5 py-2.5 font-bold text-sm uppercase tracking-wide disabled:opacity-50"
+        >
+          Accept &amp; record payment
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RecordOfflinePaymentControls({
+  row,
+  disabled,
+  onRecord,
+}: {
+  row: ScheduledInstallment;
+  disabled: boolean;
+  onRecord: (method: OfflineTuitionMethod, detail?: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<OfflineTuitionMethod>('Check');
+  const [detail, setDetail] = useState('');
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        className="border border-line rounded-full px-4 py-2 text-sm font-semibold text-navy hover:bg-soft disabled:opacity-50"
+      >
+        Record payment…
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-line bg-soft/40 p-3 space-y-2 w-full sm:w-auto">
+      <OfflineMethodFields
+        method={method}
+        detail={detail}
+        onMethod={setMethod}
+        onDetail={setDetail}
+      />
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            const ok = window.confirm(
+              `Record payment ${row.installmentNumber} ($${row.amount.toFixed(2)}) for ${row.familyName} as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}?`,
+            );
+            if (!ok) return;
+            onRecord(method, detail.trim() || undefined);
+          }}
+          className="bg-navy text-white rounded-full px-4 py-2 text-sm font-bold disabled:opacity-50"
+        >
+          Confirm
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(false)}
           className="text-sm text-muted px-2 py-2"
         >
           Cancel
@@ -196,8 +298,8 @@ export function AdminRegistrationsPanel({
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-navy">Program Registrations</h1>
         <p className="text-muted text-sm mt-1">
-          Accept pending Hebrew Adventure, Achim, BMX, and Bloom registrations. Charge the saved
-          Stripe method, or accept offline (check, Zelle, cash, etc.).
+          Accept pending Hebrew Adventure, Achim, BMX, and Bloom registrations. Charge Stripe, accept
+          only (record payment later), or accept and record check/Zelle/etc. now.
         </p>
       </div>
 
@@ -263,8 +365,8 @@ export function AdminRegistrationsPanel({
 
               {!row.stripeCustomerId && (
                 <p className="text-danger text-sm mb-3">
-                  No Stripe payment method on file — use Accept offline if they are paying by check /
-                  Zelle / cash, or ask them to complete the registration payment step.
+                  No Stripe payment method on file — use Accept only / Accept &amp; record payment,
+                  or ask them to complete the registration payment step for card/ACH.
                 </p>
               )}
 
@@ -282,7 +384,10 @@ export function AdminRegistrationsPanel({
                 <OfflineAcceptControls
                   row={row}
                   disabled={isPending}
-                  onAccept={(method, paymentDetail) =>
+                  onAcceptOnly={() =>
+                    runAction(() => acceptFamilyOnly(row.familyId, row.programSlug))
+                  }
+                  onAcceptAndRecord={(method, paymentDetail) =>
                     runAction(() =>
                       acceptFamilyOffline(row.familyId, row.programSlug, {
                         paymentMethod: method,
@@ -310,6 +415,10 @@ export function AdminRegistrationsPanel({
       <h2 className="text-lg font-bold text-navy mb-3">
         Scheduled installments ({scheduled.length})
       </h2>
+      <p className="text-sm text-muted mb-3">
+        Includes payment 1 after <strong>Accept only</strong>. Use <strong>Record payment</strong>{' '}
+        when the check/Zelle/cash arrives, or Charge now for Stripe.
+      </p>
 
       {scheduled.length === 0 ? (
         <p className="text-muted">No upcoming installments.</p>
@@ -318,7 +427,7 @@ export function AdminRegistrationsPanel({
           {scheduled.map((row) => (
             <div
               key={row.id}
-              className="bg-white border border-line rounded-xl p-4 flex flex-wrap items-center justify-between gap-3"
+              className="bg-white border border-line rounded-xl p-4 flex flex-wrap items-start justify-between gap-3"
             >
               <div>
                 <p className="font-semibold text-navy">{row.familyName}</p>
@@ -332,15 +441,28 @@ export function AdminRegistrationsPanel({
                   {row.status !== 'scheduled' ? ` · ${row.status}` : ''}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 items-start">
                 <button
                   type="button"
-                  disabled={isPending || row.status === 'processing'}
+                  disabled={isPending || row.status === 'processing' || !row.stripeCustomerUrl}
                   onClick={() => runAction(() => chargeScheduledInstallment(row.id))}
                   className="bg-navy text-white rounded-full px-4 py-2 text-sm font-bold disabled:opacity-50"
+                  title={!row.stripeCustomerUrl ? 'No Stripe customer on file' : undefined}
                 >
                   Charge now
                 </button>
+                <RecordOfflinePaymentControls
+                  row={row}
+                  disabled={isPending || row.status === 'processing'}
+                  onRecord={(method, paymentDetail) =>
+                    runAction(() =>
+                      recordOfflineInstallmentPayment(row.id, {
+                        paymentMethod: method,
+                        paymentDetail,
+                      }),
+                    )
+                  }
+                />
                 {row.stripeCustomerUrl && (
                   <a
                     href={row.stripeCustomerUrl}

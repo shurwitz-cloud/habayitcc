@@ -14,10 +14,13 @@ export async function sendRegistrationAcceptedEmail(input: {
   programPath?: string;
   /** When set, payment was recorded offline (check/Zelle/etc.) — not charged on Stripe. */
   offlinePaymentMethod?: string | null;
+  /** Accepted now; payment will be recorded later (check/Zelle/etc.). */
+  paymentDeferred?: boolean;
 }): Promise<boolean> {
   const programName = input.programName ?? HEBREW_ADVENTURE_NAME;
   const programPath = input.programPath ?? HEBREW_ADVENTURE_PATH;
   const offline = (input.offlinePaymentMethod || '').trim();
+  const deferred = input.paymentDeferred === true;
 
   const childList =
     input.childNames.length === 1
@@ -37,13 +40,19 @@ export async function sendRegistrationAcceptedEmail(input: {
              .join('')}
          </ul>`;
 
-  const paymentParagraph = offline
+  const paymentParagraph = deferred
     ? `<p>
+      Payment ${input.installmentNumber} of ${input.installmentTotal}
+      (<strong>$${formatUsd(input.amountCharged)}</strong>) will be collected separately
+      (for example by check). We&apos;ll confirm once it is received.
+    </p>`
+    : offline
+      ? `<p>
       Payment ${input.installmentNumber} of ${input.installmentTotal}
       (<strong>$${formatUsd(input.amountCharged)}</strong>) is recorded as paid via
       <strong>${offline}</strong>. Thank you — if anything is still outstanding, we&apos;ll be in touch.
     </p>`
-    : `<p>
+      : `<p>
       Payment ${input.installmentNumber} of ${input.installmentTotal}
       (<strong>$${formatUsd(input.amountCharged)}</strong>) has been submitted to your saved
       payment method. Bank (ACH) payments may take a few business days to complete.

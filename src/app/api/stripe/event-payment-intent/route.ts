@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       firstName: string;
       lastName: string;
       email: string;
+      phone?: string;
       coverFee: boolean;
       sponsorAmount: number;
       dinner?: DinnerRegistrationData;
@@ -89,13 +90,25 @@ export async function POST(req: NextRequest) {
         event_slug: event.slug,
         donor_name: donorName,
         donor_email: email,
+        first_name: body.firstName.trim().slice(0, 80),
+        last_name: body.lastName.trim().slice(0, 80),
+        phone: String(body.phone ?? '').trim().slice(0, 40),
         ticket_subtotal: String(pricing.ticketSubtotal),
         sponsor_amount: String(pricing.sponsorAmount),
         card_fee: String(pricing.cardFee),
+        cover_fee: body.coverFee ? '1' : '0',
+        women: event.type === 'womens' ? String(body.womens?.women ?? 1) : '',
+        adults: event.type === 'dinner' ? String(body.dinner?.adults ?? 0) : '',
+        kids: event.type === 'dinner' ? String(body.dinner?.kids ?? 0) : '',
+        fair_children:
+          event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
       },
     });
 
-    return NextResponse.json({ clientSecret: paymentIntent.client_secret });
+    return NextResponse.json({
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    });
   } catch (err) {
     console.error('[event-payment-intent]', err);
     return NextResponse.json({ error: 'Failed to initialize payment.' }, { status: 500 });

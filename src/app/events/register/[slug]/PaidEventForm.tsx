@@ -63,6 +63,8 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState('');
+  /** After Stripe succeeds, keep the PI so a failed CRM save can retry without recharging. */
+  const [paidIntentId, setPaidIntentId] = useState<string | null>(null);
 
   const sponsorAmount = useMemo(() => {
     if (sponsorPreset === 'other') return parseFloat(sponsorOther) || 0;
@@ -200,68 +202,76 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
     setProcessing(true);
 
     try {
-      let paymentIntentId: string | undefined;
+      let paymentIntentId: string | undefined = paidIntentId ?? undefined;
       const totalCents = totalToCents(pricing.total);
 
       if (totalCents > 0) {
-        if (!stripe || !elements) {
-          setError('Payment is still loading. Please wait a moment.');
-          return;
-        }
-
-        const cardElement = elements.getElement(CardElement);
-        if (!cardElement) {
-          setError('Please enter your card details.');
-          return;
-        }
-
-        const res = await fetch('/api/stripe/event-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug: event.slug,
-            amountCents: totalCents,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            email: email.trim(),
-            coverFee,
-            sponsorAmount,
-            dinner: event.type === 'dinner' ? { adults, kids } : undefined,
-            fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
-            womens: event.type === 'womens' ? { women } : undefined,
-          }),
-        });
-
-        const data = (await res.json()) as { clientSecret?: string; error?: string };
-        if (!res.ok || !data.clientSecret) {
-          throw new Error(data.error ?? 'Could not initialize payment.');
-        }
-
-        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-          data.clientSecret,
-          {
-            payment_method: {
-              card: cardElement,
-              billing_details: {
-                name: `${firstName.trim()} ${lastName.trim()}`,
-                email: email.trim(),
-                phone: phone.trim(),
-              },
-            },
+        if (!paymentIntentId) {
+          if (!stripe || !elements) {
+            setError('Payment is still loading. Please wait a moment.');
+            return;
           }
-        );
 
-        if (stripeError) {
-          setError(stripeError.message ?? 'Payment failed. Please try again.');
-          return;
+          const cardElement = elements.getElement(CardElement);
+          if (!cardElement) {
+            setError('Please enter your card details.');
+            return;
+          }
+
+          const res = await fetch('/api/stripe/event-payment-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              slug: event.slug,
+              amountCents: totalCents,
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              email: email.trim(),
+              phone: phone.trim(),
+              coverFee,
+              sponsorAmount,
+              dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+              fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
+              womens: event.type === 'womens' ? { women } : undefined,
+            }),
+          });
+
+          const data = (await res.json()) as {
+            clientSecret?: string;
+            paymentIntentId?: string;
+            error?: string;
+          };
+          if (!res.ok || !data.clientSecret) {
+            throw new Error(data.error ?? 'Could not initialize payment.');
+          }
+
+          const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+            data.clientSecret,
+            {
+              payment_method: {
+                card: cardElement,
+                billing_details: {
+                  name: `${firstName.trim()} ${lastName.trim()}`,
+                  email: email.trim(),
+                  phone: phone.trim(),
+                },
+              },
+            }
+          );
+
+          if (stripeError) {
+            setError(stripeError.message ?? 'Payment failed. Please try again.');
+            return;
+          }
+
+          if (paymentIntent?.status !== 'succeeded') {
+            setError('Payment was not completed. Please try again.');
+            return;
+          }
+
+          paymentIntentId = paymentIntent.id;
+          setPaidIntentId(paymentIntent.id);
         }
-
-        if (paymentIntent?.status !== 'succeeded') {
-          setError('Payment was not completed. Please try again.');
-          return;
-        }
-
-        paymentIntentId = paymentIntent.id;
       }
 
       const result = await submitPaidEventRegistration({
@@ -460,7 +470,7 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
         </div>
       </div>
 
-      {pricing.total > 0 && (
+      {pricing.total > 0 && !paidIntentId && (
         <>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -483,9 +493,21 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
         </>
       )}
 
+      {paidIntentId && pricing.total > 0 ? (
+        <p className="text-[0.88rem] text-navy bg-soft/60 border border-line rounded-2xl px-5 py-3">
+          Payment received. Completing your registration now…
+        </p>
+      ) : null}
+
       {error && (
         <div className="bg-[#fdecea] border border-[#f3c4c0] text-red-700 rounded-2xl px-5 py-3.5 text-[0.9rem]">
           {error}
+          {paidIntentId ? (
+            <p className="mt-2 text-[0.85rem] text-red-800/90">
+              Your card was already charged. Tap the button again to finish saving your
+              registration — you will not be charged again.
+            </p>
+          ) : null}
         </div>
       )}
 
@@ -496,9 +518,11 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
       >
         {processing
           ? 'Processing…'
-          : pricing.total > 0
-            ? `Register & Pay $${pricing.total.toFixed(2)}`
-            : 'Complete Registration'}
+          : paidIntentId
+            ? 'Finish registration (no extra charge)'
+            : pricing.total > 0
+              ? `Register & Pay $${pricing.total.toFixed(2)}`
+              : 'Complete Registration'}
       </button>
     </form>
   );

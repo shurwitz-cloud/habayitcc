@@ -733,7 +733,7 @@ export function CrmPanel({
             </>
           )}
           {view === 'events' && canSeeFinance && (
-            <RecoverPaidEventRegistrationsButton defaultEmail="adi_sagie@hotmail.com" />
+            <RecoverPaidEventRegistrationsButton />
           )}
           {view === 'events' &&
             (selectedEventId === 'all' ? (

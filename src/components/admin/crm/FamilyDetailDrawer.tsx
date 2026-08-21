@@ -9,12 +9,19 @@ function labelize(value: string | null | undefined): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value?.trim()) return null;
+function DetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   return (
     <div>
       <p className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">{label}</p>
-      <p className="text-navy text-sm mt-0.5 whitespace-pre-wrap">{value}</p>
+      <div className="text-navy text-sm mt-0.5 whitespace-pre-wrap">{value}</div>
     </div>
   );
 }
@@ -144,6 +151,18 @@ export function FamilyDetailDrawer({
                     <DetailField label="Term" value={reg.term} />
                     <DetailField label="Tuition" value={formatUsd(Number(reg.tuition_total ?? 0))} />
                     <DetailField label="Status" value={labelize(reg.status)} />
+                    <DetailField
+                      label="Hebrew event code"
+                      value={
+                        reg.fair_access_code ? (
+                          <span className="font-mono text-gold font-semibold tracking-wide">
+                            {reg.fair_access_code}
+                          </span>
+                        ) : reg.status === 'accepted' || reg.status === 'active' ? (
+                          <span className="text-muted">Not issued yet</span>
+                        ) : null
+                      }
+                    />
                     {reg.chai_partner_code_used && (
                       <DetailField label="Chai code used" value={reg.chai_partner_code_used} />
                     )}

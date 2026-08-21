@@ -37,11 +37,22 @@ export async function POST(req: NextRequest) {
     }
 
     const fairFreeChildIndices = new Set<number>();
-    if (event.type === 'family-fair' && body.fair?.children?.length) {
+    const allowsHebrewFree =
+      event.hebrewKidsFreeWithCode === true || event.type === 'family-fair';
+    if (allowsHebrewFree && body.fair?.children?.length) {
+      const seenCodes = new Set<string>();
       for (let i = 0; i < body.fair.children.length; i++) {
         const code = body.fair.children[i]?.hebrewCode?.trim();
         if (!code) continue;
-        const lookup = await verifyHebrewFairCode(code);
+        const normalized = code.toUpperCase();
+        if (seenCodes.has(normalized)) {
+          return NextResponse.json(
+            { error: 'Each Hebrew code can only free one child on this registration.' },
+            { status: 400 }
+          );
+        }
+        seenCodes.add(normalized);
+        const lookup = await verifyHebrewFairCode(code, { eventSlug: event.slug });
         if (lookup.valid) fairFreeChildIndices.add(i);
       }
     }

@@ -437,10 +437,18 @@ export function CrmPanel({
       const label = activeProgramTrack?.tabLabel ?? 'program';
       exportCsv(
         `habayit-${label.toLowerCase().replace(/\s+/g, '-')}-applications.csv`,
-        ['Date', 'Family', 'Parent email', 'Children', 'Status', 'Tuition'],
+        ['Date', 'Family', 'Parent email', 'Children', 'Status', 'Tuition', 'Hebrew event codes'],
         filteredApplications.map((f) => {
           const primary = f.parents.find((p) => p.is_primary_contact) ?? f.parents[0];
           const total = f.registrations.reduce((s, r) => s + Number(r.tuition_total ?? 0), 0);
+          const codes = f.registrations
+            .map((r) =>
+              r.fair_access_code
+                ? `${r.childName}: ${r.fair_access_code}`
+                : null
+            )
+            .filter(Boolean)
+            .join('; ');
           return [
             formatDate(f.createdAt),
             f.familyName,
@@ -448,6 +456,7 @@ export function CrmPanel({
             String(f.children.length),
             f.registrations.map((r) => r.status).join('; '),
             String(total),
+            codes,
           ];
         }),
       );
@@ -902,7 +911,14 @@ function filterApplications(
     }
     const parentFields = f.parents.flatMap((p) => [p.first_name, p.last_name, p.email, p.phone]);
     const childFields = f.children.flatMap((c) => [c.first_name, c.last_name, c.grade]);
-    return matchesSearch(search, [f.familyName, f.address, ...parentFields, ...childFields]);
+    const codeFields = f.registrations.map((r) => r.fair_access_code);
+    return matchesSearch(search, [
+      f.familyName,
+      f.address,
+      ...parentFields,
+      ...childFields,
+      ...codeFields,
+    ]);
   });
 }
 
@@ -1506,6 +1522,9 @@ function ApplicationsTable({
           <SortableTh label="Contact" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Children" sortKey="children" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">
+            Hebrew codes
+          </th>
           <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Tuition</th>
         </tr>
       </thead>
@@ -1514,6 +1533,9 @@ function ApplicationsTable({
           const primary = f.parents.find((p) => p.is_primary_contact) ?? f.parents[0];
           const status = f.registrations[0]?.status ?? 'unknown';
           const total = f.registrations.reduce((s, r) => s + Number(r.tuition_total ?? 0), 0);
+          const codes = f.registrations
+            .filter((r) => r.fair_access_code)
+            .map((r) => r.fair_access_code as string);
           return (
             <tr
               key={f.id}
@@ -1526,6 +1548,22 @@ function ApplicationsTable({
               <td className="px-4 py-3">{f.children.length}</td>
               <td className="px-4 py-3">
                 <StatusPill status={status} />
+              </td>
+              <td className="px-4 py-3">
+                {codes.length ? (
+                  <div className="space-y-0.5">
+                    {f.registrations
+                      .filter((r) => r.fair_access_code)
+                      .map((r) => (
+                        <div key={r.id} className="font-mono text-xs text-navy">
+                          {r.fair_access_code}
+                          <span className="text-muted font-sans"> · {r.childName.split(' ')[0]}</span>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
               </td>
               <td className="px-4 py-3 font-semibold text-navy">{formatUsd(total)}</td>
             </tr>
@@ -1616,20 +1654,32 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
         <div className="mt-4">
           <p className="text-[0.65rem] uppercase tracking-wide text-muted font-bold mb-2">Children</p>
           <ul className="space-y-2 text-sm">
-            {f.children.map((c) => (
-              <li key={c.id} className="text-navy">
-                {c.first_name} {c.last_name}
-                {c.grade && <span className="text-muted"> · Grade {c.grade}</span>}
-                {c.hebrew_name && <span className="text-muted"> · {c.hebrew_name}</span>}
-                {c.hebrew_level && <span className="text-muted"> · Level: {c.hebrew_level}</span>}
-                {c.attended_before && <span className="text-muted"> · Attended before: {c.attended_before}</span>}
-                {c.date_of_birth && <span className="text-muted"> · DOB: {c.date_of_birth}</span>}
-                {c.born_sunset_timing && <span className="text-muted"> · Birth timing: {c.born_sunset_timing}</span>}
-                {c.allergies && (
-                  <span className="block text-xs text-danger">Allergies: {c.allergies}</span>
-                )}
-              </li>
-            ))}
+            {f.children.map((c) => {
+              const reg = f.registrations.find((r) => r.child_id === c.id);
+              return (
+                <li key={c.id} className="text-navy">
+                  {c.first_name} {c.last_name}
+                  {c.grade && <span className="text-muted"> · Grade {c.grade}</span>}
+                  {c.hebrew_name && <span className="text-muted"> · {c.hebrew_name}</span>}
+                  {c.hebrew_level && <span className="text-muted"> · Level: {c.hebrew_level}</span>}
+                  {reg?.fair_access_code && (
+                    <span className="block font-mono text-xs text-gold font-semibold mt-0.5">
+                      Hebrew event code: {reg.fair_access_code}
+                    </span>
+                  )}
+                  {c.attended_before && (
+                    <span className="text-muted"> · Attended before: {c.attended_before}</span>
+                  )}
+                  {c.date_of_birth && <span className="text-muted"> · DOB: {c.date_of_birth}</span>}
+                  {c.born_sunset_timing && (
+                    <span className="text-muted"> · Birth timing: {c.born_sunset_timing}</span>
+                  )}
+                  {c.allergies && (
+                    <span className="block text-xs text-danger">Allergies: {c.allergies}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -1643,6 +1693,11 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
               <li key={r.id} className="text-navy">
                 {r.childName} — {r.programName}
                 <StatusPill status={r.status} />
+                {r.fair_access_code && (
+                  <span className="block font-mono text-xs text-gold font-semibold">
+                    Hebrew event code: {r.fair_access_code}
+                  </span>
+                )}
                 {r.payment_plan && (
                   <span className="text-muted text-xs block">
                     Plan: {r.payment_plan}

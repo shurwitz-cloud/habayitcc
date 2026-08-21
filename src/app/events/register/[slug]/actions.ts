@@ -5,7 +5,7 @@ import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { appendPaidEventRow } from '@/lib/google/sheets';
 import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
-import { verifyHebrewFairCode } from '@/lib/events/hebrew-fair-codes';
+import { verifyHebrewFairCode, recordFairCodeRedemptions, attachFairCodeRedemptionsToEventRegistration, releaseFairCodeRedemptions } from '@/lib/events/hebrew-fair-codes';
 import {
   computePaidEventTotal,
   totalToCents,
@@ -42,14 +42,24 @@ export interface PaidEventRegistrationResult {
   receiptUrl?: string;
 }
 
-export async function verifyHebrewFairCodeAction(code: string): Promise<{
+export async function verifyHebrewFairCodeAction(
+  code: string,
+  eventSlug?: string
+): Promise<{
   valid: boolean;
   childName?: string;
+  reason?: string;
 }> {
-  const lookup = await verifyHebrewFairCode(code);
-  if (!lookup.valid) return { valid: false };
+  const lookup = await verifyHebrewFairCode(code, { eventSlug });
+  if (!lookup.valid) {
+    return { valid: false, reason: lookup.reason };
+  }
   const childName = [lookup.childFirstName, lookup.childLastName].filter(Boolean).join(' ');
   return { valid: true, childName: childName || undefined };
+}
+
+function eventAllowsHebrewKidsFree(event: { type: string; hebrewKidsFreeWithCode?: boolean }) {
+  return event.hebrewKidsFreeWithCode === true || event.type === 'family-fair';
 }
 
 function buildDetailsSummary(
@@ -99,22 +109,46 @@ export async function submitPaidEventRegistration(
     }
 
     const fairFreeChildIndices = new Set<number>();
-    if (event.type === 'family-fair') {
+    const fairRedemptions: Array<{ registrationId: string; code: string }> = [];
+    const seenCodes = new Set<string>();
+
+    if (eventAllowsHebrewKidsFree(event)) {
       const children = input.fair?.children ?? [];
-      if (children.length < 1) {
+      if (event.type === 'family-fair' && children.length < 1) {
         return { success: false, error: 'Please add at least one child (ages 3–10).' };
       }
       for (let i = 0; i < children.length; i++) {
         const code = children[i]?.hebrewCode?.trim();
         if (!code) continue;
-        const lookup = await verifyHebrewFairCode(code);
-        if (!lookup.valid) {
+        const normalized = code.toUpperCase();
+        if (seenCodes.has(normalized)) {
           return {
             success: false,
-            error: `HaBayit Hebrew code for child ${i + 1} is not valid.`,
+            error: `Each Hebrew code can only free one child. Code for child ${i + 1} was already used in this registration.`,
           };
         }
+        seenCodes.add(normalized);
+
+        const lookup = await verifyHebrewFairCode(code, { eventSlug: event.slug });
+        if (!lookup.valid || !lookup.registrationId) {
+          const reasonMsg =
+            lookup.reason === 'already_used'
+              ? `HaBayit Hebrew code for child ${i + 1} was already used for this event.`
+              : lookup.reason === 'not_eligible'
+                ? `HaBayit Hebrew code for child ${i + 1} is not active yet.`
+                : `HaBayit Hebrew code for child ${i + 1} is not valid.`;
+          return { success: false, error: reasonMsg };
+        }
         fairFreeChildIndices.add(i);
+        fairRedemptions.push({
+          registrationId: lookup.registrationId,
+          code: lookup.code ?? normalized,
+        });
+      }
+    } else if (event.type === 'family-fair') {
+      const children = input.fair?.children ?? [];
+      if (children.length < 1) {
+        return { success: false, error: 'Please add at least one child (ages 3–10).' };
       }
     }
 
@@ -168,6 +202,17 @@ export async function submitPaidEventRegistration(
       return { success: false, error: 'Could not save registration. Please contact us.' };
     }
 
+    if (fairRedemptions.length) {
+      const reserved = await recordFairCodeRedemptions({
+        eventId,
+        eventRegistrationId: null,
+        items: fairRedemptions,
+      });
+      if (!reserved.ok) {
+        return { success: false, error: reserved.error };
+      }
+    }
+
     const detailsSummary = buildDetailsSummary(
       event.slug,
       input.dinner,
@@ -218,15 +263,31 @@ export async function submitPaidEventRegistration(
     );
 
     if (regResult.error || !regResult.data) {
+      if (fairRedemptions.length) {
+        await releaseFairCodeRedemptions({
+          eventId,
+          registrationIds: fairRedemptions.map((r) => r.registrationId),
+        });
+      }
       console.error('[paid event] insert error:', regResult.error);
       return { success: false, error: 'Could not save registration. Please try again.' };
+    }
+
+    const eventRegistrationId = (regResult.data as { id: string }).id;
+
+    if (fairRedemptions.length) {
+      await attachFairCodeRedemptionsToEventRegistration({
+        eventId,
+        eventRegistrationId,
+        registrationIds: fairRedemptions.map((r) => r.registrationId),
+      });
     }
 
     // Paid events must persist amount — schema-fallback must not silently drop money columns.
     if (pricing.total > 0 && !(Number((regResult.data as { amount?: number }).amount) > 0)) {
       console.error(
         '[paid event] registration saved without amount — run migration 0012_paid_event_registrations.sql',
-        { id: (regResult.data as { id: string }).id, expected: pricing.total },
+        { id: eventRegistrationId, expected: pricing.total }
       );
     }
 

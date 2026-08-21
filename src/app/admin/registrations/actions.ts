@@ -39,6 +39,7 @@ import {
   HEBREW_ADVENTURE_PATH,
   HEBREW_ADVENTURE_SLUG,
 } from '@/lib/programs/names';
+import { issueFairAccessCodesAfterAccept } from '@/lib/events/hebrew-fair-codes';
 import {
   chargeSavedTuitionPayment,
 } from '@/lib/stripe/charge-tuition';
@@ -441,6 +442,12 @@ export async function acceptAndChargeFamily(
         .eq('id', reg.id);
     }
 
+    // Issue unique Hebrew event free-entry codes (Adventure only; no email yet).
+    await issueFairAccessCodesAfterAccept({
+      programSlug,
+      registrationIds: regs.map((r) => r.id),
+    });
+
     await supabase.from('payments').insert({
       source_type: 'program_registration',
       source_id: regs[0].id,
@@ -611,6 +618,11 @@ export async function acceptFamilyOnly(
         .eq('id', reg.id);
     }
 
+    await issueFairAccessCodesAfterAccept({
+      programSlug,
+      registrationIds: regs.map((r) => r.id),
+    });
+
     // Schedule ALL installments including #1 so payment can be recorded later.
     for (const inst of billing.installments) {
       await supabase.from('tuition_installments').upsert(
@@ -780,6 +792,11 @@ export async function acceptFamilyOffline(
         .update({ status: 'accepted', notes: nextNotes })
         .eq('id', reg.id);
     }
+
+    await issueFairAccessCodesAfterAccept({
+      programSlug,
+      registrationIds: regs.map((r) => r.id),
+    });
 
     await supabase.from('payments').insert({
       source_type: 'program_registration',

@@ -109,8 +109,16 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
       });
       return;
     }
+    const normalized = code.trim().toUpperCase();
+    const duplicate = hebrewCodes.some(
+      (c, i) => i !== index && c.trim().toUpperCase() === normalized
+    );
+    if (duplicate) {
+      setFairCodeStatus((s) => ({ ...s, [index]: 'invalid' }));
+      return;
+    }
     setFairCodeStatus((s) => ({ ...s, [index]: 'checking' }));
-    const result = await verifyHebrewFairCodeAction(code);
+    const result = await verifyHebrewFairCodeAction(code, event.slug);
     setFairCodeStatus((s) => ({ ...s, [index]: result.valid ? 'valid' : 'invalid' }));
   }
 
@@ -169,12 +177,19 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
         setError('Please enter a HaBayit Hebrew code.');
         return;
       }
+      const seen = new Set<string>();
       for (let i = 0; i < hebrewCodes.length; i++) {
         const code = hebrewCodes[i]?.trim();
         if (!code) {
           setError(`Please enter a HaBayit Hebrew code for child ${i + 1}.`);
           return;
         }
+        const normalized = code.toUpperCase();
+        if (seen.has(normalized)) {
+          setError(`Each Hebrew code can only free one child. Duplicate code on child ${i + 1}.`);
+          return;
+        }
+        seen.add(normalized);
         if (fairCodeStatus[i] !== 'valid') {
           setError(`Please enter a valid HaBayit Hebrew code for child ${i + 1}.`);
           return;
@@ -366,6 +381,12 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
               />
               <span className="text-[0.92rem] text-navy">My child is in HaBayit Hebrew</span>
             </label>
+            {hebrewStudent && (
+              <p className="text-[0.82rem] text-muted">
+                Enter each child&apos;s unique code (one code per child). Each code works once for
+                this event.
+              </p>
+            )}
 
             {hebrewStudent && (
               <div className="space-y-3">

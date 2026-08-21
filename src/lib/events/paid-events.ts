@@ -29,6 +29,8 @@ export interface PaidEventConfig {
   type: PaidEventType;
   /** How CRM counts attendees for this event. */
   peopleMode: PaidEventPeopleMode;
+  /** When true, HaBayit Hebrew Adventure kids can enter free with a unique HA- code (once per event). */
+  hebrewKidsFreeWithCode?: boolean;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
   /** Extra line under Become a Sponsor — dinner only. */
@@ -73,6 +75,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     flyer: '/flyers/rosh-hashana-family-fair.png',
     type: 'family-fair',
     peopleMode: 'kids',
+    hebrewKidsFreeWithCode: true,
     sponsorPresets: [54, 72, 180, 360],
     sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_FAIR_ID',
   },

@@ -90,6 +90,7 @@ export interface ProgramRegistration {
   chai_partner_code_used: string | null;
   payment_plan: PaymentPlan | null;
   tuition_total: number | null;
+  fair_access_code: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

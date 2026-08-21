@@ -5,6 +5,7 @@ import { getAdminRole, isAdminAuthenticated } from '@/lib/admin/auth';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
 import { PAID_EVENTS } from '@/lib/events/paid-events';
 import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
+import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
 import {
   contactMatchesTrack,
   familiesForProgram,
@@ -243,7 +244,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
       .from('form_submissions')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(500),
+      .limit(2000),
     supabase.from('waivers').select('*').order('signed_at', { ascending: false }),
   ]);
 
@@ -260,11 +261,17 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
   const children = (childrenRes.data ?? []) as Child[];
   const registrations = (registrationsRes.data ?? []) as ProgramRegistration[];
   const payments = (paymentsRes.data ?? []) as Payment[];
-  const rsvpRows = (rsvpsRes.data ?? []) as EventRegistration[];
+  const rsvpRowsRaw = (rsvpsRes.data ?? []) as EventRegistration[];
   const dbEvents = (eventsRes.data ?? []) as Event[];
   const importantDates = (datesRes.data ?? []) as ImportantDate[];
   const formSubmissions = (submissionsRes.data ?? []) as FormSubmission[];
   const waivers = (waiversRes.data ?? []) as Waiver[];
+  // Recover ticket/donation totals when money columns were missing at insert time
+  // (still present on form_submissions.payload.pricing).
+  const rsvpRows = enrichEventRegistrationsFromFormSubmissions(
+    rsvpRowsRaw,
+    formSubmissions,
+  );
 
   const eventsById = new Map(dbEvents.map((e) => [e.id, e.title]));
 

@@ -214,12 +214,20 @@ export async function submitPaidEventRegistration(
     };
 
     const regResult = await insertWithSchemaFallback(row, async (payload) =>
-      supabase.from('event_registrations').insert(payload).select('id').single()
+      supabase.from('event_registrations').insert(payload).select('id, amount').single()
     );
 
     if (regResult.error || !regResult.data) {
       console.error('[paid event] insert error:', regResult.error);
       return { success: false, error: 'Could not save registration. Please try again.' };
+    }
+
+    // Paid events must persist amount — schema-fallback must not silently drop money columns.
+    if (pricing.total > 0 && !(Number((regResult.data as { amount?: number }).amount) > 0)) {
+      console.error(
+        '[paid event] registration saved without amount — run migration 0012_paid_event_registrations.sql',
+        { id: (regResult.data as { id: string }).id, expected: pricing.total },
+      );
     }
 
     await ensureCrmContact({

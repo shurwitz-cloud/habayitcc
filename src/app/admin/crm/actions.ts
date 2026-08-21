@@ -7,6 +7,11 @@ import { PAID_EVENTS } from '@/lib/events/paid-events';
 import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
 import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
 import {
+  eventShowsAdults,
+  eventShowsKids,
+  resolveEventPeopleMode,
+} from '@/lib/admin/crm/event-display';
+import {
   contactMatchesTrack,
   familiesForProgram,
   resolveCrmProgramTracks,
@@ -103,6 +108,9 @@ function toCrmEventRecord(input: {
 }): CrmEventRecord {
   const rsvps = sortRsvpsNewestFirst(input.rsvps);
   const stats = aggregateEventRegistrations(rsvps);
+  const peopleMode = resolveEventPeopleMode(input.slug);
+  const showAdults = eventShowsAdults(peopleMode);
+  const showKids = eventShowsKids(peopleMode);
   return {
     id: input.id,
     slug: input.slug,
@@ -115,9 +123,10 @@ function toCrmEventRecord(input: {
     program: input.program,
     rsvpCount: stats.submissionCount,
     guestTotal: stats.guestTotal,
-    adultsTotal: stats.adultsTotal,
-    kidsTotal: stats.kidsTotal,
-    hasAdultsKids: stats.hasAdultsKids,
+    adultsTotal: showAdults ? (stats.adultsTotal ?? 0) : null,
+    kidsTotal: showKids ? (stats.kidsTotal ?? 0) : null,
+    hasAdultsKids: showAdults,
+    peopleMode,
     ticketTotal: stats.ticketTotal,
     donationTotal: stats.donationTotal,
     feeTotal: stats.feeTotal,

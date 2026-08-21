@@ -58,6 +58,12 @@ import {
   parseEventMoney,
   parseEventPeople,
 } from '@/lib/admin/crm/event-registration-stats';
+import {
+  eventShowsAdults,
+  eventShowsKids,
+  resolveEventPeopleMode,
+  type EventPeopleMode,
+} from '@/lib/admin/crm/event-display';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -307,6 +313,9 @@ export function CrmPanel({
         if (sortKey === 'name') return `${r.last_name} ${r.first_name}`;
         if (sortKey === 'email') return r.email ?? '';
         if (sortKey === 'guests') return r.guest_count;
+        if (sortKey === 'donation') return parseEventMoney(r).donation;
+        if (sortKey === 'adults') return parseEventPeople(r).adults ?? 0;
+        if (sortKey === 'kids') return parseEventPeople(r).kids ?? 0;
         return new Date(r.created_at).getTime();
       }, sortDir),
     [filteredRsvps, sortKey, sortDir],
@@ -446,10 +455,24 @@ export function CrmPanel({
     }
     if (view === 'events') {
       if (selectedEventId !== 'all') {
-        exportCsv(
+          exportCsv(
           'habayit-event-submissions.csv',
-          ['Date', 'Event', 'Name', 'Email', 'Phone', 'Guests', 'Amount', 'Donation', 'Notes'],
+          [
+            'Date',
+            'Event',
+            'Name',
+            'Email',
+            'Phone',
+            'People',
+            'Adults',
+            'Kids',
+            'Tickets',
+            'Donation',
+            'Total',
+            'Notes',
+          ],
           filteredRsvps.map((r) => {
+            const mode = resolveEventPeopleMode(r.event_slug);
             const people = parseEventPeople(r);
             const money = parseEventMoney(r);
             return [
@@ -459,8 +482,11 @@ export function CrmPanel({
               r.email ?? '',
               r.phone ?? '',
               String(people.guests),
+              eventShowsAdults(mode) ? String(people.adults ?? 0) : '',
+              eventShowsKids(mode) ? String(people.kids ?? 0) : '',
               money.hasMoney ? String(money.ticket) : '',
               money.hasMoney ? String(money.donation) : '',
+              money.hasMoney ? String(money.total) : '',
               r.notes ?? '',
             ];
           }),
@@ -708,6 +734,7 @@ export function CrmPanel({
                 rows={sortedRsvps}
                 expandedId={expandedId}
                 onToggle={setExpandedId}
+                peopleMode={activeEvent?.peopleMode}
                 {...sortProps}
               />
             ))}
@@ -723,7 +750,13 @@ export function CrmPanel({
             </>
           )}
           {view === 'rsvps' && (
-            <RsvpsTable rows={sortedRsvps} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+            <RsvpsTable
+              rows={sortedRsvps}
+              expandedId={expandedId}
+              onToggle={setExpandedId}
+              peopleMode={activeEvent?.peopleMode}
+              {...sortProps}
+            />
           )}
           {view === 'payments' && canSeeFinance && (
             <PaymentsTable
@@ -1754,6 +1787,7 @@ function PaymentDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) 
 function RsvpDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) {
   const r = snapshot.rsvps.find((x) => x.id === id);
   if (!r) return null;
+  const mode = resolveEventPeopleMode(r.event_slug);
   const people = parseEventPeople(r);
   const money = parseEventMoney(r);
   return (
@@ -1761,9 +1795,9 @@ function RsvpDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) {
       pairs={[
         ['Event', r.eventTitle],
         ['Phone', r.phone],
-        ['Guests', String(people.guests)],
-        people.adults != null ? ['Adults', String(people.adults)] : null,
-        people.kids != null ? ['Kids', String(people.kids)] : null,
+        ['People', String(people.guests)],
+        eventShowsAdults(mode) ? ['Adults', String(people.adults ?? 0)] : null,
+        eventShowsKids(mode) ? ['Kids', String(people.kids ?? 0)] : null,
         money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
         money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
         money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
@@ -1778,6 +1812,7 @@ function RsvpsTable({
   rows,
   expandedId,
   onToggle,
+  peopleMode: peopleModeProp,
   sortKey,
   sortDir,
   onSort,
@@ -1785,8 +1820,20 @@ function RsvpsTable({
   rows: CrmSnapshot['rsvps'];
   expandedId: string | null;
   onToggle: (id: string | null) => void;
+  /** When viewing one event, use its configured people mode. */
+  peopleMode?: EventPeopleMode;
 } & SortProps) {
   if (!rows.length) return <EmptyState />;
+
+  const showAdultsCol =
+    peopleModeProp != null
+      ? eventShowsAdults(peopleModeProp)
+      : rows.some((r) => eventShowsAdults(resolveEventPeopleMode(r.event_slug)));
+  const showKidsCol =
+    peopleModeProp != null
+      ? eventShowsKids(peopleModeProp)
+      : rows.some((r) => eventShowsKids(resolveEventPeopleMode(r.event_slug)));
+  const colSpan = 7 + (showAdultsCol ? 1 : 0) + (showKidsCol ? 1 : 0);
 
   return (
     <table className="w-full text-sm">
@@ -1796,13 +1843,29 @@ function RsvpsTable({
           <SortableTh label="Event" sortKey="event" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Email" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
-          <SortableTh label="Guests" sortKey="guests" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="People" sortKey="guests" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          {showAdultsCol ? (
+            <SortableTh label="Adults" sortKey="adults" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          ) : null}
+          {showKidsCol ? (
+            <SortableTh label="Kids" sortKey="kids" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          ) : null}
+          <SortableTh
+            label="Donation"
+            sortKey="donation"
+            activeKey={sortKey}
+            dir={sortDir}
+            onSort={onSort}
+          />
           <th className="px-4 py-3" />
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => {
           const open = expandedId === r.id;
+          const mode = peopleModeProp ?? resolveEventPeopleMode(r.event_slug);
+          const people = parseEventPeople(r);
+          const money = parseEventMoney(r);
           return (
             <Fragment key={r.id}>
               <tr className="border-b border-line hover:bg-soft/40">
@@ -1812,35 +1875,42 @@ function RsvpsTable({
                   {r.first_name} {r.last_name}
                 </td>
                 <td className="px-4 py-3">{r.email ?? '—'}</td>
-                <td className="px-4 py-3">{r.guest_count}</td>
+                <td className="px-4 py-3">{people.guests}</td>
+                {showAdultsCol ? (
+                  <td className="px-4 py-3">
+                    {eventShowsAdults(mode) ? (people.adults ?? 0) : '—'}
+                  </td>
+                ) : null}
+                {showKidsCol ? (
+                  <td className="px-4 py-3">
+                    {eventShowsKids(mode) ? (people.kids ?? 0) : '—'}
+                  </td>
+                ) : null}
+                <td className="px-4 py-3 tabular-nums">
+                  {money.hasMoney ? formatUsd(money.donation) : '—'}
+                </td>
                 <td className="px-4 py-3 text-right">
                   <ExpandButton id={r.id} expandedId={expandedId} onToggle={onToggle} />
                 </td>
               </tr>
               {open && (
                 <tr className="bg-soft/30">
-                  <td colSpan={6} className="px-4 py-4">
-                    {(() => {
-                      const people = parseEventPeople(r);
-                      const money = parseEventMoney(r);
-                      return (
-                        <DetailGrid
-                          pairs={[
-                            ['Phone', r.phone],
-                            ['Guests', String(people.guests)],
-                            people.adults != null ? ['Adults', String(people.adults)] : null,
-                            people.kids != null ? ['Kids', String(people.kids)] : null,
-                            money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
-                            money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
-                            money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
-                            ['Notes', r.notes],
-                            ['Event slug', r.event_slug],
-                            ['Family linked', r.family_id ? 'Yes' : 'No'],
-                            ['Submitted', formatDateTime(r.created_at)],
-                          ].filter(Boolean) as Array<[string, string | null | undefined]>}
-                        />
-                      );
-                    })()}
+                  <td colSpan={colSpan} className="px-4 py-4">
+                    <DetailGrid
+                      pairs={[
+                        ['Phone', r.phone],
+                        ['People', String(people.guests)],
+                        eventShowsAdults(mode) ? ['Adults', String(people.adults ?? 0)] : null,
+                        eventShowsKids(mode) ? ['Kids', String(people.kids ?? 0)] : null,
+                        money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
+                        money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
+                        money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
+                        ['Notes', r.notes],
+                        ['Event slug', r.event_slug],
+                        ['Family linked', r.family_id ? 'Yes' : 'No'],
+                        ['Submitted', formatDateTime(r.created_at)],
+                      ].filter(Boolean) as Array<[string, string | null | undefined]>}
+                    />
                   </td>
                 </tr>
               )}

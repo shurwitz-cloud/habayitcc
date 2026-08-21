@@ -92,7 +92,15 @@ export type CrmEventRecord = {
   /** Present when any registration has an adults/kids breakdown. */
   adultsTotal: number | null;
   kidsTotal: number | null;
+  /** @deprecated Prefer peopleMode — kept for older clients. */
   hasAdultsKids: boolean;
+  /**
+   * How this event counts people in CRM (from PaidEventConfig / defaults).
+   * - people: attendees only
+   * - adults_kids: adults + kids + total
+   * - kids: children + total
+   */
+  peopleMode: 'people' | 'adults_kids' | 'kids';
   /** Ticket revenue (excludes sponsorship + card fee). */
   ticketTotal: number;
   /** Sponsorship / donation add-ons. */

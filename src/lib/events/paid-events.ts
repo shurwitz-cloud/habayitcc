@@ -5,6 +5,15 @@ export type PaidEventSlug =
 
 export type PaidEventType = 'dinner' | 'family-fair' | 'womens';
 
+/**
+ * CRM headcount display for this event (kept with the event definition so
+ * every surface — summary, table, drawer — stays consistent).
+ * - people: attendees only
+ * - adults_kids: adults + kids + total
+ * - kids: children + total
+ */
+export type PaidEventPeopleMode = 'people' | 'adults_kids' | 'kids';
+
 export interface PaidEventConfig {
   slug: PaidEventSlug;
   title: string;
@@ -18,6 +27,8 @@ export interface PaidEventConfig {
   location?: string;
   flyer?: string;
   type: PaidEventType;
+  /** How CRM counts attendees for this event. */
+  peopleMode: PaidEventPeopleMode;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
   /** Extra line under Become a Sponsor — dinner only. */
@@ -43,6 +54,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
       'Discover the ancient Japanese art of Kintsugi — repairing broken pottery with gold — and its beautiful connection to teshuvah, renewal, and new beginnings.',
     flyer: '/flyers/pre-rosh-hashana-womens.png',
     type: 'womens',
+    peopleMode: 'people',
     sponsorPresets: [54, 72, 180, 360],
     sheetEnvVar: 'GOOGLE_SHEETS_PRE_RH_WOMENS_ID',
   },
@@ -60,6 +72,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     location: 'Pool & Tennis Center — Rock Creek',
     flyer: '/flyers/rosh-hashana-family-fair.png',
     type: 'family-fair',
+    peopleMode: 'kids',
     sponsorPresets: [54, 72, 180, 360],
     sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_FAIR_ID',
   },
@@ -76,6 +89,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
       'A Rosh Hashana night meal in an Israeli atmosphere — beautiful blessings, delicious food, and great company.',
     flyer: '/flyers/rosh-hashana-dinner.png',
     type: 'dinner',
+    peopleMode: 'adults_kids',
     sponsorPresets: [54, 72, 180, 360, 1000],
     sponsorNote: 'Sponsorship makes this meal possible.',
     sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_DINNER_ID',

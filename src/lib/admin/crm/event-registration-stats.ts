@@ -64,7 +64,8 @@ export function parseEventPeople(row: {
 
   if (details?.womens) {
     const women = Math.max(0, num(details.womens.women));
-    return { adults: women, kids: null, guests: women || guestFallback };
+    // Headcount-only event — do not treat women as "adults" for CRM breakdowns.
+    return { adults: null, kids: null, guests: women || guestFallback };
   }
 
   // Generic future shape: { adults, kids } at top level of details

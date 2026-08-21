@@ -45,20 +45,18 @@ function StatTile({
   );
 }
 
-function peopleLine(r: CrmRsvpRecord): string {
+function peopleLine(r: CrmRsvpRecord, peopleMode: CrmEventRecord['peopleMode']): string {
   const people = parseEventPeople(r);
-  if (people.adults != null && people.kids != null) {
-    return `${people.adults} adult${people.adults === 1 ? '' : 's'} · ${people.kids} kid${
-      people.kids === 1 ? '' : 's'
-    }`;
+  if (peopleMode === 'adults_kids') {
+    const adults = people.adults ?? 0;
+    const kids = people.kids ?? 0;
+    return `${adults} adult${adults === 1 ? '' : 's'} · ${kids} kid${kids === 1 ? '' : 's'}`;
   }
-  if (people.adults != null) {
-    return `${people.adults} adult${people.adults === 1 ? '' : 's'}`;
+  if (peopleMode === 'kids') {
+    const kids = people.kids ?? people.guests;
+    return `${kids} kid${kids === 1 ? '' : 's'}`;
   }
-  if (people.kids != null) {
-    return `${people.kids} kid${people.kids === 1 ? '' : 's'}`;
-  }
-  return `${people.guests} guest${people.guests === 1 ? '' : 's'}`;
+  return `${people.guests} ${people.guests === 1 ? 'person' : 'people'}`;
 }
 
 function moneyLine(r: CrmRsvpRecord): string | null {
@@ -78,6 +76,10 @@ export function EventDetailDrawer({
   event: CrmEventRecord;
   onClose: () => void;
 }) {
+  const peopleMode = event.peopleMode ?? 'people';
+  const showAdults = peopleMode === 'adults_kids';
+  const showKids = peopleMode === 'adults_kids' || peopleMode === 'kids';
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
@@ -111,12 +113,12 @@ export function EventDetailDrawer({
           <SectionCard title="Summary">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               <StatTile label="Submissions" value={String(event.rsvpCount)} />
-              <StatTile label="Total people" value={String(event.guestTotal)} />
-              {event.hasAdultsKids ? (
-                <>
-                  <StatTile label="Adults" value={String(event.adultsTotal ?? 0)} />
-                  <StatTile label="Kids" value={String(event.kidsTotal ?? 0)} />
-                </>
+              <StatTile label="People" value={String(event.guestTotal)} />
+              {showAdults ? (
+                <StatTile label="Adults" value={String(event.adultsTotal ?? 0)} />
+              ) : null}
+              {showKids ? (
+                <StatTile label="Kids" value={String(event.kidsTotal ?? 0)} />
               ) : null}
               {event.hasMoney ? (
                 <>
@@ -183,7 +185,7 @@ export function EventDetailDrawer({
                           {r.phone && <p className="text-sm text-muted">{r.phone}</p>}
                         </div>
                         <span className="shrink-0 text-sm font-bold text-navy text-right">
-                          {peopleLine(r)}
+                          {peopleLine(r, peopleMode)}
                         </span>
                       </div>
                       {money ? (

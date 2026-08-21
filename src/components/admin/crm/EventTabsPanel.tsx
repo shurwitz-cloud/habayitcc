@@ -116,6 +116,10 @@ export function EventTabsSummary({
 }) {
   if (!event) return null;
 
+  const peopleMode = event.peopleMode ?? 'people';
+  const showAdults = peopleMode === 'adults_kids';
+  const showKids = peopleMode === 'adults_kids' || peopleMode === 'kids';
+
   return (
     <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted">
       <div className="flex flex-wrap gap-x-6 gap-y-1 items-baseline">
@@ -132,15 +136,15 @@ export function EventTabsSummary({
         <span>
           <strong className="text-navy">{event.guestTotal}</strong> people
         </span>
-        {event.hasAdultsKids ? (
-          <>
-            <span>
-              <strong className="text-navy">{event.adultsTotal ?? 0}</strong> adults
-            </span>
-            <span>
-              <strong className="text-navy">{event.kidsTotal ?? 0}</strong> kids
-            </span>
-          </>
+        {showAdults ? (
+          <span>
+            <strong className="text-navy">{event.adultsTotal ?? 0}</strong> adults
+          </span>
+        ) : null}
+        {showKids ? (
+          <span>
+            <strong className="text-navy">{event.kidsTotal ?? 0}</strong> kids
+          </span>
         ) : null}
         <span>
           Tickets <strong className="text-navy">{formatUsd(event.ticketTotal)}</strong>

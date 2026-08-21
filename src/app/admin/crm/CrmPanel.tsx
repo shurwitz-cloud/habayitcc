@@ -54,6 +54,7 @@ import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton'
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
 import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
+import { RecoverPaidEventRegistrationsButton } from '@/components/admin/RecoverPaidEventRegistrationsButton';
 import {
   parseEventMoney,
   parseEventPeople,
@@ -730,6 +731,9 @@ export function CrmPanel({
               <ReconcileZeffyButton />
               <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
+          )}
+          {view === 'events' && canSeeFinance && (
+            <RecoverPaidEventRegistrationsButton defaultEmail="adi_sagie@hotmail.com" />
           )}
           {view === 'events' &&
             (selectedEventId === 'all' ? (

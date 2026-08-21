@@ -12,7 +12,7 @@ const EVENT_SLUG = 'pre-rosh-hashana-womens';
 const DRY_RUN = process.argv.includes('--dry-run');
 const SEND_EMAIL = !process.argv.includes('--no-email');
 
-function requireEnv(name: string): string {
+function requireEnv(name) {
   const v = process.env[name]?.trim();
   if (!v) {
     console.error(`Missing ${name}`);

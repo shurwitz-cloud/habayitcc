@@ -445,14 +445,52 @@ export function CrmPanel({
       return;
     }
     if (view === 'events') {
+      if (selectedEventId !== 'all') {
+        exportCsv(
+          'habayit-event-submissions.csv',
+          ['Date', 'Event', 'Name', 'Email', 'Phone', 'Guests', 'Amount', 'Donation', 'Notes'],
+          filteredRsvps.map((r) => {
+            const people = parseEventPeople(r);
+            const money = parseEventMoney(r);
+            return [
+              formatDateTime(r.created_at),
+              r.eventTitle,
+              `${r.first_name} ${r.last_name}`,
+              r.email ?? '',
+              r.phone ?? '',
+              String(people.guests),
+              money.hasMoney ? String(money.ticket) : '',
+              money.hasMoney ? String(money.donation) : '',
+              r.notes ?? '',
+            ];
+          }),
+        );
+        return;
+      }
       exportCsv(
         'habayit-events.csv',
-        ['Event', 'Date', 'RSVPs', 'Guests', 'Location'],
+        [
+          'Event',
+          'Date',
+          'Submissions',
+          'People',
+          'Adults',
+          'Kids',
+          'Tickets',
+          'Donations',
+          'Total',
+          'Location',
+        ],
         filteredEvents.map((e) => [
           e.title,
           e.dateLabel ?? formatDateTime(e.startsAt),
           String(e.rsvpCount),
           String(e.guestTotal),
+          e.adultsTotal != null ? String(e.adultsTotal) : '',
+          e.kidsTotal != null ? String(e.kidsTotal) : '',
+          String(e.ticketTotal),
+          String(e.donationTotal),
+          String(e.revenueTotal),
           e.location ?? '',
         ]),
       );
@@ -500,7 +538,9 @@ export function CrmPanel({
       : view === 'contacts'
         ? filteredContacts.length
         : view === 'events'
-          ? filteredEvents.length
+          ? selectedEventId === 'all'
+            ? filteredEvents.length
+            : filteredRsvps.length
           : view === 'rsvps'
             ? filteredRsvps.length
             : view === 'applications'
@@ -578,7 +618,14 @@ export function CrmPanel({
             <EventTabsPanel
               events={snapshot.events}
               activeEventId={selectedEventId}
-              onSelect={setSelectedEventId}
+              onSelect={(eventId) => {
+                setSelectedEventId(eventId);
+                setExpandedId(null);
+                if (eventId !== 'all') {
+                  setSortKey('date');
+                  setSortDir('desc');
+                }
+              }}
               mode={view}
             />
             <EventTabsSummary event={activeEvent} mode={view} />
@@ -649,13 +696,21 @@ export function CrmPanel({
               <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
           )}
-          {view === 'events' && (
-            <EventsTable
-              rows={sortedEvents}
-              onSelect={setDrawerEvent}
-              {...sortProps}
-            />
-          )}
+          {view === 'events' &&
+            (selectedEventId === 'all' ? (
+              <EventsTable
+                rows={sortedEvents}
+                onSelect={setDrawerEvent}
+                {...sortProps}
+              />
+            ) : (
+              <RsvpsTable
+                rows={sortedRsvps}
+                expandedId={expandedId}
+                onToggle={setExpandedId}
+                {...sortProps}
+              />
+            ))}
           {view === 'applications' && (
             <>
               <ApplicationsTable

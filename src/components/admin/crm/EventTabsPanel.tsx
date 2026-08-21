@@ -117,8 +117,8 @@ export function EventTabsSummary({
   if (!event) return null;
 
   return (
-    <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted space-y-2">
-      <div className="flex flex-wrap gap-x-6 gap-y-1">
+    <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted">
+      <div className="flex flex-wrap gap-x-6 gap-y-1 items-baseline">
         <span>
           <strong className="text-navy">{event.title}</strong>
           {(event.dateLabel || event.startsAt) && (
@@ -142,22 +142,18 @@ export function EventTabsSummary({
             </span>
           </>
         ) : null}
+        <span>
+          Tickets <strong className="text-navy">{formatUsd(event.ticketTotal)}</strong>
+        </span>
+        <span>
+          Donations <strong className="text-navy">{formatUsd(event.donationTotal)}</strong>
+        </span>
+        <span>
+          Total <strong className="text-navy">{formatUsd(event.revenueTotal)}</strong>
+        </span>
         {event.location && <span>{event.location}</span>}
         {mode === 'events' && event.time && <span>{event.time}</span>}
       </div>
-      {event.hasMoney ? (
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-navy">
-          <span>
-            Tickets <strong>{formatUsd(event.ticketTotal)}</strong>
-          </span>
-          <span>
-            Donations <strong>{formatUsd(event.donationTotal)}</strong>
-          </span>
-          <span>
-            Total <strong>{formatUsd(event.revenueTotal)}</strong>
-          </span>
-        </div>
-      ) : null}
     </div>
   );
 }

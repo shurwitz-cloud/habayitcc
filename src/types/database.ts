@@ -133,6 +133,16 @@ export interface EventRegistration {
   created_at: string;
 }
 
+export interface HebrewFairCodeRedemption {
+  [key: string]: unknown;
+  id: string;
+  program_registration_id: string;
+  event_id: string;
+  event_registration_id: string | null;
+  fair_access_code: string;
+  redeemed_at: string;
+}
+
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export type DedicationType = 'honor' | 'memory';
 
@@ -342,6 +352,14 @@ export interface Database {
         Row: EventRegistration;
         Insert: Insertable<EventRegistration>;
         Update: Partial<Insertable<EventRegistration>>;
+      };
+      hebrew_fair_code_redemptions: {
+        Row: HebrewFairCodeRedemption;
+        Insert: Omit<HebrewFairCodeRedemption, 'id' | 'redeemed_at'> & {
+          id?: string;
+          redeemed_at?: string;
+        };
+        Update: Partial<HebrewFairCodeRedemption>;
       };
       donations: { Row: Donation; Insert: Insertable<Donation>; Update: Partial<Insertable<Donation>> };
       chai_partners: {

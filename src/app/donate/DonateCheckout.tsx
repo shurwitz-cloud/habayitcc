@@ -7,6 +7,7 @@ import { Elements, useStripe, useElements, CardElement } from '@stripe/react-str
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
 import { DEFAULT_DONATION_MEMO, resolveDonationMemo } from '@/lib/donations/memo';
+import { normalizeDonorEmail, normalizeDonorName } from '@/lib/donations/normalize-donor';
 import { recordDonation } from './actions';
 import type { DedicationType } from '@/types/database';
 
@@ -83,6 +84,9 @@ function DonateForm() {
       return;
     }
 
+    const normalizedEmail = normalizeDonorEmail(email);
+    const donorName = normalizeDonorName(firstName, lastName);
+
     const cardElement = elements.getElement(CardElement);
     if (!cardElement) return;
 
@@ -90,6 +94,9 @@ function DonateForm() {
 
     try {
       const amountCents = Math.round(finalAmount! * 100);
+      if (amountCents < 100) {
+        throw new Error('Minimum donation is $1.');
+      }
       const trimmedDedication = dedicationName.trim();
       const dedicationPayload = trimmedDedication
         ? {
@@ -105,8 +112,8 @@ function DonateForm() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amountCents,
-            donorName: `${firstName} ${lastName}`,
-            donorEmail: email,
+            donorName,
+            donorEmail: normalizedEmail,
             memo: donationMemo,
             campaign: campaignSlug ?? undefined,
             ...dedicationPayload,
@@ -121,9 +128,9 @@ function DonateForm() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amountCents,
-            donorFirstName: firstName,
-            donorLastName: lastName,
-            donorEmail: email,
+            donorFirstName: firstName.trim(),
+            donorLastName: lastName.trim(),
+            donorEmail: normalizedEmail,
             donorPhone: phone,
             memo: donationMemo,
             campaign: campaignSlug ?? undefined,
@@ -140,48 +147,54 @@ function DonateForm() {
         payment_method: {
           card: cardElement,
           billing_details: {
-            name: `${firstName} ${lastName}`,
-            email,
-            phone: phone || undefined,
+            name: donorName,
+            email: normalizedEmail,
+            phone: phone.trim() || undefined,
           },
         },
       });
 
       if (stripeError) {
         setError(stripeError.message ?? 'Payment failed. Please try again.');
-        setProcessing(false);
         return;
       }
 
-      if (paymentIntent?.status === 'succeeded') {
-        const recorded = await recordDonation({
-          paymentIntentId: paymentIntent.id,
-          amountDollars: finalAmount!,
-          firstName,
-          lastName,
-          email,
-          phone,
-          donationType: mode === 'monthly' ? 'Monthly' : 'One-Time',
-          memo: donationMemo,
-          campaign: campaignSlug,
-          ...dedicationPayload,
-        });
-
-        if (!recorded.success) {
-          throw new Error(recorded.error ?? 'Could not complete your donation record.');
-        }
-
-        if (recorded.warning) {
-          console.warn('recordDonation warning:', recorded.warning);
-        }
-
-        if (recorded.receiptUrl) {
-          setReceiptUrl(recorded.receiptUrl);
-        }
-        setSuccess(true);
+      if (paymentIntent?.status !== 'succeeded') {
+        setError('Payment was not completed. Please try again or contact info@habayitcc.org.');
+        return;
       }
+
+      const recorded = await recordDonation({
+        paymentIntentId: paymentIntent.id,
+        amountDollars: finalAmount!,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: normalizedEmail,
+        phone: phone.trim() || undefined,
+        donationType: mode === 'monthly' ? 'Monthly' : 'One-Time',
+        memo: donationMemo,
+        campaign: campaignSlug,
+        ...dedicationPayload,
+      });
+
+      if (!recorded.success) {
+        throw new Error(
+          recorded.error ??
+            'Your card was charged but we could not finish processing. Please email info@habayitcc.org — we will confirm your gift.'
+        );
+      }
+
+      if (recorded.warning) {
+        console.warn('recordDonation warning:', recorded.warning);
+      }
+
+      if (recorded.receiptUrl) {
+        setReceiptUrl(recorded.receiptUrl);
+      }
+      setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
       setProcessing(false);
     }
   }
@@ -207,7 +220,7 @@ function DonateForm() {
           </Link>
         )}
         <p className="text-muted text-[0.85rem] mt-4 max-w-[440px] mx-auto">
-          A tax receipt email from HaBayit has been sent to {email}. You can also open your receipt below.
+          A tax receipt email from HaBayit has been sent to {normalizeDonorEmail(email)}. You can also open your receipt below.
         </p>
         <Link
           href="/"

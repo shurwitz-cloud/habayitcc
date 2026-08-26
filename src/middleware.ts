@@ -57,16 +57,62 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  if (req.method === 'POST' && pathname.startsWith('/api/stripe/')) {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`stripe-api:${ip}`, 30, 60 * 1000);
+    if (!limit.ok) {
+      return withSecurityHeaders(
+        NextResponse.json(
+          { error: 'Too many payment requests. Please wait a moment and try again.' },
+          {
+            status: 429,
+            headers: { 'Retry-After': String(limit.retryAfterSec) },
+          }
+        ),
+        isProduction
+      );
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/webhooks/zeffy') {
+    const ip = getClientIp(req);
+    const limit = checkRateLimit(`zeffy-webhook:${ip}`, 60, 60 * 1000);
+    if (!limit.ok) {
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Too many requests.' }, { status: 429 }),
+        isProduction
+      );
+    }
+  }
+
+  const adminSession = req.cookies.get(ADMIN_COOKIE)?.value;
+  const isStaffAuthed = await verifyAdminCookieValue(
+    adminSession,
+    adminSecret,
+    volunteerSecret
+  );
+
+  const isAdminAuthRoute = pathname === '/api/admin/auth';
+  if (pathname.startsWith('/api/admin/') && !isAdminAuthRoute) {
+    if (!isStaffAuthed) {
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        isProduction
+      );
+    }
+  }
+
+  if (isProduction && pathname.startsWith('/receipt/annual/preview')) {
+    if (!isStaffAuthed) {
+      return withSecurityHeaders(new NextResponse('Not found.', { status: 404 }), isProduction);
+    }
+  }
+
   const isProtectedApi =
     pathname.startsWith('/api/email/') || pathname === '/api/sheets/setup';
 
   if (isProtectedApi) {
-    const authed = await verifyAdminCookieValue(
-      req.cookies.get(ADMIN_COOKIE)?.value,
-      adminSecret,
-      volunteerSecret
-    );
-    if (!authed) {
+    if (!isStaffAuthed) {
       return withSecurityHeaders(
         NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
         isProduction
@@ -75,12 +121,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname === '/email-preview' && isProduction) {
-    const authed = await verifyAdminCookieValue(
-      req.cookies.get(ADMIN_COOKIE)?.value,
-      adminSecret,
-      volunteerSecret
-    );
-    if (!authed) {
+    if (!isStaffAuthed) {
       return withSecurityHeaders(
         NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
         isProduction

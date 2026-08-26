@@ -48,6 +48,11 @@ export async function verifyHebrewFairCodeAction(
   childName?: string;
   reason?: string;
 }> {
+  const limited = await enforceActionRateLimit('hebrew-fair-code', 12, 15 * 60 * 1000);
+  if (!limited.ok) {
+    return { valid: false, reason: limited.error };
+  }
+
   const lookup = await verifyHebrewFairCode(code, { eventSlug });
   if (!lookup.valid) {
     return { valid: false, reason: lookup.reason };

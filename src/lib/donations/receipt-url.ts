@@ -23,12 +23,38 @@ export interface ReceiptUrlParams {
 
 const RECEIPT_SIG_PARAM = 'sig';
 
+const warnedReceiptSecretFallback = { value: false };
+
+function receiptSigningSecrets(): string[] {
+  const receiptSecret = process.env.RECEIPT_SIGNING_SECRET?.trim();
+  const adminSecret = process.env.ADMIN_SECRET?.trim();
+  const secrets: string[] = [];
+
+  if (receiptSecret) secrets.push(receiptSecret);
+  if (adminSecret && adminSecret !== receiptSecret) secrets.push(adminSecret);
+
+  if (
+    !receiptSecret &&
+    adminSecret &&
+    process.env.NODE_ENV === 'production' &&
+    !warnedReceiptSecretFallback.value
+  ) {
+    warnedReceiptSecretFallback.value = true;
+    console.warn(
+      '[receipt] RECEIPT_SIGNING_SECRET is not set — using ADMIN_SECRET. Set a dedicated RECEIPT_SIGNING_SECRET in production.'
+    );
+  }
+
+  return secrets;
+}
+
+/** Primary secret for signing new receipt URLs. */
 function getReceiptSigningSecret(): string | undefined {
-  return (
-    process.env.RECEIPT_SIGNING_SECRET?.trim() ||
-    process.env.ADMIN_SECRET?.trim() ||
-    undefined
-  );
+  return receiptSigningSecrets()[0];
+}
+
+function signReceiptPayloadWithSecret(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('hex');
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -69,7 +95,7 @@ function canonicalReceiptPayload(params: {
 function signReceiptPayload(payload: string): string {
   const secret = getReceiptSigningSecret();
   if (!secret) return '';
-  return createHmac('sha256', secret).update(payload).digest('hex');
+  return signReceiptPayloadWithSecret(payload, secret);
 }
 
 export function readReceiptParam(
@@ -174,8 +200,8 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
 export function verifyReceiptSearchParams(
   params: Record<string, string | string[] | undefined>
 ): boolean {
-  const secret = getReceiptSigningSecret();
-  if (!secret) return false;
+  const secrets = receiptSigningSecrets();
+  if (secrets.length === 0) return false;
 
   const sig = readReceiptParam(params[RECEIPT_SIG_PARAM]);
   if (!sig) return false;
@@ -198,8 +224,7 @@ export function verifyReceiptSearchParams(
     memo: readReceiptParam(params.memo),
   });
 
-  const expected = signReceiptPayload(payload);
-  if (!expected) return false;
-
-  return safeEqual(sig, expected);
+  return secrets.some((secret) =>
+    safeEqual(sig, signReceiptPayloadWithSecret(payload, secret))
+  );
 }

@@ -11,6 +11,7 @@ import {
   constructStripeWebhookEvent,
   hasStripeWebhookSecret,
 } from '@/lib/stripe/webhook-verify';
+import { productionWebhookGetBlocked } from '@/lib/security/production-only';
 import {
   paidEventInputFromPaymentIntentMetadata,
   persistPaidEventRegistration,
@@ -20,6 +21,9 @@ import type Stripe from 'stripe';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const blocked = productionWebhookGetBlocked();
+  if (blocked) return blocked;
+
   return NextResponse.json({
     ok: true,
     endpoint: '/api/webhooks/stripe',
@@ -114,7 +118,13 @@ async function handlePaidEventRegistrationPayment(pi: Stripe.PaymentIntent) {
     return;
   }
 
-  const result = await persistPaidEventRegistration(input);
+  // Webhook is a safety net only — form already emails/sheets on success.
+  // Always skip email/sheet here so we never double-notify when both paths run.
+  const result = await persistPaidEventRegistration({
+    ...input,
+    skipEmail: true,
+    skipSheet: true,
+  });
   if (!result.success) {
     console.error('[stripe webhook] paid event persist failed', pi.id, result.error);
   } else if (result.alreadyExisted) {

@@ -93,41 +93,6 @@ export async function persistPaidEventRegistration(
 
   const supabase = createAdminClient();
 
-  // Idempotency: never create a second row for the same Stripe payment.
-  if (paymentIntentId) {
-    const { data: existing, error: existingErr } = await supabase
-      .from('event_registrations')
-      .select('id')
-      .eq('stripe_payment_intent_id', paymentIntentId)
-      .maybeSingle();
-
-    if (!existingErr && existing?.id) {
-      const pricingExisting = computePaidEventTotal({
-        event,
-        dinner: input.dinner,
-        fair: input.fair,
-        womens: input.womens,
-        sponsorAmount: input.sponsorAmount,
-        coverFee: input.coverFee,
-      });
-      const receiptUrl =
-        pricingExisting.total > 0
-          ? buildReceiptUrl({
-              name: `${firstName} ${lastName}`,
-              amount: pricingExisting.total,
-              memo: event.title,
-              campaign: event.slug,
-            })
-          : undefined;
-      return {
-        success: true,
-        registrationId: existing.id,
-        receiptUrl,
-        alreadyExisted: true,
-      };
-    }
-  }
-
   const pricing = computePaidEventTotal({
     event,
     dinner: input.dinner,
@@ -136,6 +101,64 @@ export async function persistPaidEventRegistration(
     sponsorAmount: input.sponsorAmount,
     coverFee: input.coverFee,
   });
+
+  const receiptFor = (registrationId: string, alreadyExisted: boolean): PaidEventPersistResult => ({
+    success: true,
+    registrationId,
+    alreadyExisted,
+    receiptUrl:
+      pricing.total > 0
+        ? buildReceiptUrl({
+            name: `${firstName} ${lastName}`,
+            amount: pricing.total,
+            memo: event.title,
+            campaign: event.slug,
+          })
+        : undefined,
+  });
+
+  // Idempotency 1: same Stripe PaymentIntent → never insert twice
+  // (form submit + webhook both call this; without this they race-create doubles).
+  if (paymentIntentId) {
+    const { data: existing, error: existingErr } = await supabase
+      .from('event_registrations')
+      .select('id')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+
+    if (!existingErr && existing?.id) {
+      return receiptFor(existing.id, true);
+    }
+  }
+
+  // Idempotency 2: same email + event in the last 6 hours with no PI or same PI.
+  // Covers race where form inserts before PI column is set / webhook arrives mid-insert.
+  {
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from('event_registrations')
+      .select('id, stripe_payment_intent_id')
+      .eq('event_slug', event.slug)
+      .ilike('email', email)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    for (const row of recent ?? []) {
+      const rowPi = (row.stripe_payment_intent_id as string | null) || null;
+      if (rowPi && paymentIntentId && rowPi !== paymentIntentId) {
+        // Distinct successful payments — allow a second registration.
+        continue;
+      }
+      if (paymentIntentId && !rowPi) {
+        await supabase
+          .from('event_registrations')
+          .update({ stripe_payment_intent_id: paymentIntentId })
+          .eq('id', row.id);
+      }
+      return receiptFor(row.id as string, true);
+    }
+  }
 
   const eventId = await ensureEventBySlug(event.slug);
   if (!eventId) {
@@ -193,29 +216,27 @@ export async function persistPaidEventRegistration(
   );
 
   if (regResult.error || !regResult.data) {
-    // Race: another request may have inserted the same PI while we were writing.
+    // Race: form + webhook both inserted — treat as success if a matching row exists.
     if (paymentIntentId) {
       const { data: raced } = await supabase
         .from('event_registrations')
         .select('id')
         .eq('stripe_payment_intent_id', paymentIntentId)
         .maybeSingle();
-      if (raced?.id) {
-        return {
-          success: true,
-          registrationId: raced.id,
-          alreadyExisted: true,
-          receiptUrl:
-            pricing.total > 0
-              ? buildReceiptUrl({
-                  name: `${firstName} ${lastName}`,
-                  amount: pricing.total,
-                  memo: event.title,
-                  campaign: event.slug,
-                })
-              : undefined,
-        };
-      }
+      if (raced?.id) return receiptFor(raced.id, true);
+    }
+    {
+      const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+      const { data: racedEmail } = await supabase
+        .from('event_registrations')
+        .select('id')
+        .eq('event_slug', event.slug)
+        .ilike('email', email)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (racedEmail?.id) return receiptFor(racedEmail.id, true);
     }
 
     console.error('[paid event] insert error:', regResult.error);

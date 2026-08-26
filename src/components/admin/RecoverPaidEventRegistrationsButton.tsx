@@ -5,8 +5,7 @@ import { useState, useTransition } from 'react';
 const DEFAULT_EMAILS = ['adi_sagie@hotmail.com', 'rebecca.greenberg3@gmail.com'];
 
 /**
- * One-click recovery for Stripe-paid event registrations that never landed in CRM.
- * One person → one CRM row + confirmation email + optional apology about refunds.
+ * CRM tools for paid-event Stripe recovery and duplicate cleanup.
  */
 export function RecoverPaidEventRegistrationsButton({
   defaultEmails = DEFAULT_EMAILS,
@@ -15,7 +14,9 @@ export function RecoverPaidEventRegistrationsButton({
 }) {
   const [emailsText, setEmailsText] = useState(defaultEmails.join(', '));
   const [message, setMessage] = useState('');
+  const [dedupeMsg, setDedupeMsg] = useState('');
   const [isPending, startTransition] = useTransition();
+  const [dedupePending, startDedupe] = useTransition();
 
   function parseEmails(): string[] {
     return emailsText
@@ -46,7 +47,7 @@ export function RecoverPaidEventRegistrationsButton({
           error?: string;
           created?: number;
           wouldCreate?: number;
-          results?: Array<{ pi: string; email: string; amount: number; action: string }>;
+          results?: Array<{ action: string }>;
         };
         if (!res.ok) {
           setMessage(data.error ?? 'Recovery failed.');
@@ -71,42 +72,108 @@ export function RecoverPaidEventRegistrationsButton({
     });
   }
 
+  function runDedupe(dryRun: boolean) {
+    setDedupeMsg('');
+    startDedupe(async () => {
+      try {
+        const res = await fetch('/api/admin/dedupe-event-registrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm: true, dryRun }),
+        });
+        const data = (await res.json()) as {
+          error?: string;
+          duplicateGroups?: number;
+          wouldDelete?: number;
+          deleted?: number;
+        };
+        if (!res.ok) {
+          setDedupeMsg(data.error ?? 'Dedupe failed.');
+          return;
+        }
+        console.log(dryRun ? '[dedupe preview]' : '[dedupe]', data);
+        if (dryRun) {
+          setDedupeMsg(
+            `Preview: ${data.duplicateGroups ?? 0} people with doubles → would remove ${data.wouldDelete ?? 0} extra rows (no emails).`,
+          );
+          return;
+        }
+        setDedupeMsg(
+          `Removed ${data.deleted ?? 0} duplicate submission(s) across ${data.duplicateGroups ?? 0} people. No emails sent.`,
+        );
+      } catch (err) {
+        setDedupeMsg(err instanceof Error ? err.message : 'Dedupe failed.');
+      }
+    });
+  }
+
   return (
-    <div className="mx-4 mt-3 mb-1 p-3 rounded-xl border border-line bg-soft/40 space-y-2">
-      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted">
-        Recover Stripe event payments
-      </p>
-      <p className="text-xs text-muted">
-        Creates one CRM row per person (even if Stripe shows multiple charges), sends one
-        confirmation email, and one warm apology about refunds (from info@habayitcc.org). You
-        refund the extras in Stripe.
-      </p>
-      <div className="flex flex-wrap gap-2 items-center">
-        <input
-          type="text"
-          value={emailsText}
-          onChange={(e) => setEmailsText(e.target.value)}
-          placeholder="Emails to recover (comma-separated)"
-          className="min-w-[280px] flex-1 text-sm"
-        />
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => run(true)}
-          className="px-3 py-1.5 text-sm rounded-full border border-line bg-white font-semibold text-navy disabled:opacity-50"
-        >
-          Preview
-        </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => run(false)}
-          className="px-3 py-1.5 text-sm rounded-full bg-navy text-white font-semibold disabled:opacity-50"
-        >
-          {isPending ? 'Working…' : 'Recover + emails'}
-        </button>
+    <div className="mx-4 mt-3 mb-1 space-y-3">
+      <div className="p-3 rounded-xl border border-line bg-soft/40 space-y-2">
+        <p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted">
+          Remove duplicate submissions
+        </p>
+        <p className="text-xs text-muted">
+          If someone appears twice for the same event (form + Stripe webhook), keep one row and
+          delete the extras. Does not send emails.
+        </p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            type="button"
+            disabled={dedupePending}
+            onClick={() => runDedupe(true)}
+            className="px-3 py-1.5 text-sm rounded-full border border-line bg-white font-semibold text-navy disabled:opacity-50"
+          >
+            Preview duplicates
+          </button>
+          <button
+            type="button"
+            disabled={dedupePending}
+            onClick={() => runDedupe(false)}
+            className="px-3 py-1.5 text-sm rounded-full bg-navy text-white font-semibold disabled:opacity-50"
+          >
+            {dedupePending ? 'Working…' : 'Remove duplicates'}
+          </button>
+        </div>
+        {dedupeMsg ? <p className="text-sm text-navy font-medium">{dedupeMsg}</p> : null}
       </div>
-      {message ? <p className="text-sm text-navy font-medium">{message}</p> : null}
+
+      <div className="p-3 rounded-xl border border-line bg-soft/40 space-y-2">
+        <p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted">
+          Recover Stripe event payments
+        </p>
+        <p className="text-xs text-muted">
+          Creates one CRM row per person (even if Stripe shows multiple charges), sends one
+          confirmation email, and one warm apology about refunds (from info@habayitcc.org). You
+          refund the extras in Stripe.
+        </p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="text"
+            value={emailsText}
+            onChange={(e) => setEmailsText(e.target.value)}
+            placeholder="Emails to recover (comma-separated)"
+            className="min-w-[280px] flex-1 text-sm"
+          />
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => run(true)}
+            className="px-3 py-1.5 text-sm rounded-full border border-line bg-white font-semibold text-navy disabled:opacity-50"
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => run(false)}
+            className="px-3 py-1.5 text-sm rounded-full bg-navy text-white font-semibold disabled:opacity-50"
+          >
+            {isPending ? 'Working…' : 'Recover + emails'}
+          </button>
+        </div>
+        {message ? <p className="text-sm text-navy font-medium">{message}</p> : null}
+      </div>
     </div>
   );
 }

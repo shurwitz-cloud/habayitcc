@@ -1,11 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getAdminRole, isAdminAuthenticated } from '@/lib/admin/auth';
+import { getAdminRole, isAdminAuthenticated, requireCapability } from '@/lib/admin/auth';
+import {
+  recordOfflinePaidEventRegistration,
+  type OfflineEventPaymentMethod,
+} from '@/lib/events/record-offline-registration';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
 import { PAID_EVENTS } from '@/lib/events/paid-events';
 import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
 import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
+import { collapseDuplicateEventRegistrations } from '@/lib/admin/crm/collapse-duplicate-event-registrations';
 import {
   eventShowsAdults,
   eventShowsKids,
@@ -277,10 +282,30 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
   const waivers = (waiversRes.data ?? []) as Waiver[];
   // Recover ticket/donation totals when money columns were missing at insert time
   // (still present on form_submissions.payload.pricing).
-  const rsvpRows = enrichEventRegistrationsFromFormSubmissions(
+  const enrichedRsvps = enrichEventRegistrationsFromFormSubmissions(
     rsvpRowsRaw,
     formSubmissions,
   );
+  // Form + webhook sometimes both inserted — collapse before CRM totals/lists.
+  const { kept: rsvpRows, duplicateIds } =
+    collapseDuplicateEventRegistrations(enrichedRsvps);
+
+  if (duplicateIds.length > 0) {
+    // Quiet cleanup of extras already shown as doubles (no emails).
+    void supabase
+      .from('event_registrations')
+      .delete()
+      .in('id', duplicateIds)
+      .then(({ error: delErr }) => {
+        if (delErr) {
+          console.error('[CRM] duplicate event registration cleanup failed:', delErr.message);
+        } else {
+          console.info(
+            `[CRM] removed ${duplicateIds.length} duplicate event registration(s)`,
+          );
+        }
+      });
+  }
 
   const eventsById = new Map(dbEvents.map((e) => [e.id, e.title]));
 
@@ -502,4 +527,25 @@ export async function addImportantDate(input: {
 
   revalidatePath('/admin/crm');
   return { success: true };
+}
+
+export async function addOfflineEventRegistration(input: {
+  slug: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  amount: number;
+  paymentMethod: OfflineEventPaymentMethod;
+  guestCount?: number;
+}): Promise<{ success: boolean; alreadyExisted?: boolean; error?: string }> {
+  if (!(await requireCapability('crm_finance'))) {
+    return { success: false, error: 'Unauthorized.' };
+  }
+
+  const result = await recordOfflinePaidEventRegistration(input);
+  if (!result.success) return { success: false, error: result.error };
+
+  revalidatePath('/admin/crm');
+  return { success: true, alreadyExisted: result.alreadyExisted };
 }

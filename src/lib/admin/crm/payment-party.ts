@@ -15,12 +15,14 @@ export function paymentSourceLabel(sourceType: string): string {
       return 'Chai partner';
     case 'program_registration':
       return 'Program registration';
+    case 'event_registration':
+      return 'Event registration';
     default:
       return sourceType.replace(/_/g, ' ');
   }
 }
 
-/** Resolve payer name/email from the linked donation, chai partner, or family. */
+/** Resolve payer name/email from the linked donation, chai partner, family, or event RSVP. */
 export function resolvePaymentParty(p: Payment, snapshot: CrmSnapshot): PaymentParty {
   const sourceLabel = paymentSourceLabel(p.source_type);
 
@@ -57,6 +59,34 @@ export function resolvePaymentParty(p: Payment, snapshot: CrmSnapshot): PaymentP
         email: primary?.email ?? null,
         sourceLabel,
       };
+    }
+  }
+
+  if (p.source_type === 'event_registration') {
+    const rsvp = snapshot.rsvps.find((r) => r.id === p.source_id);
+    if (rsvp) {
+      return {
+        name: `${rsvp.first_name} ${rsvp.last_name}`.trim(),
+        email: rsvp.email ?? null,
+        sourceLabel: rsvp.eventTitle
+          ? `Event · ${rsvp.eventTitle}`
+          : sourceLabel,
+      };
+    }
+    // Fallback: match by Stripe PaymentIntent if source_id was lost/deduped.
+    if (p.stripe_payment_intent_id) {
+      const byPi = snapshot.rsvps.find(
+        (r) => r.stripe_payment_intent_id === p.stripe_payment_intent_id,
+      );
+      if (byPi) {
+        return {
+          name: `${byPi.first_name} ${byPi.last_name}`.trim(),
+          email: byPi.email ?? null,
+          sourceLabel: byPi.eventTitle
+            ? `Event · ${byPi.eventTitle}`
+            : sourceLabel,
+        };
+      }
     }
   }
 

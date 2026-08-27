@@ -188,7 +188,11 @@ export interface ChaiPartner {
   updated_at: string;
 }
 
-export type PaymentSourceType = 'donation' | 'chai_partner' | 'program_registration';
+export type PaymentSourceType =
+  | 'donation'
+  | 'chai_partner'
+  | 'program_registration'
+  | 'event_registration';
 
 export interface Payment {
   [key: string]: unknown;

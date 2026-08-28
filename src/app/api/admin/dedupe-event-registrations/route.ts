@@ -119,14 +119,38 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Map deleted registration id → kept id so payment rows stay linked.
+  const idRemap: Record<string, string> = {};
+  for (const g of plan) {
+    for (const rid of g.remove) idRemap[rid] = g.keep;
+  }
+
   if (dryRun) {
     return NextResponse.json({
       ok: true,
       dryRun: true,
       duplicateGroups: plan.length,
       wouldDelete: deleteIds.length,
+      wouldRemapPayments: Object.keys(idRemap).length,
       plan: plan.slice(0, 100),
     });
+  }
+
+  let remappedPayments = 0;
+  for (const [fromId, toId] of Object.entries(idRemap)) {
+    const { data: updated, error: payErr } = await supabase
+      .from('payments')
+      .update({ source_id: toId })
+      .eq('source_type', 'event_registration')
+      .eq('source_id', fromId)
+      .select('id');
+    if (payErr) {
+      return NextResponse.json(
+        { error: `Payment remap failed: ${payErr.message}`, plan },
+        { status: 500 },
+      );
+    }
+    remappedPayments += updated?.length ?? 0;
   }
 
   let deleted = 0;
@@ -142,6 +166,7 @@ export async function POST(req: NextRequest) {
         {
           error: delErr.message,
           deletedSoFar: deleted,
+          remappedPayments,
           plan,
         },
         { status: 500 },
@@ -155,6 +180,7 @@ export async function POST(req: NextRequest) {
     dryRun: false,
     duplicateGroups: plan.length,
     deleted,
+    remappedPayments,
     kept: keepIds.length,
     plan: plan.slice(0, 100),
   });

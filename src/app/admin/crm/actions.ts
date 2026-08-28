@@ -11,6 +11,7 @@ import { PAID_EVENTS } from '@/lib/events/paid-events';
 import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
 import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
 import { collapseDuplicateEventRegistrations } from '@/lib/admin/crm/collapse-duplicate-event-registrations';
+import { relinkOrphanedEventPayments } from '@/lib/admin/crm/payment-party';
 import {
   eventShowsAdults,
   eventShowsKids,
@@ -287,24 +288,61 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     formSubmissions,
   );
   // Form + webhook sometimes both inserted — collapse before CRM totals/lists.
-  const { kept: rsvpRows, duplicateIds } =
+  const { kept: rsvpRows, duplicateIds, idRemap } =
     collapseDuplicateEventRegistrations(enrichedRsvps);
 
-  if (duplicateIds.length > 0) {
-    // Quiet cleanup of extras already shown as doubles (no emails).
-    void supabase
-      .from('event_registrations')
-      .delete()
-      .in('id', duplicateIds)
-      .then(({ error: delErr }) => {
-        if (delErr) {
-          console.error('[CRM] duplicate event registration cleanup failed:', delErr.message);
-        } else {
-          console.info(
-            `[CRM] removed ${duplicateIds.length} duplicate event registration(s)`,
-          );
+  // Re-link payments that still point at a deleted duplicate RSVP id.
+  const paymentsAfterDedupe = payments.map((p) => {
+    if (p.source_type !== 'event_registration') return p;
+    const nextId = idRemap[p.source_id];
+    if (!nextId || nextId === p.source_id) return p;
+    return { ...p, source_id: nextId };
+  });
+
+  // Also repair orphans from earlier dedupe runs (source_id already gone).
+  const rsvpsForLink = rsvpRows.map((r) => ({ ...r, eventTitle: '' }));
+  const { payments: paymentsLinked, remaps: orphanRemaps } = relinkOrphanedEventPayments(
+    paymentsAfterDedupe,
+    rsvpsForLink,
+  );
+
+  if (duplicateIds.length > 0 || orphanRemaps.length > 0) {
+    // Quiet cleanup: remapa payments first, then delete extras (no emails).
+    void (async () => {
+      try {
+        for (const [fromId, toId] of Object.entries(idRemap)) {
+          await supabase
+            .from('payments')
+            .update({ source_id: toId })
+            .eq('source_type', 'event_registration')
+            .eq('source_id', fromId);
         }
-      });
+        for (const m of orphanRemaps) {
+          await supabase
+            .from('payments')
+            .update({ source_id: m.toId })
+            .eq('id', m.paymentId);
+        }
+        if (duplicateIds.length > 0) {
+          const { error: delErr } = await supabase
+            .from('event_registrations')
+            .delete()
+            .in('id', duplicateIds);
+          if (delErr) {
+            console.error('[CRM] duplicate event registration cleanup failed:', delErr.message);
+          } else {
+            console.info(
+              `[CRM] removed ${duplicateIds.length} duplicate event registration(s)`,
+            );
+          }
+        }
+        if (orphanRemaps.length > 0) {
+          console.info(`[CRM] re-linked ${orphanRemaps.length} orphaned event payment(s)`);
+        }
+      } catch (err) {
+        console.error('[CRM] duplicate cleanup error:', err);
+      }
+    })();
   }
 
   const eventsById = new Map(dbEvents.map((e) => [e.id, e.title]));
@@ -451,8 +489,8 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     rsvps: rsvps.length,
     importantDates: importantDates.length,
     formSubmissions: formSubmissions.length,
-    payments: payments.length,
-    paymentsTotal: payments
+    payments: paymentsLinked.length,
+    paymentsTotal: paymentsLinked
       .filter((p) => p.status === 'succeeded')
       .reduce((sum, p) => sum + Number(p.amount), 0),
   };
@@ -468,7 +506,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     leadsByProgram,
     events,
     rsvps,
-    payments,
+    payments: paymentsLinked,
     importantDates,
     formSubmissions,
     waiversByFamily,

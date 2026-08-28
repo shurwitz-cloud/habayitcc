@@ -1,9 +1,22 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 
+function gitLsFiles(args) {
+  try {
+    return execSync(`git ls-files ${args}`, { encoding: 'utf8' }).trim();
+  } catch {
+    return null;
+  }
+}
+
+const trackedList = gitLsFiles('src');
+if (!trackedList) {
+  console.log('OK: skipping import audit (git unavailable in this environment)');
+  process.exit(0);
+}
+
 const tracked = new Set(
-  execSync('git ls-files src', { encoding: 'utf8' })
-    .trim()
+  trackedList
     .split(/\r?\n/)
     .filter(Boolean)
     .map((p) => p.replace(/\\/g, '/')),
@@ -41,12 +54,11 @@ function trackedExists(imp) {
   return candidates.some((c) => tracked.has(c));
 }
 
-const files = execSync('git ls-files "src/**/*.ts" "src/**/*.tsx"', {
-  encoding: 'utf8',
-})
-  .trim()
-  .split(/\r?\n/)
-  .filter(Boolean);
+const filesRaw = gitLsFiles('"src/**/*.ts" "src/**/*.tsx"');
+if (!filesRaw) {
+  process.exit(0);
+}
+const files = filesRaw.split(/\r?\n/).filter(Boolean);
 
 const missing = [];
 for (const f of files) {

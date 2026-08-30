@@ -32,13 +32,18 @@ export function getAdminEmail(): string {
   return getAdminEmails()[0];
 }
 
-/** Admin alerts use a distinct from-address so info@ can receive them reliably. */
+/** Admin alerts use a distinct from-address on the same domain as public mail. */
 export function getAdminNotificationFrom(): string {
   const configured = process.env.ADMIN_NOTIFICATION_FROM?.trim();
   if (configured) {
     return configured.includes('<') ? configured : `HaBayit Notifications <${configured}>`;
   }
-  return 'HaBayit Notifications <notifications@habayitcc.org>';
+  const domain = getFromEmail().includes('@') ? getFromEmail().split('@')[1]! : 'habayitcc.org';
+  return `HaBayit Notifications <notifications@${domain}>`;
+}
+
+export function getPublicFrom(): string {
+  return `HaBayit Jewish Center <${getFromEmail()}>`;
 }
 
 export function resolveAdminDelivery(): { to: string[] } {
@@ -68,17 +73,26 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   }
 
   const from =
-    input.from?.trim() || `HaBayit Jewish Center <${getFromEmail()}>`;
+    input.from?.trim() || getPublicFrom();
 
   try {
-    const { error } = await resend.emails.send({
+    const payload: {
+      from: string;
+      to: string | string[];
+      subject: string;
+      html: string;
+      replyTo?: string;
+      bcc?: string | string[];
+    } = {
       from,
       to: input.to,
-      bcc: input.bcc,
       subject: input.subject,
       html: input.html,
-      replyTo: input.replyTo,
-    });
+    };
+    if (input.replyTo) payload.replyTo = input.replyTo;
+    if (input.bcc) payload.bcc = input.bcc;
+
+    const { error } = await resend.emails.send(payload);
 
     if (error) {
       console.error('[email] send failed:', input.subject, error);
@@ -97,15 +111,23 @@ export async function sendAdminNotification(
   input: Omit<SendEmailInput, 'to' | 'from' | 'bcc'>
 ): Promise<boolean> {
   const delivery = resolveAdminDelivery();
-  const ok = await sendEmail({
-    ...input,
-    from: getAdminNotificationFrom(),
-    to: delivery.to,
-  });
-  if (!ok) {
-    console.error('[email] admin notification failed:', input.subject, delivery);
+  const attempts = [
+    getAdminNotificationFrom(),
+    getPublicFrom(),
+  ].filter((from, index, list) => list.indexOf(from) === index);
+
+  for (const from of attempts) {
+    const ok = await sendEmail({
+      ...input,
+      from,
+      to: delivery.to,
+    });
+    if (ok) return true;
+    console.error('[email] admin notification attempt failed:', input.subject, { from, to: delivery.to });
   }
-  return ok;
+
+  console.error('[email] admin notification failed after retries:', input.subject, delivery);
+  return false;
 }
 
 function emailHeaderHtml(): string {

@@ -1,4 +1,4 @@
-import { buildEmailHtml, getAdminEmail, sendEmail } from './client';
+import { buildEmailHtml, sendAdminNotification, sendEmail } from './client';
 import type { PaidEventConfig } from '@/lib/events/paid-events';
 import type { PricingBreakdown } from '@/lib/events/paid-event-pricing';
 
@@ -51,8 +51,7 @@ export async function sendPaidEventConfirmationEmail(
       subject: `Registration confirmed — ${event.title}`,
       html,
     }),
-    sendEmail({
-      to: getAdminEmail(),
+    sendAdminNotification({
       subject: `New registration — ${event.title} (${firstName} ${input.lastName})`,
       replyTo: email,
       html: buildEmailHtml(`

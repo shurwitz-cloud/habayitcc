@@ -1,4 +1,4 @@
-import { buildEmailHtml, emailButton, getAdminEmail, sendEmail } from '@/lib/email/client';
+import { buildEmailHtml, emailButton, sendAdminNotification, sendEmail } from '@/lib/email/client';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
 import { collectRecipientEmails, formatCoupleNames } from '@/lib/donations/couple-names';
 
@@ -125,8 +125,7 @@ export async function sendChaiPartnerWelcomeEmail(
       subject: 'Thank you for becoming a HaBayit Chai Partner',
       html,
     }),
-    sendEmail({
-      to: getAdminEmail(),
+    sendAdminNotification({
       subject: `New Chai Partner: ${names.receiptName} (${adminSubjectAmount})`,
       replyTo: input.email,
       html: buildEmailHtml(`

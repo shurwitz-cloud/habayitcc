@@ -8,6 +8,7 @@ import { roleHasCapability } from '@/lib/admin/roles';
 
 const LINKS = [
   { href: '/admin/crm', label: 'CRM', capability: 'crm' as const },
+  { href: '/admin/email', label: 'Email', capability: 'emails' as const },
   { href: '/admin/registrations', label: 'Registrations', capability: 'registrations' as const },
   { href: '/admin/photos', label: 'Photos', capability: 'photos' as const },
 ] as const;

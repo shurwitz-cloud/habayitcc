@@ -17,8 +17,32 @@ export function getFromEmail(): string {
   return process.env.RESEND_FROM_EMAIL?.trim() || 'info@habayitcc.org';
 }
 
+export function getAdminEmails(): string[] {
+  const raw = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
+  if (!raw) return [getFromEmail()];
+  const list = raw
+    .split(/[,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return list.length ? list : [getFromEmail()];
+}
+
+/** First admin notification recipient (legacy callers). */
 export function getAdminEmail(): string {
-  return process.env.ADMIN_NOTIFICATION_EMAIL?.trim() || getFromEmail();
+  return getAdminEmails()[0];
+}
+
+/** Admin alerts use a distinct from-address so info@ can receive them reliably. */
+export function getAdminNotificationFrom(): string {
+  const configured = process.env.ADMIN_NOTIFICATION_FROM?.trim();
+  if (configured) {
+    return configured.includes('<') ? configured : `HaBayit Notifications <${configured}>`;
+  }
+  return 'HaBayit Notifications <notifications@habayitcc.org>';
+}
+
+export function resolveAdminDelivery(): { to: string[] } {
+  return { to: getAdminEmails() };
 }
 
 export function getSiteUrl(): string {
@@ -32,6 +56,8 @@ export interface SendEmailInput {
   subject: string;
   html: string;
   replyTo?: string;
+  from?: string;
+  bcc?: string | string[];
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
@@ -41,17 +67,21 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
     return false;
   }
 
+  const from =
+    input.from?.trim() || `HaBayit Jewish Center <${getFromEmail()}>`;
+
   try {
     const { error } = await resend.emails.send({
-      from: `HaBayit Jewish Center <${getFromEmail()}>`,
+      from,
       to: input.to,
+      bcc: input.bcc,
       subject: input.subject,
       html: input.html,
       replyTo: input.replyTo,
     });
 
     if (error) {
-      console.error('[email] send failed:', error);
+      console.error('[email] send failed:', input.subject, error);
       return false;
     }
 
@@ -60,6 +90,22 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
     console.error('[email] send error:', err);
     return false;
   }
+}
+
+/** Admin alert copies (signups, RSVP, contact, donations). */
+export async function sendAdminNotification(
+  input: Omit<SendEmailInput, 'to' | 'from' | 'bcc'>
+): Promise<boolean> {
+  const delivery = resolveAdminDelivery();
+  const ok = await sendEmail({
+    ...input,
+    from: getAdminNotificationFrom(),
+    to: delivery.to,
+  });
+  if (!ok) {
+    console.error('[email] admin notification failed:', input.subject, delivery);
+  }
+  return ok;
 }
 
 function emailHeaderHtml(): string {

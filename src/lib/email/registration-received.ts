@@ -1,4 +1,4 @@
-import { buildEmailHtml, emailButton, getAdminEmail, getSiteUrl, sendEmail } from '@/lib/email/client';
+import { buildEmailHtml, emailButton, getSiteUrl, sendAdminNotification, sendEmail } from '@/lib/email/client';
 import { HEBREW_ADVENTURE_NAME, HEBREW_ADVENTURE_PATH } from '@/lib/programs/names';
 import type {
   HebrewAdventurePaymentMethod,
@@ -10,7 +10,7 @@ function hebrewAdventurePaymentPlanLabel(plan: HebrewAdventurePaymentPlan): stri
     case 'full':
       return 'Pay in full upon acceptance ($25 off)';
     case 'two_installments':
-      return 'Two payments (acceptance + by October 1, $10 off)';
+      return 'Two payments (acceptance + by October 1)';
     case 'three_installments':
       return 'Three payments (acceptance, October 1, November 1)';
   }
@@ -82,8 +82,7 @@ export async function sendRegistrationReceivedEmail(input: {
       subject: `${programName} registration received`,
       html,
     }),
-    sendEmail({
-      to: getAdminEmail(),
+    sendAdminNotification({
       subject: `New ${programName} registration — ${childList}`,
       replyTo: input.to,
       html: buildEmailHtml(`

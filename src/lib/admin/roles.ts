@@ -3,6 +3,7 @@ export type AdminRole = 'admin' | 'volunteer';
 export type AdminCapability =
   | 'crm'
   | 'crm_finance'
+  | 'emails'
   | 'photos'
   | 'registrations'
   | 'stripe_tools';
@@ -11,7 +12,7 @@ export type AdminCapability =
 export const VOLUNTEER_HIDDEN_CRM_VIEWS = ['donations', 'chai', 'payments'] as const;
 
 const ROLE_CAPABILITIES: Record<AdminRole, readonly AdminCapability[]> = {
-  admin: ['crm', 'crm_finance', 'photos', 'registrations', 'stripe_tools'],
+  admin: ['crm', 'crm_finance', 'emails', 'photos', 'registrations', 'stripe_tools'],
   volunteer: ['crm'],
 };
 

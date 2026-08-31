@@ -53,6 +53,9 @@ export interface Child {
   date_of_birth: string | null;
   born_before_sunset: boolean | null;
   born_sunset_timing: string | null;
+  hebrew_birthday: string | null;
+  hebrew_birthday_hebrew: string | null;
+  hebrew_birthday_year: string | null;
   grade: string | null;
   school_attending: string | null;
   attended_before: string | null;

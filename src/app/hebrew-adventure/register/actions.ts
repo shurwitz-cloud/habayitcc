@@ -4,6 +4,7 @@ import { logFormSubmission } from '@/lib/admin/form-log';
 import { createAdminClient } from '@/lib/supabase/server';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
+import { applyHebrewBirthdayForChild } from '@/lib/hebrew-birthday/apply-child-hebrew-birthday';
 import { hebrewAdventureRow } from '@/lib/google/sheets';
 import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 import { stripe } from '@/lib/stripe/server';
@@ -11,6 +12,7 @@ import {
   getHebrewAdventureSessionTuition,
   getHebrewAdventureSiblingDiscount,
   getHebrewAdventurePaymentPlanDiscount,
+  getHebrewAdventureEarlyBirdDiscount,
   type HebrewAdventurePaymentPlan,
   type HebrewAdventurePaymentMethod,
 } from '@/lib/programs/hebrew-adventure-tuition';
@@ -350,11 +352,28 @@ export async function submitHebrewSchoolRegistration(
         };
       }
 
+      if (child.dateOfBirth) {
+        try {
+          await applyHebrewBirthdayForChild({
+            childId: childRowData.id,
+            familyId: family.id,
+            firstName: child.firstName,
+            lastName: child.lastName,
+            dateOfBirth: child.dateOfBirth,
+            bornSunsetTiming: child.bornBeforeSunset || null,
+            bornBeforeSunset: child.bornBeforeSunset === 'before',
+          });
+        } catch (err) {
+          console.error('[registration] hebrew birthday lookup failed:', err);
+        }
+      }
+
       const plan = input.paymentPlan || 'full';
       const baseTuition = getHebrewAdventureSessionTuition(input.isChaiPartner, plan);
       const discount = getHebrewAdventureSiblingDiscount(i);
       const tuitionTotal = baseTuition - discount;
       const planDiscount = getHebrewAdventurePaymentPlanDiscount(plan);
+      const earlyBirdDiscount = getHebrewAdventureEarlyBirdDiscount();
 
       const { error: regError } = await supabase.from('program_registrations').insert({
         program_id: program?.id ?? null,
@@ -369,11 +388,8 @@ export async function submitHebrewSchoolRegistration(
         notes:
           [
             paymentMethodNote,
-            planDiscount
-              ? plan === 'full'
-                ? `Pay-in-full discount: $${planDiscount}`
-                : `Two-payment discount: $${planDiscount}`
-              : '',
+            earlyBirdDiscount ? `Early registration discount: $${earlyBirdDiscount}` : '',
+            planDiscount ? `Pay-in-full discount: $${planDiscount}` : '',
             child.hebrewLevel ? `Hebrew level: ${child.hebrewLevel}` : '',
             child.attendedBefore
               ? child.attendedBefore === 'yes' && child.previousProgramName.trim()

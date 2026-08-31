@@ -31,6 +31,7 @@ import { resolvePaymentParty } from '@/lib/admin/crm/payment-party';
 import {
   DEFAULT_SORT_KEY,
   EMPTY_DETAIL_FILTERS,
+  getSortDefaultDir,
   matchesAmountRange,
   matchesDateRange,
   sortRows,
@@ -53,6 +54,7 @@ import { setContactResolved, addImportantDate } from './actions';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 import { BackfillHebrewBirthdaysButton } from '@/components/admin/BackfillHebrewBirthdaysButton';
+import { SyncImportantDatesSheetButton } from '@/components/admin/SyncImportantDatesSheetButton';
 import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
 import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
 import { RecoverPaidEventRegistrationsButton } from '@/components/admin/RecoverPaidEventRegistrationsButton';
@@ -64,6 +66,11 @@ import {
   coverageMonthsOf,
   paymentCoversThrough,
 } from '@/lib/donations/payment-coverage';
+import {
+  formatHebrewAnnualLabel,
+  getHebrewAnnualSortKey,
+  parseHebrewAnnualDate,
+} from '@/lib/hebrew-birthday/hebrew-annual-order';
 import {
   eventShowsAdults,
   eventShowsKids,
@@ -138,8 +145,9 @@ export function CrmPanel({
     setDrawerFamily(null);
     setDrawerEvent(null);
     setDrawerLead(null);
-    setSortKey(DEFAULT_SORT_KEY[next] ?? 'date');
-    setSortDir('desc');
+    const nextSortKey = DEFAULT_SORT_KEY[next] ?? 'date';
+    setSortKey(nextSortKey);
+    setSortDir(getSortDefaultDir(nextSortKey));
   }
 
   function clearFilters() {
@@ -153,7 +161,7 @@ export function CrmPanel({
   }
 
   function handleSort(key: string) {
-    const next = toggleSort(sortKey, sortDir, key, key === 'name' || key === 'email' || key === 'event' ? 'asc' : 'desc');
+    const next = toggleSort(sortKey, sortDir, key, getSortDefaultDir(key));
     setSortKey(next.key);
     setSortDir(next.dir);
   }
@@ -352,17 +360,33 @@ export function CrmPanel({
       }, sortDir),
     [filteredPayments, sortKey, sortDir, snapshot],
   );
-  const sortedDates = useMemo(
-    () =>
-      sortRows(filteredDates, (d) => {
-        if (sortKey === 'name') return d.label;
-        if (sortKey === 'type') return d.date_type;
-        if (sortKey === 'hebrew') return d.hebrew_date ?? '';
-        if (sortKey === 'date') return d.gregorian_date ?? '';
-        return d.label;
-      }, sortDir),
-    [filteredDates, sortKey, sortDir],
-  );
+  const sortedDates = useMemo(() => {
+    const rows = [...filteredDates];
+    rows.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'name') {
+        cmp = a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'type') {
+        cmp = a.date_type.localeCompare(b.date_type);
+      } else if (sortKey === 'yearOrder' || sortKey === 'hebrew') {
+        cmp = getHebrewAnnualSortKey(a.hebrew_date) - getHebrewAnnualSortKey(b.hebrew_date);
+        if (cmp === 0) {
+          const aHy = parseHebrewAnnualDate(a.hebrew_date)?.hy ?? 0;
+          const bHy = parseHebrewAnnualDate(b.hebrew_date)?.hy ?? 0;
+          cmp = aHy - bHy;
+        }
+        if (cmp === 0) {
+          cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
+        }
+      } else if (sortKey === 'date') {
+        cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
+      } else {
+        cmp = a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [filteredDates, sortKey, sortDir]);
   const sortedSubmissions = useMemo(
     () =>
       sortRows(filteredSubmissions, (s) => {
@@ -822,6 +846,7 @@ export function CrmPanel({
           {view === 'dates' && (
             <>
               <BackfillHebrewBirthdaysButton />
+              <SyncImportantDatesSheetButton />
               <ImportantDatesPanel
                 rows={sortedDates}
                 families={snapshot.families}
@@ -2154,9 +2179,9 @@ function ImportantDatesPanel({
     <div className="p-4">
       <form onSubmit={handleAdd} className="mb-6 p-4 bg-soft/50 rounded-xl border border-line grid md:grid-cols-2 gap-4">
         <p className="md:col-span-2 text-sm text-muted">
-          Birthdays from program registrations appear here automatically. Use the filter above to show
-          birthdays only. When sunset timing was not provided, the Hebrew date shows both possibilities
-          (e.g. 12/13 Tammuz 5778).
+          Birthdays from program registrations appear here automatically. Default sort is by
+          position in the Jewish year (Tishrei → Elul). Use the filter above to show birthdays
+          only.
         </p>
         <label className="flex flex-col gap-1">
           <span className="text-[0.65rem] font-bold uppercase text-navy">Name</span>
@@ -2215,6 +2240,7 @@ function ImportantDatesPanel({
               <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <SortableTh label="Type" sortKey="type" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <SortableTh label="Gregorian" sortKey="date" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+              <SortableTh label="In year" sortKey="yearOrder" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <SortableTh label="Hebrew" sortKey="hebrew" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Notes</th>
             </tr>
@@ -2225,6 +2251,9 @@ function ImportantDatesPanel({
                 <td className="px-4 py-3 font-medium text-navy">{d.label}</td>
                 <td className="px-4 py-3 capitalize">{d.date_type}</td>
                 <td className="px-4 py-3">{d.gregorian_date ? formatDate(d.gregorian_date) : '—'}</td>
+                <td className="px-4 py-3 font-medium text-navy">
+                  {formatHebrewAnnualLabel(d.hebrew_date) ?? '—'}
+                </td>
                 <td className="px-4 py-3">{d.hebrew_date ?? '—'}</td>
                 <td className="px-4 py-3">{d.notes ?? '—'}</td>
               </tr>

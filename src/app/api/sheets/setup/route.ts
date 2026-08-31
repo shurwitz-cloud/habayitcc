@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAdminApi } from '@/lib/admin/guard';
 import { createSheet, setupSheet, SHEET_CONFIGS } from '@/lib/google/sheets';
+import {
+  createImportantDatesSheet,
+  setupImportantDatesSheet,
+} from '@/lib/google/important-dates-sheet';
 
 const SHEET_TITLES: Record<string, string> = {
   contact:      'HaBayit Contact',
@@ -9,6 +13,7 @@ const SHEET_TITLES: Record<string, string> = {
   hebrewAdventure: 'HaBayit Hebrew Adventure',
   achimRegistration: 'HaBayit Achim Registrations',
   bloomRegistration: 'HaBayit Bloom Registrations',
+  importantDates: 'HaBayit Birthdays & Yahrzeit',
 };
 
 /**
@@ -66,6 +71,30 @@ export async function GET() {
         status: `error: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
+  }
+
+  try {
+    const importantDatesId = process.env.GOOGLE_SHEETS_IMPORTANT_DATES_ID;
+    if (!importantDatesId) {
+      const newId = await createImportantDatesSheet(SHEET_TITLES.importantDates);
+      results.importantDates = {
+        status: 'created',
+        spreadsheetId: newId,
+        url: `https://docs.google.com/spreadsheets/d/${newId}/edit`,
+      };
+      createdAny = true;
+    } else {
+      await setupImportantDatesSheet(importantDatesId);
+      results.importantDates = {
+        status: 'headers refreshed',
+        spreadsheetId: importantDatesId,
+        url: `https://docs.google.com/spreadsheets/d/${importantDatesId}/edit`,
+      };
+    }
+  } catch (err) {
+    results.importantDates = {
+      status: `error: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 
   return NextResponse.json({

@@ -7,6 +7,7 @@ import {
   HebrewAdventurePaymentSetup,
   type HebrewAdventurePaymentSetupHandle,
 } from '@/components/stripe/HebrewAdventurePaymentSetup';
+import { HebrewBirthdayPreview } from '@/components/forms/HebrewBirthdayPreview';
 import {
   getAchimSessionTuition,
   getAchimCardProcessingFee,
@@ -299,6 +300,10 @@ export function RegistrationForm() {
                 <option value="unknown">Not sure</option>
               </select>
             </Field>
+            <HebrewBirthdayPreview
+              dateOfBirth={child.dateOfBirth}
+              bornBeforeSunset={child.bornBeforeSunset}
+            />
           </div>
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             <Field label="Grade Entering" required>

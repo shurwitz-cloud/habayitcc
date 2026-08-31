@@ -137,6 +137,10 @@ export function FamilyDetailDrawer({
                 <div className="grid sm:grid-cols-2 gap-4">
                   <DetailField label="Hebrew name" value={c.hebrew_name} />
                   <DetailField label="Date of birth" value={c.date_of_birth} />
+                  <DetailField label="Hebrew birthday" value={c.hebrew_birthday} />
+                  {c.hebrew_birthday_hebrew && (
+                    <DetailField label="Hebrew birthday (Hebrew)" value={c.hebrew_birthday_hebrew} />
+                  )}
                   <DetailField label="Birth before sunset" value={labelize(c.born_sunset_timing)} />
                   <DetailField label="Grade" value={c.grade} />
                   <DetailField label="School" value={c.school_attending} />

@@ -24,6 +24,7 @@ import {
   resolveCrmProgramTracks,
 } from '@/lib/admin/crm/program-tracks';
 import { createAdminClient } from '@/lib/supabase/server';
+import { syncImportantDateToSheet } from '@/lib/google/important-dates-sheet';
 import type {
   ChaiPartner,
   Child,
@@ -362,10 +363,23 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
 
   const childrenByFamily = new Map<string, Child[]>();
   const childById = new Map<string, Child>();
+  const birthdayByChildId = new Map<string, ImportantDate>();
+  for (const d of importantDates) {
+    if (d.date_type === 'birthday' && d.child_id) {
+      birthdayByChildId.set(d.child_id, d);
+    }
+  }
+
   for (const c of children) {
-    childById.set(c.id, c);
+    const birthday = birthdayByChildId.get(c.id);
+    const enriched: Child = {
+      ...c,
+      hebrew_birthday: c.hebrew_birthday ?? birthday?.hebrew_date ?? null,
+      hebrew_birthday_year: c.hebrew_birthday_year ?? birthday?.hebrew_year ?? null,
+    };
+    childById.set(c.id, enriched);
     const list = childrenByFamily.get(c.family_id) ?? [];
-    list.push(c);
+    list.push(enriched);
     childrenByFamily.set(c.family_id, list);
   }
 
@@ -551,18 +565,36 @@ export async function addImportantDate(input: {
   await requireAdmin();
   const supabase = createAdminClient();
 
-  const { error } = await supabase.from('important_dates').insert({
-    label: input.label.trim(),
-    date_type: input.dateType,
-    gregorian_date: input.gregorianDate || null,
-    hebrew_date: input.hebrewDate?.trim() || null,
-    family_id: input.familyId || null,
-    notes: input.notes?.trim() || null,
-  });
+  const { data: inserted, error } = await supabase
+    .from('important_dates')
+    .insert({
+      label: input.label.trim(),
+      date_type: input.dateType,
+      gregorian_date: input.gregorianDate || null,
+      hebrew_date: input.hebrewDate?.trim() || null,
+      family_id: input.familyId || null,
+      notes: input.notes?.trim() || null,
+    })
+    .select('id, date_type, label, gregorian_date, hebrew_date, hebrew_year, notes, family_id, child_id')
+    .single();
 
   if (error) {
     console.error('addImportantDate:', error);
     return { success: false, error: 'Could not save date.' };
+  }
+
+  if (inserted) {
+    void syncImportantDateToSheet({
+      id: inserted.id,
+      dateType: inserted.date_type,
+      label: inserted.label,
+      gregorianDate: inserted.gregorian_date,
+      hebrewDate: inserted.hebrew_date,
+      hebrewYear: inserted.hebrew_year,
+      notes: inserted.notes,
+      familyId: inserted.family_id,
+      childId: inserted.child_id,
+    });
   }
 
   revalidatePath('/admin/crm');

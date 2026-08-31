@@ -18,7 +18,15 @@ import type { ParsedZeffyPayment } from '@/lib/zeffy/types';
 
 export const dynamic = 'force-dynamic';
 
-const METHODS = ['Zelle', 'Zeffy', 'Cash', 'Check', 'Cash App', 'Other'] as const;
+const METHODS = [
+  'Zelle',
+  'Zeffy',
+  'Cash',
+  'Check',
+  'Cash App',
+  'HaBayit donation link',
+  'Other',
+] as const;
 type PaymentMethod = (typeof METHODS)[number];
 type EntryKind = 'one_time' | 'monthly' | 'chai_partner';
 

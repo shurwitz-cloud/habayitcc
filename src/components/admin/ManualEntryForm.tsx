@@ -3,7 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const METHODS = ['Zelle', 'Zeffy', 'Cash', 'Check', 'Cash App', 'Other'] as const;
+const METHODS = [
+  'Zelle',
+  'Zeffy',
+  'Cash',
+  'Check',
+  'Cash App',
+  'HaBayit donation link',
+  'Other',
+] as const;
 type PaymentMethod = (typeof METHODS)[number];
 type EntryKind = 'one_time' | 'monthly' | 'chai_partner';
 
@@ -64,7 +72,7 @@ export function ManualEntryForm({
     if (m === 'Zelle' || m === 'Cash App') {
       setSendEmail(true);
       setIncludeReceiptLink(true);
-    } else if (m === 'Zeffy') {
+    } else if (m === 'Zeffy' || m === 'HaBayit donation link') {
       setSendEmail(false);
       setIncludeReceiptLink(false);
     }
@@ -448,7 +456,9 @@ export function ManualEntryForm({
                 <span className="mt-0.5 block text-[#6f6a60]">
                   {paymentMethod === 'Zeffy'
                     ? 'Usually leave off — Zeffy already receipts.'
-                    : 'Includes a View & Print Tax Receipt button.'}
+                    : paymentMethod === 'HaBayit donation link'
+                      ? 'Usually leave off — Stripe already receipts the card charge.'
+                      : 'Includes a View & Print Tax Receipt button.'}
                 </span>
               </span>
             </label>

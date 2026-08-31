@@ -52,6 +52,7 @@ import {
 import { setContactResolved, addImportantDate } from './actions';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
+import { BackfillHebrewBirthdaysButton } from '@/components/admin/BackfillHebrewBirthdaysButton';
 import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
 import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
 import { RecoverPaidEventRegistrationsButton } from '@/components/admin/RecoverPaidEventRegistrationsButton';
@@ -289,6 +290,19 @@ export function CrmPanel({
       }, sortDir),
     [filteredChai, sortKey, sortDir],
   );
+  const chaiSummary = useMemo(() => {
+    const count = sortedChai.length;
+    const monthlyTotal = sortedChai.reduce(
+      (sum, c) => sum + Number(c.monthly_amount || 0),
+      0,
+    );
+    return {
+      count,
+      monthlyTotal,
+      average: count > 0 ? monthlyTotal / count : 0,
+      yearlyTotal: monthlyTotal * 12,
+    };
+  }, [sortedChai]);
   const sortedApplications = useMemo(
     () =>
       sortRows(filteredApplications, (f) => {
@@ -733,6 +747,21 @@ export function CrmPanel({
             <>
               <ManualEntryForm defaultKind="chai_partner" />
               <ReconcileZeffyButton />
+              <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard label="Chai partners" value={chaiSummary.count} />
+                <StatCard
+                  label="Total monthly"
+                  value={formatUsd(chaiSummary.monthlyTotal)}
+                />
+                <StatCard
+                  label="Average / mo"
+                  value={formatUsd(chaiSummary.average)}
+                />
+                <StatCard
+                  label="Total / year"
+                  value={formatUsd(chaiSummary.yearlyTotal)}
+                />
+              </div>
               <ChaiTable
                 rows={sortedChai}
                 snapshot={snapshot}
@@ -791,12 +820,15 @@ export function CrmPanel({
             />
           )}
           {view === 'dates' && (
-            <ImportantDatesPanel
-              rows={sortedDates}
-              families={snapshot.families}
-              onAdded={() => router.refresh()}
-              {...sortProps}
-            />
+            <>
+              <BackfillHebrewBirthdaysButton />
+              <ImportantDatesPanel
+                rows={sortedDates}
+                families={snapshot.families}
+                onAdded={() => router.refresh()}
+                {...sortProps}
+              />
+            </>
           )}
           {view === 'submissions' && (
             <SubmissionsTable rows={sortedSubmissions} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
@@ -1763,6 +1795,9 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
                     <span className="text-muted"> · Attended before: {c.attended_before}</span>
                   )}
                   {c.date_of_birth && <span className="text-muted"> · DOB: {c.date_of_birth}</span>}
+                  {c.hebrew_birthday && (
+                    <span className="text-muted"> · Hebrew birthday: {c.hebrew_birthday}</span>
+                  )}
                   {c.born_sunset_timing && (
                     <span className="text-muted"> · Birth timing: {c.born_sunset_timing}</span>
                   )}
@@ -2119,7 +2154,9 @@ function ImportantDatesPanel({
     <div className="p-4">
       <form onSubmit={handleAdd} className="mb-6 p-4 bg-soft/50 rounded-xl border border-line grid md:grid-cols-2 gap-4">
         <p className="md:col-span-2 text-sm text-muted">
-          Track birthdays, yahrzeit, and anniversaries. Hebrew dates can be added for yahrzeit.
+          Birthdays from program registrations appear here automatically. Use the filter above to show
+          birthdays only. When sunset timing was not provided, the Hebrew date shows both possibilities
+          (e.g. 12/13 Tammuz 5778).
         </p>
         <label className="flex flex-col gap-1">
           <span className="text-[0.65rem] font-bold uppercase text-navy">Name</span>
@@ -2139,8 +2176,8 @@ function ImportantDatesPanel({
           <input type="date" value={gregorianDate} onChange={(e) => setGregorianDate(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[0.65rem] font-bold uppercase text-navy">Hebrew date (yahrzeit)</span>
-          <input value={hebrewDate} onChange={(e) => setHebrewDate(e.target.value)} placeholder="e.g. 12 Tishrei" />
+          <span className="text-[0.65rem] font-bold uppercase text-navy">Hebrew date</span>
+          <input value={hebrewDate} onChange={(e) => setHebrewDate(e.target.value)} placeholder="e.g. 12/13 Tammuz 5778" />
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="text-[0.65rem] font-bold uppercase text-navy">Link to family (optional)</span>

@@ -64,6 +64,8 @@ export type RecordZeffyOptions = {
   paidUpfront?: boolean;
   /** Effective monthly rate when paidUpfront (default paid÷12). */
   monthlyAmount?: number;
+  /** How many Chai months this payment covers (default 1; 12 when paidUpfront). */
+  coverageMonths?: number;
   /** Optional admin note (e.g. memo "prepaid"). */
   note?: string | null;
 };
@@ -89,11 +91,23 @@ export async function recordZeffyChaiPartnerPayment(
   const paidUpfront =
     options.paidUpfront === true || isChaiPaidUpfrontNote(noteText);
   const paidAmount = parsed.amountDollars;
+  const coverageMonthsRaw = Number(options.coverageMonths);
+  const coverageMonths = paidUpfront
+    ? 12
+    : Number.isFinite(coverageMonthsRaw) && coverageMonthsRaw >= 1
+      ? Math.floor(coverageMonthsRaw)
+      : 1;
+  // Existing partners keep their CRM monthly rate; new multi-month cash/Zelle
+  // entries derive monthly as amount ÷ months covered.
   const monthlyAmount = paidUpfront
     ? Number.isFinite(options.monthlyAmount) && Number(options.monthlyAmount) > 0
       ? Number(options.monthlyAmount)
       : chaiMonthlyFromUpfront(paidAmount)
-    : paidAmount;
+    : Number.isFinite(options.monthlyAmount) && Number(options.monthlyAmount) > 0
+      ? Number(options.monthlyAmount)
+      : coverageMonths > 1
+        ? Math.round((paidAmount / coverageMonths) * 100) / 100
+        : paidAmount;
   const coupleNames = formatCoupleNames({
     firstName: parsed.firstName,
     lastName: parsed.lastName,
@@ -184,7 +198,7 @@ export async function recordZeffyChaiPartnerPayment(
     await supabase.from('chai_partners').update(namePatch).eq('id', partnerId);
   }
 
-  const { error: paymentError } = await supabase.from('payments').insert({
+  const paymentRow: Record<string, unknown> = {
     source_type: 'chai_partner',
     source_id: partnerId,
     amount: paidAmount,
@@ -192,7 +206,19 @@ export async function recordZeffyChaiPartnerPayment(
     stripe_charge_id: null,
     status: 'succeeded',
     paid_at: paidAt,
-  });
+    payment_method: paymentMethodLabel,
+    coverage_months: coverageMonths,
+  };
+
+  let { error: paymentError } = await supabase.from('payments').insert(paymentRow);
+  if (
+    paymentError &&
+    /payment_method|coverage_months|schema cache|column/i.test(paymentError.message)
+  ) {
+    delete paymentRow.payment_method;
+    delete paymentRow.coverage_months;
+    ({ error: paymentError } = await supabase.from('payments').insert(paymentRow));
+  }
 
   if (paymentError) {
     console.error('[zeffy] payments insert error:', paymentError);
@@ -201,7 +227,9 @@ export async function recordZeffyChaiPartnerPayment(
 
   const amountNote = paidUpfront
     ? `Paid upfront: $${paidAmount.toFixed(2)}\nCRM monthly: $${monthlyAmount.toFixed(2)}`
-    : `Amount: $${paidAmount.toFixed(2)}`;
+    : coverageMonths > 1
+      ? `Amount: $${paidAmount.toFixed(2)} · covers ${coverageMonths} months`
+      : `Amount: $${paidAmount.toFixed(2)}`;
 
   await ensureCrmContact({
     firstName: parsed.firstName,
@@ -240,6 +268,8 @@ export async function recordZeffyChaiPartnerPayment(
       amountDollars: paidAmount,
       monthlyAmount,
       paidUpfront,
+      coverageMonths,
+      paymentMethod: paymentMethodLabel,
       campaignId: parsed.campaignId,
       campaignTitle: parsed.campaignTitle,
       accessCode,

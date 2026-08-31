@@ -11,6 +11,7 @@ import { PAID_EVENTS } from '@/lib/events/paid-events';
 import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
 import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
 import { collapseDuplicateEventRegistrations } from '@/lib/admin/crm/collapse-duplicate-event-registrations';
+import { enrichPaymentsForCrm } from '@/lib/admin/crm/enrich-payments';
 import { relinkOrphanedEventPayments } from '@/lib/admin/crm/payment-party';
 import {
   eventShowsAdults,
@@ -305,6 +306,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     paymentsAfterDedupe,
     rsvpsForLink,
   );
+  const paymentsEnriched = enrichPaymentsForCrm(paymentsLinked, formSubmissions);
 
   if (duplicateIds.length > 0 || orphanRemaps.length > 0) {
     // Quiet cleanup: remapa payments first, then delete extras (no emails).
@@ -489,8 +491,8 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     rsvps: rsvps.length,
     importantDates: importantDates.length,
     formSubmissions: formSubmissions.length,
-    payments: paymentsLinked.length,
-    paymentsTotal: paymentsLinked
+    payments: paymentsEnriched.length,
+    paymentsTotal: paymentsEnriched
       .filter((p) => p.status === 'succeeded')
       .reduce((sum, p) => sum + Number(p.amount), 0),
   };
@@ -506,7 +508,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     leadsByProgram,
     events,
     rsvps,
-    payments: paymentsLinked,
+    payments: paymentsEnriched,
     importantDates,
     formSubmissions,
     waiversByFamily,

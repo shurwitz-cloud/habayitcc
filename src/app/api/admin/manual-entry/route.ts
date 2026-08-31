@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
     paidUpfront?: boolean;
     /** Chai effective monthly when paidUpfront (optional). */
     monthlyAmount?: number;
+    /** Chai months this payment covers (1–12). Ignored when paidUpfront (always 12). */
+    coverageMonths?: number;
   };
 
   try {
@@ -138,26 +140,30 @@ export async function POST(req: NextRequest) {
   const paidUpfront =
     kind === 'chai_partner' &&
     (body.paidUpfront === true || isChaiPaidUpfrontNote(memo));
+  const coverageMonthsRaw = Number(body.coverageMonths);
+  const coverageMonths = paidUpfront
+    ? 12
+    : Number.isFinite(coverageMonthsRaw) && coverageMonthsRaw >= 1
+      ? Math.min(36, Math.floor(coverageMonthsRaw))
+      : 1;
   const monthlyAmount = paidUpfront
     ? Number.isFinite(body.monthlyAmount) && Number(body.monthlyAmount) > 0
       ? Number(body.monthlyAmount)
       : chaiMonthlyFromUpfront(amount)
-    : amount;
+    : coverageMonths > 1
+      ? Math.round((amount / coverageMonths) * 100) / 100
+      : amount;
 
   if (kind === 'chai_partner') {
-    if (paidUpfront) {
-      if (monthlyAmount < 150) {
-        return NextResponse.json(
-          {
-            error:
-              'Prepaid Chai Partner must equal at least $150/month (full amount ÷ 12). Check “Paid full year upfront” and enter the full amount paid.',
-          },
-          { status: 400 },
-        );
-      }
-    } else if (amount < 150) {
+    if (monthlyAmount < 150) {
       return NextResponse.json(
-        { error: 'Chai Partner monthly amount must be at least $150.' },
+        {
+          error: paidUpfront
+            ? 'Prepaid Chai Partner must equal at least $150/month (full amount ÷ 12). Check “Paid full year upfront” and enter the full amount paid.'
+            : coverageMonths > 1
+              ? 'Amount ÷ months covered must be at least $150/month.'
+              : 'Chai Partner monthly amount must be at least $150.',
+        },
         { status: 400 },
       );
     }
@@ -214,7 +220,8 @@ export async function POST(req: NextRequest) {
       spouseEmail,
       spousePhone,
       paidUpfront,
-      monthlyAmount: paidUpfront ? monthlyAmount : undefined,
+      monthlyAmount,
+      coverageMonths,
       note: memo || undefined,
     });
 

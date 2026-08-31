@@ -202,6 +202,10 @@ export interface Payment {
   amount: number;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
+  /** Zelle, Cash, HaBayit donation link, Credit Card, … */
+  payment_method?: string | null;
+  /** Chai months this payment covers (default 1). */
+  coverage_months?: number | null;
   status: PaymentStatus;
   paid_at: string | null;
   created_at: string;

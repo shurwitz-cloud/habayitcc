@@ -48,6 +48,7 @@ export function ManualEntryForm({
   const [form, setForm] = useState(empty);
   const [includeSpouse, setIncludeSpouse] = useState(false);
   const [paidUpfront, setPaidUpfront] = useState(false);
+  const [coverageMonths, setCoverageMonths] = useState(1);
   const [sendEmail, setSendEmail] = useState(false);
   const [includeReceiptLink, setIncludeReceiptLink] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
@@ -55,12 +56,13 @@ export function ManualEntryForm({
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   const amountNumber = Number(form.amount);
+  const effectiveMonths = paidUpfront ? 12 : coverageMonths;
   const prepaidMonthly =
     kind === 'chai_partner' &&
-    paidUpfront &&
+    effectiveMonths > 1 &&
     Number.isFinite(amountNumber) &&
     amountNumber > 0
-      ? Math.round((amountNumber / 12) * 100) / 100
+      ? Math.round((amountNumber / effectiveMonths) * 100) / 100
       : null;
 
   function setField(key: keyof typeof empty, value: string) {
@@ -129,6 +131,8 @@ export function ManualEntryForm({
           sendEmail,
           includeReceiptLink,
           paidUpfront: kind === 'chai_partner' && paidUpfront ? true : undefined,
+          coverageMonths:
+            kind === 'chai_partner' && !paidUpfront ? coverageMonths : undefined,
           campaign: form.campaign || undefined,
           memo: form.memo || undefined,
           ...(includeSpouse
@@ -183,6 +187,7 @@ export function ManualEntryForm({
       setForm(empty);
       setIncludeSpouse(false);
       setPaidUpfront(false);
+      setCoverageMonths(1);
       router.refresh();
     } catch {
       setStatus('error');
@@ -240,21 +245,44 @@ export function ManualEntryForm({
               ))}
             </div>
             {kind === 'chai_partner' ? (
-              <label className="mt-3 flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={paidUpfront}
-                  onChange={(e) => setPaidUpfront(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="font-semibold">Paid full year upfront</span>
-                  <span className="mt-0.5 block text-[#6f6a60]">
-                    Enter only the full amount they paid (e.g. 1800). CRM calculates monthly as
-                    amount ÷ 12 (e.g. $150). Email and receipt use the full amount.
+              <>
+                <label className="mt-3 flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={paidUpfront}
+                    onChange={(e) => {
+                      setPaidUpfront(e.target.checked);
+                      if (e.target.checked) setCoverageMonths(12);
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-semibold">Paid full year upfront</span>
+                    <span className="mt-0.5 block text-[#6f6a60]">
+                      Enter the full amount they paid (e.g. 1800). CRM monthly = amount ÷ 12.
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+                {!paidUpfront ? (
+                  <label className="mt-3 block text-sm text-[#172643]">
+                    <span className="mb-1 block font-medium">Months this payment covers</span>
+                    <select
+                      value={coverageMonths}
+                      onChange={(e) => setCoverageMonths(Number(e.target.value))}
+                      className="w-full max-w-xs rounded border border-[#d4cfc4] px-3 py-2 text-sm bg-white"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 9, 12].map((n) => (
+                        <option key={n} value={n}>
+                          {n} month{n === 1 ? '' : 's'}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-[#6f6a60]">
+                      Default is 1 (normal monthly). Use 2+ for cash/Zelle paid ahead.
+                    </span>
+                  </label>
+                ) : null}
+              </>
             ) : null}
           </div>
 
@@ -306,8 +334,8 @@ export function ManualEntryForm({
               <Field
                 label={
                   kind === 'chai_partner'
-                    ? paidUpfront
-                      ? 'Full amount paid ($)'
+                    ? paidUpfront || coverageMonths > 1
+                      ? 'Amount paid ($)'
                       : 'Monthly amount ($)'
                     : 'Amount ($)'
                 }
@@ -317,7 +345,13 @@ export function ManualEntryForm({
                 required
                 min={kind === 'chai_partner' ? (paidUpfront ? 1800 : 150) : 1}
                 step="0.01"
-                placeholder={kind === 'chai_partner' && paidUpfront ? '1800' : undefined}
+                placeholder={
+                  kind === 'chai_partner' && paidUpfront
+                    ? '1800'
+                    : kind === 'chai_partner' && coverageMonths === 2
+                      ? '300'
+                      : undefined
+                }
               />
               {prepaidMonthly != null ? (
                 <p className="mt-1.5 text-sm text-[#172643]">
@@ -326,10 +360,12 @@ export function ManualEntryForm({
                     ${prepaidMonthly.toFixed(2)}
                     /mo
                   </strong>{' '}
-                  <span className="text-[#6f6a60]">(full amount ÷ 12)</span>
+                  <span className="text-[#6f6a60]">
+                    (covers {effectiveMonths} month{effectiveMonths === 1 ? '' : 's'})
+                  </span>
                   {prepaidMonthly < 150 ? (
                     <span className="block text-red-700 mt-0.5">
-                      Must be at least $150/mo — enter at least $1,800 for a prepaid year.
+                      Must be at least $150/mo.
                     </span>
                   ) : null}
                 </p>

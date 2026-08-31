@@ -60,6 +60,10 @@ import {
   parseEventPeople,
 } from '@/lib/admin/crm/event-registration-stats';
 import {
+  coverageMonthsOf,
+  paymentCoversThrough,
+} from '@/lib/donations/payment-coverage';
+import {
   eventShowsAdults,
   eventShowsKids,
   resolveEventPeopleMode,
@@ -729,7 +733,13 @@ export function CrmPanel({
             <>
               <ManualEntryForm defaultKind="chai_partner" />
               <ReconcileZeffyButton />
-              <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+              <ChaiTable
+                rows={sortedChai}
+                snapshot={snapshot}
+                expandedId={expandedId}
+                onToggle={setExpandedId}
+                {...sortProps}
+              />
             </>
           )}
           {view === 'events' && canSeeFinance && (
@@ -1399,6 +1409,7 @@ function DonationDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot })
 
 function ChaiTable({
   rows,
+  snapshot,
   expandedId,
   onToggle,
   sortKey,
@@ -1406,6 +1417,7 @@ function ChaiTable({
   onSort,
 }: {
   rows: CrmSnapshot['chaiPartners'];
+  snapshot: CrmSnapshot;
   expandedId: string | null;
   onToggle: (id: string | null) => void;
 } & SortProps) {
@@ -1445,7 +1457,7 @@ function ChaiTable({
               {open && (
                 <tr className="bg-soft/30">
                   <td colSpan={6} className="px-4 py-4">
-                    <ChaiDetailRow c={c} />
+                    <ChaiDetailRow c={c} snapshot={snapshot} />
                   </td>
                 </tr>
               )}
@@ -1457,8 +1469,33 @@ function ChaiTable({
   );
 }
 
-function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
+function ChaiDetailRow({
+  c,
+  snapshot,
+}: {
+  c: CrmSnapshot['chaiPartners'][number];
+  snapshot: CrmSnapshot;
+}) {
   const address = [c.street_address, c.city, c.state, c.zip].filter(Boolean).join(', ');
+  const isRecurring = Boolean(c.stripe_subscription_id);
+  const payments = snapshot.payments
+    .filter((p) => p.source_type === 'chai_partner' && p.source_id === c.id)
+    .sort(
+      (a, b) =>
+        new Date(b.paid_at || b.created_at).getTime() -
+        new Date(a.paid_at || a.created_at).getTime(),
+    );
+  const latestMethod =
+    payments.find((p) => p.payment_method)?.payment_method ||
+    (isRecurring ? 'Credit Card (Stripe)' : null);
+  const paidThrough =
+    payments.length > 0
+      ? payments.reduce((latest, p) => {
+          const end = paymentCoversThrough(p);
+          return end > latest ? end : latest;
+        }, new Date(0))
+      : null;
+
   return (
     <>
       <DetailGrid
@@ -1466,11 +1503,62 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
           ['Phone', c.phone],
           ['Address', address || null],
           ['Access code', c.access_code],
+          [
+            'Billing',
+            isRecurring ? 'Recurring (Stripe)' : 'Offline (cash / Zelle / etc.)',
+          ],
+          ['Payment method', latestMethod],
+          [
+            'Paid through',
+            !isRecurring && paidThrough && paidThrough.getTime() > 0
+              ? formatDate(paidThrough.toISOString())
+              : isRecurring
+                ? 'Auto-billed monthly'
+                : null,
+          ],
           ['Stripe customer', c.stripe_customer_id],
           ['Stripe subscription', c.stripe_subscription_id],
           ['Joined', formatDateTime(c.created_at)],
         ]}
       />
+
+      {payments.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-muted mb-2">
+            Payments
+          </p>
+          <ul className="space-y-2 text-sm text-[#172643]">
+            {payments.map((p) => {
+              const months = coverageMonthsOf(p);
+              const start = p.paid_at || p.created_at;
+              const end = paymentCoversThrough(p);
+              return (
+                <li
+                  key={p.id}
+                  className="rounded border border-line bg-[#faf8f4] px-3 py-2"
+                >
+                  <span className="font-semibold">{formatUsd(Number(p.amount))}</span>
+                  <span className="text-muted"> · </span>
+                  {p.payment_method || '—'}
+                  <span className="text-muted"> · </span>
+                  {formatDate(start)}
+                  {!isRecurring || months > 1 ? (
+                    <span className="block text-muted text-xs mt-0.5">
+                      Covers {months} month{months === 1 ? '' : 's'}
+                      {months > 1
+                        ? ` · through ${formatDate(end.toISOString())}`
+                        : ''}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted">No payments recorded yet.</p>
+      )}
+
       {c.stripe_customer_id && (
         <a
           href={stripeCustomerUrl(c.stripe_customer_id)}
@@ -1493,7 +1581,7 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
 function ChaiDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) {
   const c = snapshot.chaiPartners.find((x) => x.id === id);
   if (!c) return null;
-  return <ChaiDetailRow c={c} />;
+  return <ChaiDetailRow c={c} snapshot={snapshot} />;
 }
 
 function ApplicationsTable({

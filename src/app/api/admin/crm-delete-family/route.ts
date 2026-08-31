@@ -137,6 +137,17 @@ export async function POST(req: NextRequest) {
 
   await supabase.from('form_submissions').delete().eq('source_id', familyId);
 
+  // Detach optional FKs that block family delete (keep RSVP/donation history rows).
+  await supabase
+    .from('event_registrations')
+    .update({ family_id: null })
+    .eq('family_id', familyId);
+  steps.push('event_registrations:detach');
+
+  await supabase.from('donations').update({ family_id: null }).eq('family_id', familyId);
+  await supabase.from('chai_partners').update({ family_id: null }).eq('family_id', familyId);
+  steps.push('donations_chai:detach');
+
   {
     const { error } = await supabase.from('families').delete().eq('id', familyId);
     if (error) {

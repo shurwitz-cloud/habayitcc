@@ -16,9 +16,12 @@ const MONTH_ORDER: Record<string, number> = {
   'Adar II': 7,
   'Adar 2': 7,
   Nisan: 8,
+  Nissan: 8,
   Iyyar: 9,
+  Iyar: 9,
   Sivan: 10,
   Tamuz: 11,
+  Tammuz: 11,
   Av: 12,
   Elul: 13,
 };
@@ -28,13 +31,13 @@ const ORDER_TO_MONTH: Record<number, string> = {
   2: 'Cheshvan',
   3: 'Kislev',
   4: 'Tevet',
-  5: "Sh'vat",
+  5: 'Shevat',
   6: 'Adar',
   7: 'Adar II',
-  8: 'Nisan',
-  9: 'Iyyar',
+  8: 'Nissan',
+  9: 'Iyar',
   10: 'Sivan',
-  11: 'Tamuz',
+  11: 'Tammuz',
   12: 'Av',
   13: 'Elul',
 };
@@ -124,6 +127,38 @@ export function formatHebrewAnnualLabel(hebrewDate: string | null | undefined): 
   const parts = parseHebrewAnnualDate(hebrewDate);
   if (!parts) return hebrewDate.trim();
   return `${parts.monthLabel} ${parts.day}`;
+}
+
+export function preferredMonthLabel(monthName: string): string {
+  const monthOrder = MONTH_ORDER[normalizeMonthName(monthName)];
+  return monthOrder ? ORDER_TO_MONTH[monthOrder] : monthName;
+}
+
+function formatHebrewDisplaySegment(segment: string): string {
+  const trimmed = segment.trim();
+  const match = trimmed.match(/^(\d+(?:\/\d+)?)\s+(.+?)\s+(\d{4})$/);
+  if (!match) return trimmed;
+
+  const label = preferredMonthLabel(match[2]);
+  return `${match[1]} ${label} ${match[3]}`;
+}
+
+/** Full Hebrew date with preferred month spellings (Shevat, Nissan, Iyar, Tammuz). */
+export function formatHebrewDisplayDate(hebrewDate: string | null | undefined): string | null {
+  if (!hebrewDate?.trim()) return null;
+
+  if (hebrewDate.includes(' / ')) {
+    return hebrewDate
+      .split(/\s+\/\s+/)
+      .map((segment) => formatHebrewDisplaySegment(segment))
+      .join(' / ');
+  }
+
+  return formatHebrewDisplaySegment(hebrewDate);
+}
+
+export function getHebrewYearSortKey(hebrewDate: string | null | undefined): number {
+  return parseHebrewAnnualDate(hebrewDate)?.hy ?? Number.MAX_SAFE_INTEGER;
 }
 
 export function getHebrewAnnualSortKey(hebrewDate: string | null | undefined): number {

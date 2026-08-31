@@ -13,6 +13,8 @@ export interface HebrewBirthdayResult {
   sunsetTimingUsed: SunsetTimingUsed;
 }
 
+import { preferredMonthLabel } from '@/lib/hebrew-birthday/hebrew-annual-order';
+
 interface HebcalConverterResponse {
   hy: number;
   hm: string;
@@ -27,7 +29,7 @@ interface HebcalConverterResponse {
 }
 
 function formatEnglishHebrewBirthday(hy: number, hm: string, hd: number): string {
-  return `${hd} ${hm} ${hy}`;
+  return `${hd} ${preferredMonthLabel(hm)} ${hy}`;
 }
 
 export function isSunsetTimingUnknown(bornSunsetTiming: SunsetTiming): boolean {

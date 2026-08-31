@@ -68,8 +68,9 @@ import {
 } from '@/lib/donations/payment-coverage';
 import {
   formatHebrewAnnualLabel,
+  formatHebrewDisplayDate,
   getHebrewAnnualSortKey,
-  parseHebrewAnnualDate,
+  getHebrewYearSortKey,
 } from '@/lib/hebrew-birthday/hebrew-annual-order';
 import {
   eventShowsAdults,
@@ -368,12 +369,15 @@ export function CrmPanel({
         cmp = a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
       } else if (sortKey === 'type') {
         cmp = a.date_type.localeCompare(b.date_type);
-      } else if (sortKey === 'yearOrder' || sortKey === 'hebrew') {
+      } else if (sortKey === 'yearOrder') {
         cmp = getHebrewAnnualSortKey(a.hebrew_date) - getHebrewAnnualSortKey(b.hebrew_date);
         if (cmp === 0) {
-          const aHy = parseHebrewAnnualDate(a.hebrew_date)?.hy ?? 0;
-          const bHy = parseHebrewAnnualDate(b.hebrew_date)?.hy ?? 0;
-          cmp = aHy - bHy;
+          cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
+        }
+      } else if (sortKey === 'hebrew') {
+        cmp = getHebrewYearSortKey(a.hebrew_date) - getHebrewYearSortKey(b.hebrew_date);
+        if (cmp === 0) {
+          cmp = getHebrewAnnualSortKey(a.hebrew_date) - getHebrewAnnualSortKey(b.hebrew_date);
         }
         if (cmp === 0) {
           cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
@@ -2254,7 +2258,7 @@ function ImportantDatesPanel({
                 <td className="px-4 py-3 font-medium text-navy">
                   {formatHebrewAnnualLabel(d.hebrew_date) ?? '—'}
                 </td>
-                <td className="px-4 py-3">{d.hebrew_date ?? '—'}</td>
+                <td className="px-4 py-3">{formatHebrewDisplayDate(d.hebrew_date) ?? '—'}</td>
                 <td className="px-4 py-3">{d.notes ?? '—'}</td>
               </tr>
             ))}

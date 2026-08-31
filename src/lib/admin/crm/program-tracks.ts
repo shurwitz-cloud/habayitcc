@@ -16,6 +16,17 @@ export type CrmProgramTrackDef = {
   registrationPath?: string;
 };
 
+/**
+ * Legacy / alternate DB program slugs that must not create extra Applications tabs.
+ * Map → canonical CRM track slug (already listed in CRM_PROGRAM_TRACKS).
+ */
+const PROGRAM_SLUG_ALIASES: Record<string, string> = {
+  'bar-mitzvah-club': BMX_SLUG,
+  'bar-mitzvah': BMX_SLUG,
+  'bat-mitzvah-club': BLOOM_SLUG,
+  'bat-mitzvah': BLOOM_SLUG,
+};
+
 /** Programs that always get an Applications sub-tab, even before DB rows exist. */
 export const CRM_PROGRAM_TRACKS: CrmProgramTrackDef[] = [
   {
@@ -76,6 +87,10 @@ export function shortProgramLabel(name: string): string {
     .trim();
 }
 
+export function canonicalProgramSlug(slug: string): string {
+  return PROGRAM_SLUG_ALIASES[slug] ?? slug;
+}
+
 /** Merge static tracks with any active DB programs not yet in the registry. */
 export function resolveCrmProgramTracks(
   dbPrograms: Array<{ slug: string; name: string; is_active?: boolean }>,
@@ -85,7 +100,10 @@ export function resolveCrmProgramTracks(
 
   for (const p of dbPrograms) {
     if (p.is_active === false) continue;
-    if (bySlug.has(p.slug)) continue;
+    const slug = canonicalProgramSlug(p.slug);
+    // Skip aliases of programs we already show (e.g. bar-mitzvah-club → bmx).
+    if (slug !== p.slug) continue;
+    if (bySlug.has(slug)) continue;
     tracks.push({
       id: p.slug,
       programSlug: p.slug,
@@ -113,10 +131,15 @@ export function familiesForProgram(
   families: CrmFamilyRecord[],
   programSlug: string,
 ): CrmFamilyRecord[] {
+  const aliases = Object.entries(PROGRAM_SLUG_ALIASES)
+    .filter(([, canonical]) => canonical === programSlug)
+    .map(([alias]) => alias);
+  const slugs = new Set([programSlug, ...aliases]);
+
   return families
-    .filter((f) => f.registrations.some((r) => r.programSlug === programSlug))
+    .filter((f) => f.registrations.some((r) => slugs.has(r.programSlug)))
     .map((f) => ({
       ...f,
-      registrations: f.registrations.filter((r) => r.programSlug === programSlug),
+      registrations: f.registrations.filter((r) => slugs.has(r.programSlug)),
     }));
 }

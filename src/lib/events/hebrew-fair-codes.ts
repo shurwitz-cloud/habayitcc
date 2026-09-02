@@ -129,13 +129,16 @@ export async function verifyHebrewFairCode(
 
   if (!program?.id) return { valid: false, reason: 'invalid' };
 
-  const { data: reg } = await supabase
+  const { data: reg, error: regError } = await supabase
     .from('program_registrations')
-    .select('id, status, fair_access_code, children(first_name, last_name)')
+    .select('id, status, fair_access_code, child_id')
     .eq('program_id', program.id)
     .eq('fair_access_code', code)
     .maybeSingle();
 
+  if (regError) {
+    console.error('[hebrew-fair-code] registration lookup failed:', regError.message);
+  }
   if (!reg?.fair_access_code) return { valid: false, reason: 'invalid' };
 
   if (!CODE_ELIGIBLE_STATUSES.includes(reg.status as (typeof CODE_ELIGIBLE_STATUSES)[number])) {
@@ -168,11 +171,14 @@ export async function verifyHebrewFairCode(
     }
   }
 
-  const rawChild = reg.children as
-    | { first_name: string; last_name: string }
-    | { first_name: string; last_name: string }[]
-    | null;
-  const child = Array.isArray(rawChild) ? rawChild[0] : rawChild;
+  const { data: child, error: childError } = await supabase
+    .from('children')
+    .select('first_name, last_name')
+    .eq('id', reg.child_id)
+    .maybeSingle();
+  if (childError) {
+    console.error('[hebrew-fair-code] child lookup failed:', childError.message);
+  }
 
   return {
     valid: true,

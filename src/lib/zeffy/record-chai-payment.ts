@@ -66,6 +66,8 @@ export type RecordZeffyOptions = {
   monthlyAmount?: number;
   /** How many Chai months this payment covers (default 1; 12 when paidUpfront). */
   coverageMonths?: number;
+  /** Optional override for tax receipt “Name” line (e.g. business name). */
+  receiptName?: string | null;
   /** Optional admin note (e.g. memo "prepaid"). */
   note?: string | null;
 };
@@ -88,6 +90,7 @@ export async function recordZeffyChaiPartnerPayment(
   const spouseEmail = options.spouseEmail?.trim().toLowerCase() || '';
   const spousePhone = options.spousePhone?.trim() || '';
   const noteText = (options.note ?? '').trim();
+  const receiptNameOverride = (options.receiptName ?? '').trim();
   const paidUpfront =
     options.paidUpfront === true || isChaiPaidUpfrontNote(noteText);
   const paidAmount = parsed.amountDollars;
@@ -114,6 +117,7 @@ export async function recordZeffyChaiPartnerPayment(
     spouseFirstName,
     spouseLastName,
   });
+  const receiptDisplayName = receiptNameOverride || coupleNames.receiptName;
   const supabase = createAdminClient();
   const paymentKey = zeffyPaymentKey(parsed.paymentId);
 
@@ -316,7 +320,7 @@ export async function recordZeffyChaiPartnerPayment(
                 amount: paidAmount,
                 date: new Date(paidAt),
                 method: paymentMethodLabel,
-                name: coupleNames.receiptName,
+                name: receiptDisplayName,
               })
             : undefined,
         });

@@ -85,6 +85,8 @@ export async function POST(req: NextRequest) {
     monthlyAmount?: number;
     /** Chai months this payment covers (1–12). Ignored when paidUpfront (always 12). */
     coverageMonths?: number;
+    /** Tax receipt “Name” line override (e.g. business / donor of record). */
+    receiptName?: string;
   };
 
   try {
@@ -185,6 +187,8 @@ export async function POST(req: NextRequest) {
     spouseFirstName,
     spouseLastName,
   });
+  const receiptDisplayName =
+    (body.receiptName ?? '').trim() || coupleNames.receiptName;
 
   const keyBase =
     (body.paymentKey ?? '').trim() ||
@@ -222,6 +226,7 @@ export async function POST(req: NextRequest) {
       paidUpfront,
       monthlyAmount,
       coverageMonths,
+      receiptName: receiptDisplayName !== coupleNames.receiptName ? receiptDisplayName : undefined,
       note: memo || undefined,
     });
 
@@ -237,7 +242,7 @@ export async function POST(req: NextRequest) {
           amount,
           date: receiptDate,
           method: methodLabel,
-          name: coupleNames.receiptName,
+          name: receiptDisplayName,
         });
 
     return NextResponse.json({
@@ -253,7 +258,7 @@ export async function POST(req: NextRequest) {
       paidUpfront,
       monthlyAmount: paidUpfront ? monthlyAmount : amount,
       receiptUrl,
-      receiptName: coupleNames.receiptName,
+      receiptName: receiptDisplayName,
       greeting: coupleNames.greeting,
     });
   }

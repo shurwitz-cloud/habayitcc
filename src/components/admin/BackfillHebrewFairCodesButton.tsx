@@ -18,12 +18,21 @@ export function BackfillHebrewFairCodesButton() {
         created?: number;
         total?: number;
         error?: string;
+        hint?: string;
+        migrationRequired?: boolean;
         codes?: Array<{ childName: string; code: string }>;
       };
 
-      if (!res.ok) {
+      if (!res.ok || data.ok === false) {
         setStatus('error');
-        setMessage(data.error ?? 'Backfill failed.');
+        const parts = [data.error ?? 'Backfill failed.'];
+        if (data.hint) parts.push(data.hint);
+        if (data.migrationRequired) {
+          parts.push(
+            'Open Supabase → SQL → run migrations 0012_paid_event_registrations.sql and 0013_hebrew_fair_code_redemptions.sql, then click again.',
+          );
+        }
+        setMessage(parts.join(' '));
         return;
       }
 

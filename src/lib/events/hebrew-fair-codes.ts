@@ -247,39 +247,95 @@ export async function ensureHebrewFairCodesForAll(): Promise<{
   created: number;
   total: number;
   codes: Array<{ registrationId: string; childName: string; code: string }>;
+  error?: string;
+  migrationRequired?: boolean;
+  hint?: string;
 }> {
   const supabase = createAdminClient();
 
-  const { data: program } = await supabase
+  const { data: program, error: programError } = await supabase
     .from('programs')
-    .select('id')
+    .select('id, slug, name')
     .eq('slug', HEBREW_ADVENTURE_SLUG)
     .maybeSingle();
 
-  if (!program?.id) {
-    return { created: 0, total: 0, codes: [] };
+  if (programError) {
+    return {
+      created: 0,
+      total: 0,
+      codes: [],
+      error: `Program lookup failed: ${programError.message}`,
+    };
   }
 
-  const { data: regs } = await supabase
+  if (!program?.id) {
+    const { data: allPrograms } = await supabase.from('programs').select('slug, name');
+    return {
+      created: 0,
+      total: 0,
+      codes: [],
+      error: `No program with slug "${HEBREW_ADVENTURE_SLUG}". Found: ${(allPrograms ?? [])
+        .map((p) => p.slug)
+        .join(', ') || 'none'}`,
+    };
+  }
+
+  // Probe column first — select('*') in CRM hides a missing fair_access_code.
+  const { error: probeError } = await supabase
     .from('program_registrations')
-    .select('id, fair_access_code, status, children(first_name, last_name)')
+    .select('id, fair_access_code')
+    .eq('program_id', program.id)
+    .limit(1);
+
+  if (probeError && /fair_access_code|column|schema/i.test(probeError.message)) {
+    return {
+      created: 0,
+      total: 0,
+      codes: [],
+      migrationRequired: true,
+      error: `Database missing fair_access_code: ${probeError.message}`,
+      hint: 'Run supabase/migrations/0012_paid_event_registrations.sql (and 0013) in the Supabase SQL Editor, then click Issue again.',
+    };
+  }
+
+  const { data: regs, error: regsError } = await supabase
+    .from('program_registrations')
+    .select('id, fair_access_code, status, child_id')
     .eq('program_id', program.id)
     .in('status', [...CODE_ELIGIBLE_STATUSES]);
 
+  if (regsError) {
+    return {
+      created: 0,
+      total: 0,
+      codes: [],
+      error: `Registration query failed: ${regsError.message}`,
+      migrationRequired: /fair_access_code|column|schema/i.test(regsError.message),
+      hint: /fair_access_code|column|schema/i.test(regsError.message)
+        ? 'Run supabase/migrations/0012_paid_event_registrations.sql in the Supabase SQL Editor, then click Issue again.'
+        : undefined,
+    };
+  }
+
   const rows = regs ?? [];
+  const childIds = [...new Set(rows.map((r) => r.child_id).filter(Boolean))];
+  const childNameById = new Map<string, string>();
+  if (childIds.length) {
+    const { data: children } = await supabase
+      .from('children')
+      .select('id, first_name, last_name')
+      .in('id', childIds);
+    for (const c of children ?? []) {
+      childNameById.set(c.id, `${c.first_name} ${c.last_name}`.trim());
+    }
+  }
+
   const codes: Array<{ registrationId: string; childName: string; code: string }> = [];
   let created = 0;
+  let assignFailures = 0;
 
   for (const reg of rows) {
-    const rawChild = reg.children as
-      | { first_name: string; last_name: string }
-      | { first_name: string; last_name: string }[]
-      | null;
-    const child = Array.isArray(rawChild) ? rawChild[0] : rawChild;
-    const childName = child
-      ? `${child.first_name} ${child.last_name}`.trim()
-      : 'Unknown';
-
+    const childName = childNameById.get(reg.child_id) || 'Unknown';
     const existingCode =
       typeof reg.fair_access_code === 'string' ? reg.fair_access_code : null;
 
@@ -296,7 +352,20 @@ export async function ensureHebrewFairCodesForAll(): Promise<{
     if (assigned) {
       created++;
       codes.push({ registrationId: reg.id, childName, code: assigned });
+    } else {
+      assignFailures++;
     }
+  }
+
+  if (rows.length > 0 && codes.length === 0) {
+    return {
+      created: 0,
+      total: rows.length,
+      codes: [],
+      migrationRequired: true,
+      error: `Found ${rows.length} accepted/active child(ren) but could not write fair_access_code (${assignFailures} failed).`,
+      hint: 'Run supabase/migrations/0012_paid_event_registrations.sql in the Supabase SQL Editor, then click Issue again.',
+    };
   }
 
   return { created, total: rows.length, codes };

@@ -13,6 +13,21 @@ export async function POST() {
 
   try {
     const result = await ensureHebrewFairCodesForAll();
+    if (result.error || result.migrationRequired) {
+      return NextResponse.json(
+        {
+          ok: false,
+          created: result.created,
+          total: result.total,
+          codes: result.codes,
+          error: result.error ?? 'Backfill blocked.',
+          migrationRequired: result.migrationRequired ?? false,
+          hint: result.hint,
+        },
+        { status: result.migrationRequired ? 409 : 500 },
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       created: result.created,

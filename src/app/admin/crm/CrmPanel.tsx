@@ -11,6 +11,8 @@ import {
   ProgramApplicationsPanel,
   ProgramApplicationsSummary,
 } from '@/components/admin/crm/ProgramApplicationsPanel';
+import { BackfillHebrewFairCodesButton } from '@/components/admin/BackfillHebrewFairCodesButton';
+import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 import {
   EventTabsPanel,
   EventTabsSummary,
@@ -692,6 +694,9 @@ export function CrmPanel({
               onSelect={setApplicationProgramSlug}
             />
             <ProgramApplicationsSummary track={activeProgramTrack} />
+            {applicationProgramSlug === HEBREW_ADVENTURE_SLUG && (
+              <BackfillHebrewFairCodesButton />
+            )}
           </>
         )}
 
@@ -1676,7 +1681,7 @@ function ApplicationsTable({
           <SortableTh label="Children" sortKey="children" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">
-            Hebrew codes
+            Event code
           </th>
           <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Tuition</th>
         </tr>
@@ -1708,9 +1713,9 @@ function ApplicationsTable({
                     {f.registrations
                       .filter((r) => r.fair_access_code)
                       .map((r) => (
-                        <div key={r.id} className="font-mono text-xs text-navy">
+                        <div key={r.id} className="font-mono text-xs font-semibold text-gold tracking-wide">
                           {r.fair_access_code}
-                          <span className="text-muted font-sans"> · {r.childName.split(' ')[0]}</span>
+                          <span className="text-muted font-sans font-normal"> · {r.childName.split(' ')[0]}</span>
                         </div>
                       ))}
                   </div>

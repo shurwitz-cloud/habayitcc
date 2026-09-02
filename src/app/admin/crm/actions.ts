@@ -24,7 +24,9 @@ import {
   resolveCrmProgramTracks,
 } from '@/lib/admin/crm/program-tracks';
 import { createAdminClient } from '@/lib/supabase/server';
+import { ensureHebrewFairCodesForAll } from '@/lib/events/hebrew-fair-codes';
 import { syncImportantDateToSheet } from '@/lib/google/important-dates-sheet';
+import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 import type {
   ChaiPartner,
   Child,
@@ -236,7 +238,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     familiesRes,
     parentsRes,
     childrenRes,
-    registrationsRes,
+    registrationsResInitial,
     programsRes,
     paymentsRes,
     rsvpsRes,
@@ -265,8 +267,40 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     supabase.from('waivers').select('*').order('signed_at', { ascending: false }),
   ]);
 
+  let registrationsRes = registrationsResInitial;
+
   if (rsvpsRes.error) console.error('[CRM] rsvps:', rsvpsRes.error.message);
   if (datesRes.error) console.error('[CRM] important_dates:', datesRes.error.message);
+
+  // Auto-issue missing Hebrew Adventure free-entry codes so CRM Applications shows them.
+  try {
+    const adventureProgram = (programsRes.data ?? []).find(
+      (p) => (p as { slug?: string }).slug === HEBREW_ADVENTURE_SLUG,
+    ) as { id?: string } | undefined;
+    const regsNow = (registrationsRes.data ?? []) as ProgramRegistration[];
+    const needsCodes = adventureProgram?.id
+      ? regsNow.some(
+          (r) =>
+            r.program_id === adventureProgram.id &&
+            (r.status === 'accepted' || r.status === 'active') &&
+            !r.fair_access_code,
+        )
+      : false;
+    if (needsCodes) {
+      const issued = await ensureHebrewFairCodesForAll();
+      if (issued.created > 0) {
+        const refreshed = await supabase
+          .from('program_registrations')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!refreshed.error) {
+          registrationsRes = refreshed;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[CRM] hebrew fair code backfill:', err);
+  }
   if (submissionsRes.error) console.error('[CRM] form_submissions:', submissionsRes.error.message);
   if (waiversRes.error) console.error('[CRM] waivers:', waiversRes.error.message);
 

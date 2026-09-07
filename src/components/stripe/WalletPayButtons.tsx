@@ -20,7 +20,7 @@ export interface WalletPayButtonsProps {
 
 /**
  * Apple Pay / Google Pay via Stripe Payment Request.
- * Only renders when the browser + device support a wallet.
+ * Only renders when the browser + device support a wallet AND an amount is set.
  */
 export function WalletPayButtons({
   amountCents,
@@ -34,6 +34,8 @@ export function WalletPayButtons({
   const [available, setAvailable] = useState(false);
   const onWalletPayRef = useRef(onWalletPay);
   const onErrorRef = useRef(onError);
+  const amountRef = useRef(amountCents);
+  const labelRef = useRef(label);
 
   useEffect(() => {
     onWalletPayRef.current = onWalletPay;
@@ -44,18 +46,30 @@ export function WalletPayButtons({
   }, [onError]);
 
   useEffect(() => {
-    if (!stripe || amountCents < 100) {
+    amountRef.current = amountCents;
+  }, [amountCents]);
+
+  useEffect(() => {
+    labelRef.current = label;
+  }, [label]);
+
+  // Create PaymentRequest as soon as Stripe is ready (even before amount is chosen),
+  // so canMakePayment runs on iPhone Safari. Amount is updated when the user picks one.
+  useEffect(() => {
+    if (!stripe) {
       setPaymentRequest(null);
       setAvailable(false);
       return;
     }
 
+    const initialAmount = Math.max(amountRef.current, 100);
+
     const pr = stripe.paymentRequest({
       country: 'US',
       currency: 'usd',
       total: {
-        label: label || 'HaBayit',
-        amount: amountCents,
+        label: labelRef.current || 'HaBayit',
+        amount: initialAmount,
       },
       requestPayerName: true,
       requestPayerEmail: true,
@@ -89,9 +103,7 @@ export function WalletPayButtons({
     return () => {
       cancelled = true;
     };
-    // Recreate when stripe or label changes; amount is updated separately.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- amount handled via update()
-  }, [stripe, label]);
+  }, [stripe]);
 
   useEffect(() => {
     if (!paymentRequest || amountCents < 100) return;

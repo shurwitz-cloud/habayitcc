@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
@@ -30,15 +30,42 @@ const CARD_STYLE: StripeCardElementOptions = {
 
 export function DonateCheckout() {
   return (
-    <Elements stripe={stripePromise}>
-      <Suspense fallback={<DonateFormSkeleton />}>
-        <DonateForm />
-      </Suspense>
+    <Suspense fallback={<DonateFormSkeleton />}>
+      <DonateCheckoutWithElements />
+    </Suspense>
+  );
+}
+
+/** Owns amount/mode so Express Checkout Elements can use deferred intent options. */
+function DonateCheckoutWithElements() {
+  const [mode, setMode] = useState<'onetime' | 'monthly'>('onetime');
+  const [amountCents, setAmountCents] = useState(100);
+
+  const elementsOptions = useMemo(
+    () => ({
+      mode: (mode === 'monthly' ? 'subscription' : 'payment') as 'payment' | 'subscription',
+      amount: Math.max(amountCents, 100),
+      currency: 'usd' as const,
+    }),
+    [mode, amountCents]
+  );
+
+  return (
+    <Elements stripe={stripePromise} options={elementsOptions}>
+      <DonateForm mode={mode} setMode={setMode} onAmountCentsChange={setAmountCents} />
     </Elements>
   );
 }
 
-function DonateForm() {
+function DonateForm({
+  mode,
+  setMode,
+  onAmountCentsChange,
+}: {
+  mode: 'onetime' | 'monthly';
+  setMode: (mode: 'onetime' | 'monthly') => void;
+  onAmountCentsChange: (cents: number) => void;
+}) {
   const searchParams = useSearchParams();
   const campaignSlug = searchParams.get('campaign');
   const donationMemo = useMemo(
@@ -49,7 +76,6 @@ function DonateForm() {
   const stripe = useStripe();
   const elements = useElements();
 
-  const [mode, setMode] = useState<'onetime' | 'monthly'>('onetime');
   const [selectedAmt, setSelectedAmt] = useState<number | 'other' | null>(null);
   const [otherAmt, setOtherAmt] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -72,7 +98,12 @@ function DonateForm() {
       ? Math.round(resolvedAmount * 1.03 * 100) / 100
       : resolvedAmount
     : null;
-  const amountCents = finalAmount ? Math.round(finalAmount * 100) : 0;
+  const computedAmountCents = finalAmount ? Math.round(finalAmount * 100) : 0;
+
+  // Sync checkout amount up to Elements (Express Checkout / Apple Pay).
+  useEffect(() => {
+    onAmountCentsChange(computedAmountCents > 0 ? computedAmountCents : 100);
+  }, [computedAmountCents, onAmountCentsChange]);
 
   const dedicationPayload = useMemo(() => {
     const trimmedDedication = dedicationName.trim();
@@ -90,7 +121,7 @@ function DonateForm() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       return { ok: false, error: 'Please fill in your name and email.' };
     }
-    if (amountCents < 100) {
+    if (computedAmountCents < 100) {
       return { ok: false, error: 'Minimum donation is $1.' };
     }
     return {
@@ -106,7 +137,7 @@ function DonateForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amountCents,
+          amountCents: computedAmountCents,
           donorName,
           donorEmail,
           memo: donationMemo,
@@ -125,7 +156,7 @@ function DonateForm() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        amountCents,
+        amountCents: computedAmountCents,
         donorFirstName: firstName.trim(),
         donorLastName: lastName.trim(),
         donorEmail,
@@ -171,50 +202,50 @@ function DonateForm() {
     setSuccess(true);
   }
 
-  const handleWalletPay = useCallback(
-    async (paymentMethodId: string) => {
-      if (!stripe) throw new Error('Payment is still loading. Please wait a moment.');
-      const check = validateDonor();
-      if (!check.ok) throw new Error(check.error);
+  const handleWalletBeforeOpen = useCallback(() => {
+    const check = validateDonor();
+    if (!check.ok) throw new Error(check.error);
+    // Form fields intentionally read from latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedAmount, firstName, lastName, email, computedAmountCents]);
 
-      setProcessing(true);
-      setError('');
+  const handleWalletCreateSecret = useCallback(async () => {
+    const check = validateDonor();
+    if (!check.ok) throw new Error(check.error);
+    setProcessing(true);
+    setError('');
+    return createClientSecret(check.name, check.email);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    mode,
+    computedAmountCents,
+    finalAmount,
+    firstName,
+    lastName,
+    email,
+    phone,
+    donationMemo,
+    campaignSlug,
+    dedicationPayload,
+    resolvedAmount,
+  ]);
+
+  const handleWalletSucceeded = useCallback(
+    async (paymentIntentId: string) => {
       try {
-        const clientSecret = await createClientSecret(check.name, check.email);
-        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-          clientSecret,
-          { payment_method: paymentMethodId }
-        );
-        if (stripeError) {
-          throw new Error(stripeError.message ?? 'Payment failed. Please try again.');
-        }
-        if (paymentIntent?.status !== 'succeeded') {
-          throw new Error(
-            'Payment was not completed. Please try again or contact info@habayitcc.org.'
-          );
-        }
-        await finishDonation(paymentIntent.id);
+        await finishDonation(paymentIntentId);
       } finally {
         setProcessing(false);
       }
     },
-    // Form fields intentionally read from latest render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      stripe,
-      mode,
-      amountCents,
-      finalAmount,
-      firstName,
-      lastName,
-      email,
-      phone,
-      donationMemo,
-      campaignSlug,
-      dedicationPayload,
-      resolvedAmount,
-    ]
+    [finalAmount, firstName, lastName, email, phone, mode, donationMemo, campaignSlug, dedicationPayload]
   );
+
+  const handleWalletError = useCallback((message: string) => {
+    setError(message);
+    setProcessing(false);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -441,11 +472,15 @@ function DonateForm() {
 
         <div className="pt-3 border-t border-line space-y-3">
           <WalletPayButtons
-            amountCents={amountCents}
+            amountCents={computedAmountCents}
             label={mode === 'monthly' ? 'HaBayit monthly gift' : 'HaBayit donation'}
             disabled={processing || !stripe}
-            onWalletPay={handleWalletPay}
-            onError={setError}
+            buttonVariant="donate"
+            recurringMonthly={mode === 'monthly'}
+            onBeforeOpen={handleWalletBeforeOpen}
+            createClientSecret={handleWalletCreateSecret}
+            onPaymentSucceeded={handleWalletSucceeded}
+            onError={handleWalletError}
           />
           <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">
             Card Information

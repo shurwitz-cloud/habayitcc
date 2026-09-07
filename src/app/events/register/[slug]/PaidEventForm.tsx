@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
@@ -32,14 +32,31 @@ const CARD_STYLE: StripeCardElementOptions = {
 };
 
 export function PaidEventForm({ event }: { event: PaidEventConfig }) {
+  const [amountCents, setAmountCents] = useState(100);
+
+  const elementsOptions = useMemo(
+    () => ({
+      mode: 'payment' as const,
+      amount: Math.max(amountCents, 100),
+      currency: 'usd' as const,
+    }),
+    [amountCents]
+  );
+
   return (
-    <Elements stripe={stripePromise}>
-      <PaidEventFormInner event={event} />
+    <Elements stripe={stripePromise} options={elementsOptions}>
+      <PaidEventFormInner event={event} onAmountCentsChange={setAmountCents} />
     </Elements>
   );
 }
 
-function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
+function PaidEventFormInner({
+  event,
+  onAmountCentsChange,
+}: {
+  event: PaidEventConfig;
+  onAmountCentsChange: (cents: number) => void;
+}) {
   const stripe = useStripe();
   const elements = useElements();
 
@@ -102,6 +119,11 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
       }),
     [event, adults, kids, women, fairChildren, fairFreeChildIndices, sponsorAmount, coverFee]
   );
+
+  useEffect(() => {
+    const cents = totalToCents(pricing.total);
+    onAmountCentsChange(cents > 0 ? cents : 100);
+  }, [pricing.total, onAmountCentsChange]);
 
   async function verifyFairCode(index: number, code: string) {
     if (!code.trim()) {
@@ -189,58 +211,88 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
     return null;
   }
 
-  const handleWalletPay = useCallback(
-    async (paymentMethodId: string) => {
-      if (!stripe) throw new Error('Payment is still loading. Please wait a moment.');
-      const validationError = validateRegistrationFields();
-      if (validationError) throw new Error(validationError);
+  const handleWalletBeforeOpen = useCallback(() => {
+    const validationError = validateRegistrationFields();
+    if (validationError) throw new Error(validationError);
+    if (totalToCents(pricing.total) < 100) throw new Error('Nothing to pay.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    firstName,
+    lastName,
+    email,
+    phone,
+    event,
+    adults,
+    kids,
+    fairChildCount,
+    women,
+    hebrewStudent,
+    hebrewCodes,
+    fairCodeStatus,
+    pricing.total,
+  ]);
 
-      const totalCents = totalToCents(pricing.total);
-      if (totalCents < 100) throw new Error('Nothing to pay.');
+  const handleWalletCreateSecret = useCallback(async () => {
+    const validationError = validateRegistrationFields();
+    if (validationError) throw new Error(validationError);
 
-      setProcessing(true);
-      setError('');
+    const totalCents = totalToCents(pricing.total);
+    if (totalCents < 100) throw new Error('Nothing to pay.');
+
+    setProcessing(true);
+    setError('');
+
+    const res = await fetch('/api/stripe/event-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: event.slug,
+        amountCents: totalCents,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        coverFee,
+        sponsorAmount,
+        dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+        fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
+        womens: event.type === 'womens' ? { women } : undefined,
+      }),
+    });
+
+    const data = (await res.json()) as {
+      clientSecret?: string;
+      paymentIntentId?: string;
+      error?: string;
+    };
+    if (!res.ok || !data.clientSecret) {
+      throw new Error(data.error ?? 'Could not initialize payment.');
+    }
+    return data.clientSecret;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    event,
+    pricing.total,
+    firstName,
+    lastName,
+    email,
+    phone,
+    coverFee,
+    sponsorAmount,
+    adults,
+    kids,
+    fairChildren,
+    women,
+    fairChildCount,
+    hebrewStudent,
+    hebrewCodes,
+    fairCodeStatus,
+  ]);
+
+  const handleWalletSucceeded = useCallback(
+    async (paymentIntentId: string) => {
       try {
-        const res = await fetch('/api/stripe/event-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug: event.slug,
-            amountCents: totalCents,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            email: email.trim(),
-            phone: phone.trim(),
-            coverFee,
-            sponsorAmount,
-            dinner: event.type === 'dinner' ? { adults, kids } : undefined,
-            fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
-            womens: event.type === 'womens' ? { women } : undefined,
-          }),
-        });
-
-        const data = (await res.json()) as {
-          clientSecret?: string;
-          paymentIntentId?: string;
-          error?: string;
-        };
-        if (!res.ok || !data.clientSecret) {
-          throw new Error(data.error ?? 'Could not initialize payment.');
-        }
-
-        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-          data.clientSecret,
-          { payment_method: paymentMethodId }
-        );
-
-        if (stripeError) {
-          throw new Error(stripeError.message ?? 'Payment failed. Please try again.');
-        }
-        if (paymentIntent?.status !== 'succeeded') {
-          throw new Error('Payment was not completed. Please try again.');
-        }
-
-        setPaidIntentId(paymentIntent.id);
+        setPaidIntentId(paymentIntentId);
 
         const result = await submitPaidEventRegistration({
           slug: event.slug,
@@ -250,7 +302,7 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
           phone: phone.trim(),
           coverFee,
           sponsorAmount,
-          paymentIntentId: paymentIntent.id,
+          paymentIntentId,
           dinner: event.type === 'dinner' ? { adults, kids } : undefined,
           fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
           womens: event.type === 'womens' ? { women } : undefined,
@@ -265,12 +317,9 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
         setProcessing(false);
       }
     },
-    // Latest form state from each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      stripe,
       event,
-      pricing.total,
       firstName,
       lastName,
       email,
@@ -281,12 +330,13 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
       kids,
       fairChildren,
       women,
-      fairChildCount,
-      hebrewStudent,
-      hebrewCodes,
-      fairCodeStatus,
     ]
   );
+
+  const handleWalletError = useCallback((message: string) => {
+    setError(message);
+    setProcessing(false);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -588,8 +638,11 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
             amountCents={totalToCents(pricing.total)}
             label={event.title}
             disabled={processing || !stripe}
-            onWalletPay={handleWalletPay}
-            onError={setError}
+            buttonVariant="checkout"
+            onBeforeOpen={handleWalletBeforeOpen}
+            createClientSecret={handleWalletCreateSecret}
+            onPaymentSucceeded={handleWalletSucceeded}
+            onError={handleWalletError}
           />
 
           <Field label="Card Details" required>

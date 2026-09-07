@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
+import { WalletPayButtons } from '@/components/stripe/WalletPayButtons';
 import type { PaidEventConfig } from '@/lib/events/paid-events';
 import {
   computePaidEventTotal,
@@ -152,51 +153,149 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
     });
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-
+  function validateRegistrationFields(): string | null {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
-      setError('Please fill in all required fields.');
-      return;
+      return 'Please fill in all required fields.';
     }
-
     if (event.type === 'dinner' && adults + kids < 1) {
-      setError('Please enter at least one adult or child.');
-      return;
+      return 'Please enter at least one adult or child.';
     }
     if (event.type === 'family-fair' && fairChildCount < 1) {
-      setError('Please add at least one child.');
-      return;
+      return 'Please add at least one child.';
     }
     if (event.type === 'womens' && women < 1) {
-      setError('Please enter how many women are attending.');
-      return;
+      return 'Please enter how many women are attending.';
     }
-
     if (event.type === 'family-fair' && hebrewStudent) {
       if (!hebrewCodes[0]?.trim()) {
-        setError('Please enter a HaBayit Hebrew code.');
-        return;
+        return 'Please enter a HaBayit Hebrew code.';
       }
       const seen = new Set<string>();
       for (let i = 0; i < hebrewCodes.length; i++) {
         const code = hebrewCodes[i]?.trim();
         if (!code) {
-          setError(`Please enter a HaBayit Hebrew code for child ${i + 1}.`);
-          return;
+          return `Please enter a HaBayit Hebrew code for child ${i + 1}.`;
         }
         const normalized = code.toUpperCase();
         if (seen.has(normalized)) {
-          setError(`Each Hebrew code can only free one child. Duplicate code on child ${i + 1}.`);
-          return;
+          return `Each Hebrew code can only free one child. Duplicate code on child ${i + 1}.`;
         }
         seen.add(normalized);
         if (fairCodeStatus[i] !== 'valid') {
-          setError(`Please enter a valid HaBayit Hebrew code for child ${i + 1}.`);
-          return;
+          return `Please enter a valid HaBayit Hebrew code for child ${i + 1}.`;
         }
       }
+    }
+    return null;
+  }
+
+  const handleWalletPay = useCallback(
+    async (paymentMethodId: string) => {
+      if (!stripe) throw new Error('Payment is still loading. Please wait a moment.');
+      const validationError = validateRegistrationFields();
+      if (validationError) throw new Error(validationError);
+
+      const totalCents = totalToCents(pricing.total);
+      if (totalCents < 100) throw new Error('Nothing to pay.');
+
+      setProcessing(true);
+      setError('');
+      try {
+        const res = await fetch('/api/stripe/event-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug: event.slug,
+            amountCents: totalCents,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
+            coverFee,
+            sponsorAmount,
+            dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+            fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
+            womens: event.type === 'womens' ? { women } : undefined,
+          }),
+        });
+
+        const data = (await res.json()) as {
+          clientSecret?: string;
+          paymentIntentId?: string;
+          error?: string;
+        };
+        if (!res.ok || !data.clientSecret) {
+          throw new Error(data.error ?? 'Could not initialize payment.');
+        }
+
+        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+          data.clientSecret,
+          { payment_method: paymentMethodId }
+        );
+
+        if (stripeError) {
+          throw new Error(stripeError.message ?? 'Payment failed. Please try again.');
+        }
+        if (paymentIntent?.status !== 'succeeded') {
+          throw new Error('Payment was not completed. Please try again.');
+        }
+
+        setPaidIntentId(paymentIntent.id);
+
+        const result = await submitPaidEventRegistration({
+          slug: event.slug,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          coverFee,
+          sponsorAmount,
+          paymentIntentId: paymentIntent.id,
+          dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+          fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
+          womens: event.type === 'womens' ? { women } : undefined,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error ?? 'Registration failed.');
+        }
+        if (result.receiptUrl) setReceiptUrl(result.receiptUrl);
+        setSubmitted(true);
+      } finally {
+        setProcessing(false);
+      }
+    },
+    // Latest form state from each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      stripe,
+      event,
+      pricing.total,
+      firstName,
+      lastName,
+      email,
+      phone,
+      coverFee,
+      sponsorAmount,
+      adults,
+      kids,
+      fairChildren,
+      women,
+      fairChildCount,
+      hebrewStudent,
+      hebrewCodes,
+      fairCodeStatus,
+    ]
+  );
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    const validationError = validateRegistrationFields();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     setProcessing(true);
@@ -484,6 +583,14 @@ function PaidEventFormInner({ event }: { event: PaidEventConfig }) {
               {coverFee && pricing.cardFee > 0 ? ` (+$${pricing.cardFee.toFixed(2)})` : ''}
             </span>
           </label>
+
+          <WalletPayButtons
+            amountCents={totalToCents(pricing.total)}
+            label={event.title}
+            disabled={processing || !stripe}
+            onWalletPay={handleWalletPay}
+            onError={setError}
+          />
 
           <Field label="Card Details" required>
             <div className="border border-line rounded-xl px-4 py-3.5 bg-white">

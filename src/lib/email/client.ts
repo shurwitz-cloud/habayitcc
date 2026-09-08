@@ -108,9 +108,18 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
 
 /** Admin alert copies (signups, RSVP, contact, donations). */
 export async function sendAdminNotification(
-  input: Omit<SendEmailInput, 'to' | 'from' | 'bcc'>
+  input: Omit<SendEmailInput, 'to' | 'from' | 'bcc'> & {
+    /** Extra inboxes for this form only (e.g. office@…). Does not change the global admin list. */
+    extraTo?: string | string[];
+  }
 ): Promise<boolean> {
   const delivery = resolveAdminDelivery();
+  const extras = (Array.isArray(input.extraTo) ? input.extraTo : [input.extraTo])
+    .map((e) => e?.trim().toLowerCase())
+    .filter((e): e is string => Boolean(e));
+  const to = [...new Set([...delivery.to.map((e) => e.trim().toLowerCase()), ...extras])];
+  const { extraTo: _extraTo, ...mail } = input;
+
   const attempts = [
     getAdminNotificationFrom(),
     getPublicFrom(),
@@ -118,15 +127,15 @@ export async function sendAdminNotification(
 
   for (const from of attempts) {
     const ok = await sendEmail({
-      ...input,
+      ...mail,
       from,
-      to: delivery.to,
+      to,
     });
     if (ok) return true;
-    console.error('[email] admin notification attempt failed:', input.subject, { from, to: delivery.to });
+    console.error('[email] admin notification attempt failed:', input.subject, { from, to });
   }
 
-  console.error('[email] admin notification failed after retries:', input.subject, delivery);
+  console.error('[email] admin notification failed after retries:', input.subject, { to });
   return false;
 }
 

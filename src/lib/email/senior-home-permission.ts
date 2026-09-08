@@ -1,12 +1,10 @@
-import { buildEmailHtml, getAdminEmails, sendEmail, getPublicFrom } from './client';
+import { buildEmailHtml, sendAdminNotification, sendEmail } from './client';
 
 export interface SeniorHomePermissionEmailInput {
   childName: string;
   parentName: string;
   email: string;
 }
-
-const OFFICE_EMAIL = 'office@habayitcc.org';
 
 export async function sendSeniorHomePermissionEmails(
   input: SeniorHomePermissionEmailInput
@@ -33,32 +31,22 @@ export async function sendSeniorHomePermissionEmails(
     </p>
   `);
 
-  const staffRecipients = Array.from(
-    new Set([OFFICE_EMAIL, ...getAdminEmails()].map((e) => e.trim().toLowerCase()).filter(Boolean))
-  );
-
-  const [userSent, staffSent] = await Promise.all([
+  const [userSent, adminSent] = await Promise.all([
     sendEmail({
       to: input.email,
       subject: 'Permission received — Senior home visit | HaBayit',
       html: userHtml,
     }),
-    sendEmail({
-      to: staffRecipients,
-      from: getPublicFrom(),
-      replyTo: input.email,
+    sendAdminNotification({
       subject: `Senior home permission — ${input.childName}`,
+      replyTo: input.email,
       html: adminHtml,
+      extraTo: 'office@habayitcc.org',
     }),
   ]);
 
-  if (!staffSent) {
-    console.error(
-      '[senior-home-permission] staff notification failed for',
-      input.email,
-      '→',
-      staffRecipients.join(', ')
-    );
+  if (!adminSent) {
+    console.error('[senior-home-permission] admin notification failed for', input.email);
   }
 
   return userSent;

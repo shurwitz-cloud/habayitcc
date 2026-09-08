@@ -13,7 +13,7 @@ export async function sendSeniorHomePermissionEmails(
     <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Dear ${escapeHtml(input.parentName)},</p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
       Thank you! We’ve received your permission for
-      <strong>${escapeHtml(input.childName)}</strong> to participate in the HaBayit
+      <strong>${escapeHtml(input.childName)}</strong> to participate in the Achim
       senior home visit, including transportation by a designated adult driver.
     </p>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#6f6a60;">
@@ -22,7 +22,7 @@ export async function sendSeniorHomePermissionEmails(
   `);
 
   const adminHtml = buildEmailHtml(`
-    <p style="margin:0 0 12px;font-size:15px;"><strong>New senior home visit permission</strong></p>
+    <p style="margin:0 0 12px;font-size:15px;"><strong>Achim Senior home permission</strong></p>
     <p style="margin:0;font-size:14px;line-height:1.7;">
       Child: ${escapeHtml(input.childName)}<br>
       Parent/Guardian: ${escapeHtml(input.parentName)}<br>
@@ -34,11 +34,11 @@ export async function sendSeniorHomePermissionEmails(
   const [userSent, adminSent] = await Promise.all([
     sendEmail({
       to: input.email,
-      subject: 'Permission received — Senior home visit | HaBayit',
+      subject: 'Achim Senior home permission — received | HaBayit',
       html: userHtml,
     }),
     sendAdminNotification({
-      subject: `Senior home permission — ${input.childName}`,
+      subject: `Achim Senior home permission — ${input.childName}`,
       replyTo: input.email,
       html: adminHtml,
       extraTo: 'office@habayitcc.org',

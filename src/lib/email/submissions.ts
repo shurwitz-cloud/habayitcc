@@ -30,9 +30,9 @@ export const SUBMISSION_EMAILS = {
     trigger: 'src/app/rsvp/[slug]/actions.ts → submitRsvp',
   },
   senior_home_permission: {
-    description: 'Senior home visit permission — parent confirmation + admin notification',
+    description: 'Achim senior home visit permission — parent confirmation + admin notification',
     handler: 'sendSeniorHomePermissionEmails',
-    trigger: 'src/app/senior-home-permission/actions.ts → submitSeniorHomePermission',
+    trigger: 'src/app/achim/senior-home-permission/actions.ts → submitSeniorHomePermission',
   },
   donation_one_time: {
     description: 'One-time donation — tax receipt email + admin notification',

@@ -36,6 +36,11 @@ const nextConfig: NextConfig = {
       { source: '/rsvp/achim-jul28', destination: '/rsvp/achim', permanent: true },
       { source: '/rsvp/bmx-aug13', destination: '/rsvp/bmx', permanent: true },
       { source: '/rsvp/bloom-aug6', destination: '/rsvp/bloom', permanent: true },
+      {
+        source: '/senior-home-permission',
+        destination: '/achim/senior-home-permission',
+        permanent: true,
+      },
     ];
   },
 };

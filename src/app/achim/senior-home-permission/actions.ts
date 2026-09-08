@@ -16,7 +16,7 @@ export async function submitSeniorHomePermission(
   input: SeniorHomePermissionInput
 ): Promise<{ success: boolean; error?: string }> {
   const limited = await enforceActionRateLimit(
-    'senior-home-permission',
+    'achim-senior-home-permission',
     12,
     15 * 60 * 1000
   );
@@ -44,7 +44,8 @@ export async function submitSeniorHomePermission(
     parentName,
     email,
     permissionYes: true,
-    event: 'senior_home_visit',
+    event: 'achim_senior_home_visit',
+    program: 'achim',
   };
 
   try {

@@ -5,9 +5,9 @@ import { Footer } from '@/components/layout/Footer';
 import { SeniorHomePermissionForm } from './PermissionForm';
 
 export const metadata: Metadata = {
-  title: 'Senior Home Visit Permission – HaBayit',
+  title: 'Achim Senior Home Permission – HaBayit',
   description:
-    'Permission form for the HaBayit boys’ visit to a local senior home.',
+    'Achim permission form for the boys’ visit to a local senior home.',
   robots: { index: false, follow: false },
 };
 
@@ -21,7 +21,7 @@ export default function SeniorHomePermissionPage() {
           <article className="overflow-hidden rounded-[28px] border-[3px] border-[#2f5f9a] bg-[#faf7f0] shadow-[0_16px_40px_rgba(23,38,67,0.12)]">
             <Image
               src="/flyers/senior-home-permission.jpg"
-              alt="Permission form — Visit to Senior Home"
+              alt="Achim permission form — Visit to Senior Home"
               width={682}
               height={390}
               priority

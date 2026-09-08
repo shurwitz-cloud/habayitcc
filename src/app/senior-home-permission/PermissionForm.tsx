@@ -82,11 +82,11 @@ export function SeniorHomePermissionForm() {
         />
       </Field>
 
-      <div className="rounded-2xl border border-line bg-soft/70 px-4 py-4">
-        <p className="mb-3 text-[0.78rem] font-bold uppercase tracking-wide text-navy">
-          Permission <span className="text-gold">*</span>
+      <div>
+        <p className="mb-2 inline-block rounded-sm bg-[#cfe8f8] px-2 py-0.5 text-[0.95rem] font-bold text-[#1f4f8a]">
+          Permission:
         </p>
-        <label className="flex cursor-pointer items-start gap-3 text-[0.95rem] leading-relaxed text-ink">
+        <label className="mt-2 flex cursor-pointer items-start gap-3 text-[0.95rem] leading-relaxed text-ink">
           <input
             type="checkbox"
             checked={permissionYes}
@@ -111,7 +111,7 @@ export function SeniorHomePermissionForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-full bg-gold px-6 py-4 text-[0.9rem] font-black uppercase tracking-wider text-white transition-opacity disabled:opacity-60"
+        className="w-full rounded-full bg-[#2f5f9a] px-6 py-4 text-[0.9rem] font-black uppercase tracking-wider text-white transition-opacity disabled:opacity-60"
       >
         {submitting ? 'Submitting…' : 'Submit Permission'}
       </button>

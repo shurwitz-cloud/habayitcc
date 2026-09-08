@@ -11,6 +11,7 @@ export type FormType =
   | 'bmx_registration'
   | 'bloom_registration'
   | 'rsvp'
+  | 'senior_home_permission'
   | 'other';
 
 /**

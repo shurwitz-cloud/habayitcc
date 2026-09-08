@@ -15,6 +15,7 @@ export { sendDonationTaxReceiptEmail, sendDonationReceiptEmailFromRecord } from 
 export { sendChaiPartnerWelcomeEmail } from './chai-partner-welcome';
 export { sendRegistrationReceivedEmail } from './registration-received';
 export { sendRegistrationAcceptedEmail } from './registration-accepted';
+export { sendSeniorHomePermissionEmails } from './senior-home-permission';
 
 /** Every user-facing submission and its confirmation email. */
 export const SUBMISSION_EMAILS = {
@@ -27,6 +28,11 @@ export const SUBMISSION_EMAILS = {
     description: 'Event RSVP — attendee confirmation + admin notification',
     handler: 'sendRsvpConfirmationEmail',
     trigger: 'src/app/rsvp/[slug]/actions.ts → submitRsvp',
+  },
+  senior_home_permission: {
+    description: 'Senior home visit permission — parent confirmation + admin notification',
+    handler: 'sendSeniorHomePermissionEmails',
+    trigger: 'src/app/senior-home-permission/actions.ts → submitSeniorHomePermission',
   },
   donation_one_time: {
     description: 'One-time donation — tax receipt email + admin notification',

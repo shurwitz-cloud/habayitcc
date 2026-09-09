@@ -90,22 +90,22 @@ export default async function HomePage() {
           <SectionTitle eyebrow="">Upcoming at HaBayit</SectionTitle>
           <div className="grid md:grid-cols-3 border-t border-b border-line">
             <EventPreview
-              date="Sep 1"
-              title="The Art of Kintsugi — For Women"
-              description="A HaBayit Ladies evening to welcome Rosh Hashana and Yom Kippur in a meaningful way."
-              href="/events/register/pre-rosh-hashana-womens"
+              date="Sep 11–13"
+              title="Rosh Hashana with HaBayit"
+              description="Full schedule at Embassy Lakes Clubhouse — services, children’s programs, shofar, and Tashlich."
+              href="/synagogue#rosh-hashana"
+            />
+            <EventPreview
+              date="Sep 11"
+              title="Community Rosh Hashana Dinner"
+              description="Join HaBayit for a festive holiday meal — RSVP required."
+              href="/events/register/rosh-hashana-dinner"
             />
             <EventPreview
               date="Weekly"
               title="Shabbat at HaBayit"
               description="Join us for tefillah, kiddush, learning, and community."
               href="/synagogue"
-            />
-            <EventPreview
-              date="Community"
-              title="Holiday Programs"
-              description="Warm, family-friendly celebrations throughout the year."
-              href="/events"
             />
           </div>
           <div className="text-center mt-8">

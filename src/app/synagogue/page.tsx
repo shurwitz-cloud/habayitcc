@@ -1,5 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import Image from 'next/image';
+import Link from 'next/link';
 import { ShabbatHomeCard } from '@/components/shabbat/ShabbatHomeCard';
 import { getUpcomingShabbat } from '@/lib/shabbat/hebcal';
 import { Section, SectionTitle } from '@/components/sections/Section';
@@ -48,6 +50,48 @@ const SCHEDULE = [
   },
 ];
 
+const ROSH_HASHANA = {
+  location: 'Embassy Lakes Clubhouse',
+  address: '3522 Embassy Dr, 33026',
+  guest: 'Cantor Shem Tov Marciano',
+  days: [
+    {
+      day: 'Friday, September 11',
+      items: [
+        { title: 'Evening Services', time: '6:00 PM' },
+        { title: 'Candle Lighting', time: '7:11 PM' },
+        { title: 'Community Dinner', time: '7:15 PM', note: 'RSVP only' },
+      ],
+    },
+    {
+      day: 'Shabbat, September 12',
+      items: [
+        { title: 'Morning Services', time: '9:30 AM' },
+        { title: 'Children’s Program', time: '10:00 AM – 12:00 PM' },
+        { title: 'Kiddush', time: 'After services' },
+        { title: 'Evening Services', time: '7:00 PM' },
+        { title: 'Candle Lighting', time: 'After 8:03 PM', note: 'From a pre-existing flame' },
+      ],
+    },
+    {
+      day: 'Sunday, September 13',
+      items: [
+        { title: 'Morning Services', time: '9:30 AM' },
+        { title: 'Children’s Program', time: '10:00 AM – 12:30 PM' },
+        { title: 'Shofar Sounding', time: '11:30 AM' },
+        { title: 'Community Kiddush', time: 'After services' },
+        {
+          title: 'Annual Embassy Shofar & Tashlich',
+          time: '4:00 PM',
+          note: 'Special activities for children',
+        },
+        { title: 'Evening Services', time: '5:00 PM' },
+        { title: 'Holiday Ends', time: '8:02 PM' },
+      ],
+    },
+  ],
+};
+
 const EXPECTATIONS = [
   { title: 'Warm Community', description: 'Everyone is welcomed with care, respect, and genuine friendship.' },
   { title: 'Meaningful Prayer', description: 'Traditional services in an atmosphere that feels comfortable and personal.' },
@@ -76,6 +120,72 @@ export default async function SynagoguePage() {
             Whether you&apos;re joining us for the first time or looking for a place to pray each
             week, you&apos;ll find a warm, welcoming community where everyone feels at home.
           </p>
+        </Section>
+
+        <Section id="rosh-hashana" background="soft" className="scroll-mt-[88px]">
+          <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-8 lg:gap-10 items-start">
+            <div className="overflow-hidden rounded-[18px] border border-line bg-white shadow-sm">
+              <Image
+                src="/flyers/rosh-hashana-schedule.jpg"
+                alt="Rosh Hashana with HaBayit schedule flyer"
+                width={900}
+                height={1200}
+                className="h-auto w-full"
+                priority
+              />
+            </div>
+
+            <div>
+              <SectionTitle eyebrow="High Holy Days" center={false}>
+                Rosh Hashana with HaBayit
+              </SectionTitle>
+              <p className="heb text-[1.15rem] text-navy/80 -mt-4 mb-4">ראש השנה</p>
+              <p className="text-muted text-[0.98rem] leading-relaxed mb-2">
+                Join us at the <strong className="text-navy">{ROSH_HASHANA.location}</strong>
+                {' '}({ROSH_HASHANA.address}). Special guest:{' '}
+                <strong className="text-navy">{ROSH_HASHANA.guest}</strong>.
+              </p>
+              <p className="text-muted text-[0.92rem] mb-6">
+                All prayers held at the Embassy Lakes Clubhouse.
+              </p>
+
+              <div className="space-y-4">
+                {ROSH_HASHANA.days.map((block) => (
+                  <article
+                    key={block.day}
+                    className="bg-cream border border-line rounded-[18px] p-6"
+                  >
+                    <h3 className="text-[1.25rem] text-navy font-bold mb-3.5">{block.day}</h3>
+                    <div className="space-y-3">
+                      {block.items.map((item) => (
+                        <div
+                          key={`${block.day}-${item.title}`}
+                          className="border-l-[3px] border-gold pl-4 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5 sm:gap-4"
+                        >
+                          <div>
+                            <strong className="block text-navy text-[0.95rem]">{item.title}</strong>
+                            {'note' in item && item.note ? (
+                              <span className="text-muted text-[0.82rem]">{item.note}</span>
+                            ) : null}
+                          </div>
+                          <span className="text-navy font-semibold text-[0.92rem] whitespace-nowrap">
+                            {item.time}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <p className="mt-5 text-[0.88rem] text-muted">
+                Community dinner is RSVP only.{' '}
+                <Link href="/events/register/rosh-hashana-dinner" className="text-gold font-semibold underline-offset-2 hover:underline">
+                  Dinner details
+                </Link>
+              </p>
+            </div>
+          </div>
         </Section>
 
         <Section background="white">

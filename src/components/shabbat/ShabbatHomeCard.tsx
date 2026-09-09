@@ -24,7 +24,7 @@ export function ShabbatHomeCard({
         <div className="flex flex-col md:flex-row lg:flex-col gap-4 md:gap-6 lg:gap-0">
           <div className="min-w-0">
             <p className="text-[0.62rem] tracking-[0.14em] uppercase text-gold font-bold mb-2">
-              This week&apos;s parsha
+              {shabbat.kicker}
             </p>
             <p className="heb text-[1.35rem] text-navy font-bold leading-tight">
               {shabbat.parsha.hebrew}
@@ -54,7 +54,7 @@ export function ShabbatHomeCard({
             <div>
               <p className="text-[0.62rem] text-muted leading-tight mb-0.5">{shabbat.shabbatLabel}</p>
               <p className="text-navy font-bold text-[0.8rem] leading-tight">
-                Ends {shabbat.shabbosEnds}
+                {shabbat.kind === 'holiday' ? 'Yom Tov ends' : 'Ends'} {shabbat.shabbosEnds}
               </p>
             </div>
           </div>
@@ -68,7 +68,7 @@ export function ShabbatHomeCard({
       className={`bg-cream border border-line rounded-[18px] p-4 md:p-5 flex flex-col justify-center ${className}`}
     >
       <p className="text-[0.62rem] tracking-[0.12em] uppercase text-gold font-bold mb-2 md:text-[0.68rem] md:tracking-[0.14em]">
-        This week&apos;s parsha is
+        {shabbat.kicker}
       </p>
 
       <div className="flex flex-row gap-3 items-start md:flex-col-reverse md:gap-0.5">
@@ -101,7 +101,7 @@ export function ShabbatHomeCard({
         <div>
           <p className="text-[0.65rem] text-muted leading-tight mb-0.5">{shabbat.shabbatLabel}</p>
           <p className="text-navy font-bold text-[0.8rem] md:text-[0.88rem] leading-tight">
-            Shabbos ends {shabbat.shabbosEnds}
+            {shabbat.kind === 'holiday' ? 'Yom Tov ends' : 'Shabbos ends'} {shabbat.shabbosEnds}
           </p>
         </div>
       </div>

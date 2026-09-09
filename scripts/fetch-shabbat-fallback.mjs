@@ -1,6 +1,6 @@
 /**
- * Fetches upcoming Shabbat from Hebcal at build time so production always
- * has fallback data when Vercel runtime calls to hebcal.com fail.
+ * Fetches upcoming Shabbat/holiday times from Hebcal at build time so production
+ * always has fallback data when Vercel runtime calls to hebcal.com fail.
  */
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,24 @@ const TZ = 'America/New_York';
 
 const MEVARCHIM_MONTH_EN = { Av: 'Menachem Av' };
 const MEVARCHIM_MONTH_HE = { אב: 'מנחם אב' };
+
+function getHebcalQueryDate(tzid, base = new Date()) {
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: tzid }).format(base);
+  const adjusted = weekday === 'Sat' ? new Date(base.getTime() + 24 * 60 * 60 * 1000) : base;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tzid,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(adjusted);
+  const get = (type) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { gy: get('year'), gm: get('month'), gd: get('day') };
+}
+
+function addDaysToQuery(query, days, tzid) {
+  const base = new Date(Date.UTC(query.gy, query.gm - 1, query.gd + days, 12));
+  return getHebcalQueryDate(tzid, base);
+}
 
 function getOrdinal(day) {
   if (day >= 11 && day <= 13) return `${day}th`;
@@ -44,6 +62,11 @@ function formatDateLabel(isoDate, tzid, prefix) {
   return `${prefix} ${month} ${getOrdinal(day)}`;
 }
 
+function formatMemoDateLabel(isoDate, tzid, memo, fallbackPrefix) {
+  const prefix = memo?.trim() || fallbackPrefix;
+  return formatDateLabel(isoDate, tzid, prefix);
+}
+
 function formatParsha(title, hebrew) {
   const englishName = title.replace(/^Parashat\s+/, '');
   const hebrewLine = hebrew.startsWith('פרשת') ? `שבת ${hebrew}` : `שבת פרשת ${hebrew}`;
@@ -60,46 +83,112 @@ function formatMevarchim(title, hebrew) {
   return { hebrew: `מברכים חודש ${displayMonthHe}`, englishMonth };
 }
 
+function holidayKicker(title) {
+  if (/^Erev\s+/i.test(title)) return title.replace(/^Erev\s+/i, '');
+  if (/Rosh Hashana/i.test(title)) return 'Rosh Hashana';
+  if (/Yom Kippur/i.test(title)) return 'Yom Kippur';
+  return title.replace(/\s+\d{4}$/, '').replace(/\s+II$/, '');
+}
+
+function pickPrimaryHoliday(items) {
+  const major = items.filter((item) => item.category === 'holiday' && item.subcat === 'major');
+  return major.find((item) => item.yomtov) ?? major.find((item) => !/^Erev\s/i.test(item.title)) ?? major[0] ?? null;
+}
+
+function formatHolidayDisplay(holiday) {
+  const englishName = holiday.title.replace(/^Erev\s+/i, '');
+  return { hebrew: holiday.hebrew ?? englishName, englishName };
+}
+
+function findLastHavdalah(items) {
+  const havdalahItems = items.filter((item) => item.category === 'havdalah');
+  return havdalahItems[havdalahItems.length - 1];
+}
+
+function findFirstCandles(items) {
+  return items.find((item) => item.category === 'candles');
+}
+
 function parseResponse(data) {
   const tzid = data.location.tzid;
   const parshaItem = data.items.find((item) => item.category === 'parashat');
   const mevarchimItem = data.items.find((item) => item.category === 'mevarchim');
-  const candlesItem = data.items.find((item) => item.category === 'candles');
-  const havdalahItem = data.items.find((item) => item.category === 'havdalah');
+  const candlesItem = findFirstCandles(data.items);
+  const havdalahItem = findLastHavdalah(data.items);
 
-  if (!parshaItem?.hebrew || !candlesItem || !havdalahItem) {
-    return null;
+  if (!candlesItem || !havdalahItem) return null;
+
+  if (parshaItem?.hebrew) {
+    return {
+      kind: 'shabbat',
+      kicker: "This week's parsha",
+      parsha: formatParsha(parshaItem.title, parshaItem.hebrew),
+      mevarchim:
+        mevarchimItem?.hebrew != null
+          ? formatMevarchim(mevarchimItem.title, mevarchimItem.hebrew)
+          : null,
+      fridayLabel: formatDateLabel(candlesItem.date, tzid, 'Friday'),
+      shabbatLabel: formatDateLabel(parshaItem.date, tzid, 'Shabbat'),
+      candleLighting: formatTimeCompact(candlesItem.date, tzid),
+      shabbosEnds: formatTimeCompact(havdalahItem.date, tzid),
+    };
   }
 
+  const primaryHoliday = pickPrimaryHoliday(data.items);
+  if (!primaryHoliday) return null;
+
+  const display = formatHolidayDisplay(primaryHoliday);
+  const kicker = holidayKicker(primaryHoliday.title);
+  const endMemo = havdalahItem.memo?.trim();
+  const endPrefix = endMemo ? `${endMemo} ends` : `${kicker} ends`;
+
   return {
-    parsha: formatParsha(parshaItem.title, parshaItem.hebrew),
-    mevarchim:
-      mevarchimItem?.hebrew != null
-        ? formatMevarchim(mevarchimItem.title, mevarchimItem.hebrew)
-        : null,
-    fridayLabel: formatDateLabel(candlesItem.date, tzid, 'Friday'),
-    shabbatLabel: formatDateLabel(parshaItem.date, tzid, 'Shabbat'),
+    kind: 'holiday',
+    kicker,
+    parsha: display,
+    mevarchim: null,
+    fridayLabel: formatMemoDateLabel(candlesItem.date, tzid, candlesItem.memo, 'Candle lighting'),
+    shabbatLabel: formatDateLabel(havdalahItem.date, tzid, endPrefix),
     candleLighting: formatTimeCompact(candlesItem.date, tzid),
     shabbosEnds: formatTimeCompact(havdalahItem.date, tzid),
   };
 }
 
-const url = `https://www.hebcal.com/shabbat?cfg=json&b=18&M=on&latitude=${LAT}&longitude=${LON}&tzid=${encodeURIComponent(TZ)}`;
-
-const response = await fetch(url, {
-  headers: {
-    Accept: 'application/json',
-    'User-Agent': 'HaBayit/1.0 (+https://www.habayitcc.org)',
-  },
-});
-
-if (!response.ok) {
-  console.warn(`[fetch-shabbat-fallback] Hebcal returned ${response.status}; keeping existing fallback file`);
-  process.exit(0);
+function isPast(isoDate) {
+  return new Date(isoDate).getTime() < Date.now();
 }
 
-const data = await response.json();
-const parsed = parseResponse(data);
+function buildUrl(query) {
+  return `https://www.hebcal.com/shabbat?cfg=json&b=18&M=on&latitude=${LAT}&longitude=${LON}&tzid=${encodeURIComponent(TZ)}&gy=${query.gy}&gm=${query.gm}&gd=${query.gd}&leyning=off`;
+}
+
+let query = getHebcalQueryDate(TZ);
+let parsed = null;
+
+for (let attempt = 0; attempt < 10; attempt++) {
+  const response = await fetch(buildUrl(query), {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'HaBayit/1.0 (+https://www.habayitcc.org)',
+    },
+  });
+
+  if (!response.ok) {
+    console.warn(`[fetch-shabbat-fallback] Hebcal returned ${response.status}; keeping existing fallback file`);
+    process.exit(0);
+  }
+
+  const data = await response.json();
+  parsed = parseResponse(data);
+  const havdalahItem = findLastHavdalah(data.items);
+
+  if (parsed && havdalahItem && !isPast(havdalahItem.date)) {
+    break;
+  }
+
+  query = addDaysToQuery(query, 1, TZ);
+  parsed = null;
+}
 
 if (!parsed) {
   console.warn('[fetch-shabbat-fallback] Hebcal response missing fields; keeping existing fallback file');
@@ -114,4 +203,4 @@ export const FALLBACK_SHABBAT = ${JSON.stringify(parsed, null, 2)} as const;
 `;
 
 writeFileSync(OUT, contents, 'utf8');
-console.log(`[fetch-shabbat-fallback] Wrote ${OUT} (${parsed.parsha.englishName}, fetched ${fetchedAt})`);
+console.log(`[fetch-shabbat-fallback] Wrote ${OUT} (${parsed.kicker}: ${parsed.parsha.englishName}, fetched ${fetchedAt})`);

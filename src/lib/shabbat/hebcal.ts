@@ -26,6 +26,9 @@ export interface ShabbatInfo {
   shabbatLabel: string;
   candleLighting: string;
   shabbosEnds: string;
+  /** Second-day Yom Tov candle lighting (e.g. Sat Sep 12 at 8:03pm between RH day 1 and 2). */
+  secondCandleLabel?: string;
+  secondCandleLighting?: string;
 }
 
 const MEVARCHIM_MONTH_EN: Record<string, string> = {
@@ -102,6 +105,17 @@ function formatDateLabel(isoDate: string, tzid: string, prefix: string): string 
   return `${prefix} ${month} ${getOrdinal(day)}`;
 }
 
+function formatWeekdayDateLabel(isoDate: string, tzid: string): string {
+  const date = new Date(isoDate.includes('T') ? isoDate : `${isoDate}T12:00:00`);
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tzid }).format(date);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: tzid }).format(date);
+  const day = Number(
+    new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: tzid }).format(date),
+  );
+
+  return `${weekday} ${month} ${getOrdinal(day)}`;
+}
+
 function formatMemoDateLabel(
   isoDate: string,
   tzid: string,
@@ -160,8 +174,12 @@ function findLastHavdalah(items: HebcalShabbatItem[]): HebcalShabbatItem | undef
   return havdalahItems[havdalahItems.length - 1];
 }
 
+function findAllCandles(items: HebcalShabbatItem[]): HebcalShabbatItem[] {
+  return items.filter((item) => item.category === 'candles');
+}
+
 function findFirstCandles(items: HebcalShabbatItem[]): HebcalShabbatItem | undefined {
-  return items.find((item) => item.category === 'candles');
+  return findAllCandles(items)[0];
 }
 
 export function parseHebcalShabbatResponse(data: HebcalShabbatResponse): ShabbatInfo | null {
@@ -198,8 +216,8 @@ export function parseHebcalShabbatResponse(data: HebcalShabbatResponse): Shabbat
 
   const display = formatHolidayDisplay(primaryHoliday);
   const kicker = holidayKicker(primaryHoliday.title);
-  const endMemo = havdalahItem.memo?.trim();
-  const endPrefix = endMemo ? `${endMemo} ends` : `${kicker} ends`;
+  const allCandles = findAllCandles(data.items);
+  const secondCandle = allCandles.length > 1 ? allCandles[1] : undefined;
 
   return {
     kind: 'holiday',
@@ -207,9 +225,20 @@ export function parseHebcalShabbatResponse(data: HebcalShabbatResponse): Shabbat
     parsha: display,
     mevarchim: null,
     fridayLabel: formatMemoDateLabel(candlesItem.date, tzid, candlesItem.memo, 'Candle lighting'),
-    shabbatLabel: formatDateLabel(havdalahItem.date, tzid, endPrefix),
+    shabbatLabel: formatWeekdayDateLabel(havdalahItem.date, tzid),
     candleLighting: formatTimeCompact(candlesItem.date, tzid),
     shabbosEnds: formatTimeCompact(havdalahItem.date, tzid),
+    ...(secondCandle
+      ? {
+          secondCandleLabel: formatMemoDateLabel(
+            secondCandle.date,
+            tzid,
+            secondCandle.memo,
+            formatWeekdayDateLabel(secondCandle.date, tzid),
+          ),
+          secondCandleLighting: formatTimeCompact(secondCandle.date, tzid),
+        }
+      : {}),
   };
 }
 
@@ -226,7 +255,7 @@ function addDaysToQuery(
   return getHebcalQueryDate(tzid, base);
 }
 
-const SHABBAT_CACHE_KEY = 'hebcal-upcoming-shabbat-v3';
+const SHABBAT_CACHE_KEY = 'hebcal-upcoming-shabbat-v4';
 const SHABBAT_REVALIDATE_SECONDS = 3600;
 
 class HebcalFetchError extends Error {

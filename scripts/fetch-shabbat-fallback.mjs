@@ -62,6 +62,14 @@ function formatDateLabel(isoDate, tzid, prefix) {
   return `${prefix} ${month} ${getOrdinal(day)}`;
 }
 
+function formatWeekdayDateLabel(isoDate, tzid) {
+  const date = new Date(isoDate.includes('T') ? isoDate : `${isoDate}T12:00:00`);
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tzid }).format(date);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: tzid }).format(date);
+  const day = Number(new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: tzid }).format(date));
+  return `${weekday} ${month} ${getOrdinal(day)}`;
+}
+
 function formatMemoDateLabel(isoDate, tzid, memo, fallbackPrefix) {
   const prefix = memo?.trim() || fallbackPrefix;
   return formatDateLabel(isoDate, tzid, prefix);
@@ -105,8 +113,12 @@ function findLastHavdalah(items) {
   return havdalahItems[havdalahItems.length - 1];
 }
 
+function findAllCandles(items) {
+  return items.filter((item) => item.category === 'candles');
+}
+
 function findFirstCandles(items) {
-  return items.find((item) => item.category === 'candles');
+  return findAllCandles(items)[0];
 }
 
 function parseResponse(data) {
@@ -139,8 +151,8 @@ function parseResponse(data) {
 
   const display = formatHolidayDisplay(primaryHoliday);
   const kicker = holidayKicker(primaryHoliday.title);
-  const endMemo = havdalahItem.memo?.trim();
-  const endPrefix = endMemo ? `${endMemo} ends` : `${kicker} ends`;
+  const allCandles = findAllCandles(data.items);
+  const secondCandle = allCandles.length > 1 ? allCandles[1] : undefined;
 
   return {
     kind: 'holiday',
@@ -148,9 +160,20 @@ function parseResponse(data) {
     parsha: display,
     mevarchim: null,
     fridayLabel: formatMemoDateLabel(candlesItem.date, tzid, candlesItem.memo, 'Candle lighting'),
-    shabbatLabel: formatDateLabel(havdalahItem.date, tzid, endPrefix),
+    shabbatLabel: formatWeekdayDateLabel(havdalahItem.date, tzid),
     candleLighting: formatTimeCompact(candlesItem.date, tzid),
     shabbosEnds: formatTimeCompact(havdalahItem.date, tzid),
+    ...(secondCandle
+      ? {
+          secondCandleLabel: formatMemoDateLabel(
+            secondCandle.date,
+            tzid,
+            secondCandle.memo,
+            formatWeekdayDateLabel(secondCandle.date, tzid),
+          ),
+          secondCandleLighting: formatTimeCompact(secondCandle.date, tzid),
+        }
+      : {}),
   };
 }
 

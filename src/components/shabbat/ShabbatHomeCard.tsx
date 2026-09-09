@@ -35,7 +35,7 @@ function ShabbatTimes({
         <div>
           <p className={labelClass}>{shabbat.secondCandleLabel}</p>
           <p className={timeClass}>
-            After {shabbat.secondCandleLighting}
+            {candlePrefix} after {shabbat.secondCandleLighting}
           </p>
         </div>
       )}

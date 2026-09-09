@@ -230,12 +230,7 @@ export function parseHebcalShabbatResponse(data: HebcalShabbatResponse): Shabbat
     shabbosEnds: formatTimeCompact(havdalahItem.date, tzid),
     ...(secondCandle
       ? {
-          secondCandleLabel: formatMemoDateLabel(
-            secondCandle.date,
-            tzid,
-            secondCandle.memo,
-            formatWeekdayDateLabel(secondCandle.date, tzid),
-          ),
+          secondCandleLabel: formatWeekdayDateLabel(secondCandle.date, tzid),
           secondCandleLighting: formatTimeCompact(secondCandle.date, tzid),
         }
       : {}),

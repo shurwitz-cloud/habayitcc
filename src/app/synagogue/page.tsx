@@ -92,6 +92,39 @@ const ROSH_HASHANA = {
   ],
 };
 
+const YOM_KIPPUR = {
+  location: 'Embassy Lakes Clubhouse',
+  address: '3522 Embassy Dr, 33026',
+  guest: 'Cantor Shem Tov Marciano',
+  days: [
+    {
+      day: 'Sunday, September 20',
+      items: [
+        { title: 'Kol Nidrei Service', time: '7:00 PM' },
+        {
+          title: 'Teens Yom Kippur Program',
+          time: '7:00 PM',
+          note: 'Separate programs for High School & Middle School',
+        },
+        { title: 'Candle Lighting / Fast Begins', time: '7:02 PM' },
+      ],
+    },
+    {
+      day: 'Monday, September 21',
+      items: [
+        { title: 'Morning Services', time: '9:30 AM' },
+        { title: 'Children’s Program', time: '11:00 AM – 1:00 PM' },
+        { title: 'Yizkor Service', time: '12:00 PM' },
+        { title: 'Musaf Service', time: '12:15 PM' },
+        { title: 'Mincha & Maftir Yona', time: '5:00 PM' },
+        { title: 'Neilah & Children’s Program', time: '6:00 PM' },
+        { title: 'Shema & Final Shofar Blast', time: '7:40 PM' },
+        { title: 'Fast Ends', time: '7:53 PM' },
+      ],
+    },
+  ],
+};
+
 const EXPECTATIONS = [
   { title: 'Warm Community', description: 'Everyone is welcomed with care, respect, and genuine friendship.' },
   { title: 'Meaningful Prayer', description: 'Traditional services in an atmosphere that feels comfortable and personal.' },
@@ -122,7 +155,66 @@ export default async function SynagoguePage() {
           </p>
         </Section>
 
-        <Section id="rosh-hashana" background="soft" className="scroll-mt-[88px]">
+        <Section id="yom-kippur" background="soft" className="scroll-mt-[88px]">
+          <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-8 lg:gap-10 items-start">
+            <div className="overflow-hidden rounded-[18px] border border-line bg-white shadow-sm">
+              <Image
+                src="/flyers/yom-kippur-schedule.jpg"
+                alt="Yom Kippur with HaBayit schedule flyer"
+                width={900}
+                height={1200}
+                className="h-auto w-full"
+                priority
+              />
+            </div>
+
+            <div>
+              <SectionTitle eyebrow="High Holy Days" center={false}>
+                Yom Kippur with HaBayit
+              </SectionTitle>
+              <p className="heb text-[1.15rem] text-navy/80 -mt-4 mb-4">יום כיפור</p>
+              <p className="text-muted text-[0.98rem] leading-relaxed mb-2">
+                Join us at the <strong className="text-navy">{YOM_KIPPUR.location}</strong>
+                {' '}({YOM_KIPPUR.address}). Special guest:{' '}
+                <strong className="text-navy">{YOM_KIPPUR.guest}</strong>.
+              </p>
+              <p className="text-muted text-[0.92rem] mb-6">
+                All prayers held at the Embassy Lakes Clubhouse. G&apos;mar Chatima Tova!
+              </p>
+
+              <div className="space-y-4">
+                {YOM_KIPPUR.days.map((block) => (
+                  <article
+                    key={block.day}
+                    className="bg-cream border border-line rounded-[18px] p-6"
+                  >
+                    <h3 className="text-[1.25rem] text-navy font-bold mb-3.5">{block.day}</h3>
+                    <div className="space-y-3">
+                      {block.items.map((item) => (
+                        <div
+                          key={`${block.day}-${item.title}`}
+                          className="border-l-[3px] border-gold pl-4 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5 sm:gap-4"
+                        >
+                          <div>
+                            <strong className="block text-navy text-[0.95rem]">{item.title}</strong>
+                            {'note' in item && item.note ? (
+                              <span className="text-muted text-[0.82rem]">{item.note}</span>
+                            ) : null}
+                          </div>
+                          <span className="text-navy font-semibold text-[0.92rem] whitespace-nowrap">
+                            {item.time}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="rosh-hashana" background="white" className="scroll-mt-[88px]">
           <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-8 lg:gap-10 items-start">
             <div className="overflow-hidden rounded-[18px] border border-line bg-white shadow-sm">
               <Image
@@ -131,7 +223,6 @@ export default async function SynagoguePage() {
                 width={900}
                 height={1200}
                 className="h-auto w-full"
-                priority
               />
             </div>
 

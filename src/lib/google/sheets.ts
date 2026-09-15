@@ -9,9 +9,8 @@ const IDS = {
   achim:        process.env.GOOGLE_SHEETS_ACHIM_ID,
   bmx:          process.env.GOOGLE_SHEETS_BMX_ID || '1agGNODdOzVy2VioqSRcQ4f9245GVS3TWsbG1wB3hIPk',
   bloom:        process.env.GOOGLE_SHEETS_BLOOM_ID,
-  roshHashanaDinner: process.env.GOOGLE_SHEETS_ROSH_HASHANA_DINNER_ID,
-  roshHashanaFair: process.env.GOOGLE_SHEETS_ROSH_HASHANA_FAIR_ID,
-  preRhWomens: process.env.GOOGLE_SHEETS_PRE_RH_WOMENS_ID,
+  events:       process.env.GOOGLE_SHEETS_EVENTS_ID || '1U-bUkAuoGllTTlmZxMPK4ZE2FTyJI4FBaeqpkrgVqPI',
+  lulav:        process.env.GOOGLE_SHEETS_LULAV_ID || '1iNJQh90iI3sntqdNVatOTdbUI4xNmcqtJXjH1yEwB4E',
 } as const;
 
 const TAB = 'Responses'; // single tab in each spreadsheet
@@ -237,6 +236,23 @@ export const SHEET_CONFIGS = {
       'Child 3 Grade', 'Child 3 School', 'Child 3 Hebrew Level', 'Child 3 Allergies',
     ],
   },
+  lulavOrders: {
+    id: IDS.lulav,
+    headers: [
+      'Timestamp',
+      'Name',
+      'Email',
+      'Phone',
+      'Quantity',
+      'Subtotal',
+      'Cover Fee',
+      'Card Fee',
+      'Total',
+      'Payment Method',
+      'Status',
+      'Payment ID',
+    ],
+  },
 } as const;
 
 // ── Typed row helpers ────────────────────────────────────────────────────────
@@ -391,76 +407,103 @@ const PAID_EVENT_HEADERS: Record<string, string[]> = {
   dinner: [
     'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
     'Adults', 'Kids (12 & under)', 'Ticket Subtotal', 'Sponsor Amount',
-    'Card Fee', 'Total Charged', 'Stripe Payment Intent ID',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
   ],
   'family-fair': [
     'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
     'Children Count', 'Child Details', 'Ticket Subtotal', 'Sponsor Amount',
-    'Card Fee', 'Total Charged', 'Stripe Payment Intent ID',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
   ],
   womens: [
     'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
     'Women Attending', 'Ticket Subtotal', 'Sponsor Amount',
-    'Card Fee', 'Total Charged', 'Stripe Payment Intent ID',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
   ],
 };
 
+function quoteSheetTab(tabName: string): string {
+  return `'${tabName.replace(/'/g, "''")}'`;
+}
+
+async function ensureTabWithHeaders(
+  spreadsheetId: string,
+  tabName: string,
+  headers: string[],
+  updateHeaders = false,
+): Promise<void> {
+  const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties',
+  });
+  const existing = meta.data.sheets?.find((s) => s.properties?.title === tabName);
+  if (existing) {
+    if (updateHeaders) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${quoteSheetTab(tabName)}!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [headers] },
+      });
+    }
+    return;
+  }
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${quoteSheetTab(tabName)}!A1`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [headers] },
+  });
+  const after = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
+  const sheetId =
+    after.data.sheets?.find((s) => s.properties?.title === tabName)?.properties?.sheetId ?? 0;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          repeatCell: {
+            range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+            cell: { userEnteredFormat: { textFormat: { bold: true } } },
+            fields: 'userEnteredFormat.textFormat.bold',
+          },
+        },
+        {
+          updateSheetProperties: {
+            properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+            fields: 'gridProperties.frozenRowCount',
+          },
+        },
+      ],
+    },
+  });
+}
+
 /**
- * Appends a paid event registration row to the Responses tab.
+ * Appends a paid event registration row to that event's tab.
  * Creates the tab + headers on first submission.
  */
 export async function appendPaidEventRow(
   spreadsheetId: string,
   eventType: 'dinner' | 'family-fair' | 'womens',
-  values: (string | number)[]
+  values: (string | number)[],
+  tabName: string,
 ): Promise<void> {
-  const tabName = 'Responses';
   const headers = PAID_EVENT_HEADERS[eventType];
+  if (!headers) throw new Error(`Unknown paid event type: ${eventType}`);
+  if (!tabName.trim()) throw new Error('Event sheet tab name is required');
 
   try {
+    await ensureTabWithHeaders(spreadsheetId, tabName, headers);
     const sheets = google.sheets({ version: 'v4', auth: getAuth() });
-
-    try {
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
-      });
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `'${tabName}'!A1`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [headers] },
-      });
-      const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
-      const sheetId =
-        meta.data.sheets?.find((s) => s.properties?.title === tabName)?.properties?.sheetId ?? 0;
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          requests: [
-            {
-              repeatCell: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
-                cell: { userEnteredFormat: { textFormat: { bold: true } } },
-                fields: 'userEnteredFormat.textFormat.bold',
-              },
-            },
-            {
-              updateSheetProperties: {
-                properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
-                fields: 'gridProperties.frozenRowCount',
-              },
-            },
-          ],
-        },
-      });
-    } catch {
-      /* tab exists */
-    }
-
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `'${tabName}'!A1`,
+      range: `${quoteSheetTab(tabName)}!A1`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [values.map(String)] },
@@ -471,7 +514,101 @@ export async function appendPaidEventRow(
   }
 }
 
+export async function ensurePaidEventTabs(
+  spreadsheetId: string,
+  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' }>,
+): Promise<void> {
+  for (const tab of tabs) {
+    const headers = PAID_EVENT_HEADERS[tab.eventType];
+    if (!headers) continue;
+    await ensureTabWithHeaders(spreadsheetId, tab.tabName, headers, true);
+  }
+}
+
+/** Replace a tab's header + data rows (used for backfill). */
+export async function replacePaidEventTab(
+  spreadsheetId: string,
+  eventType: 'dinner' | 'family-fair' | 'womens',
+  tabName: string,
+  rows: (string | number)[][],
+): Promise<void> {
+  const headers = PAID_EVENT_HEADERS[eventType];
+  if (!headers) throw new Error(`Unknown paid event type: ${eventType}`);
+  await ensureTabWithHeaders(spreadsheetId, tabName, headers, true);
+  const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+  const range = `${quoteSheetTab(tabName)}!A:Z`;
+  await sheets.spreadsheets.values.clear({ spreadsheetId, range });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${quoteSheetTab(tabName)}!A1`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [headers, ...rows.map((r) => r.map(String))] },
+  });
+}
+
 export { IDS as SHEET_IDS };
+
+const LULAV_TAB = 'Orders';
+const LULAV_HEADERS = [
+  'Timestamp',
+  'Name',
+  'Email',
+  'Phone',
+  'Quantity',
+  'Subtotal',
+  'Cover Fee',
+  'Card Fee',
+  'Total',
+  'Payment Method',
+  'Status',
+  'Payment ID',
+];
+
+export async function appendLulavOrderRow(data: {
+  fullName: string;
+  email: string;
+  phone: string;
+  quantity: number;
+  subtotal: number;
+  coverFee: boolean;
+  cardFee: number;
+  total: number;
+  payMethod: string;
+  status: string;
+  paymentId?: string;
+}): Promise<void> {
+  if (!IDS.lulav) {
+    console.warn('[Sheets] GOOGLE_SHEETS_LULAV_ID not set — skipping Lulav row');
+    return;
+  }
+
+  await ensureTabWithHeaders(IDS.lulav, LULAV_TAB, LULAV_HEADERS);
+  const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: IDS.lulav,
+    range: `${quoteSheetTab(LULAV_TAB)}!A1`,
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: {
+      values: [
+        [
+          nowET(),
+          data.fullName,
+          data.email,
+          data.phone,
+          data.quantity,
+          data.subtotal.toFixed(2),
+          data.coverFee ? 'Yes' : 'No',
+          data.cardFee.toFixed(2),
+          data.total.toFixed(2),
+          data.payMethod,
+          data.status,
+          data.paymentId ?? '',
+        ].map(String),
+      ],
+    },
+  });
+}
 
 export function hebrewAdventureRow(data: {
   parent1First: string; parent1Last: string; parent1Email: string; parent1Phone: string;

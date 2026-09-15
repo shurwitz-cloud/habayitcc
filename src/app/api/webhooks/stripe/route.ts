@@ -16,6 +16,8 @@ import {
   paidEventInputFromPaymentIntentMetadata,
   persistPaidEventRegistration,
 } from '@/lib/events/persist-paid-event-registration';
+import { persistLulavOrder } from '@/lib/lulav/persist-order';
+import { computeLulavPricing } from '@/lib/lulav/pricing';
 import type Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +81,11 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
     return;
   }
 
+  if (type === 'lulav_order') {
+    await handleLulavOrderPayment(pi);
+    return;
+  }
+
   if (type === 'hebrew_adventure_tuition') {
     await handleHebrewAdventureTuitionPayment(pi);
     return;
@@ -107,6 +114,41 @@ async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
         await syncDonationFromSubscriptionInvoice(invoice, subscription);
       }
     }
+  }
+}
+
+async function handleLulavOrderPayment(pi: Stripe.PaymentIntent) {
+  const meta = (pi.metadata ?? {}) as Record<string, string>;
+  const quantity = Number(meta.quantity) || 0;
+  const email = (meta.email ?? '').trim().toLowerCase();
+  const fullName = (meta.full_name ?? '').trim();
+  const phone = (meta.phone ?? '').trim();
+  if (!quantity || !email || !fullName) {
+    console.error('[stripe webhook] lulav_order missing metadata', pi.id);
+    return;
+  }
+
+  const pricing = computeLulavPricing(quantity, 'card', true);
+  if (pi.amount !== pricing.totalCents) {
+    console.error('[stripe webhook] lulav_order amount mismatch', pi.id, pi.amount, pricing.totalCents);
+    return;
+  }
+
+  // Safety net only — form already emails/sheets on success.
+  const result = await persistLulavOrder({
+    fullName,
+    email,
+    phone,
+    payMethod: 'card',
+    coverFee: true,
+    pricing,
+    status: 'paid',
+    paymentId: pi.id,
+    skipEmail: true,
+    skipSheet: true,
+  });
+  if (!result.success) {
+    console.error('[stripe webhook] lulav_order persist failed', pi.id, result.error);
   }
 }
 

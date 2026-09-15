@@ -12,6 +12,7 @@ export type FormType =
   | 'bloom_registration'
   | 'rsvp'
   | 'senior_home_permission'
+  | 'lulav_order'
   | 'other';
 
 /**

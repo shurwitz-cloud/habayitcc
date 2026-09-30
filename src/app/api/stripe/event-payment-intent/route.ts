@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { normalizeDonorEmail } from '@/lib/donations/normalize-donor';
-import { getPaidEvent } from '@/lib/events/paid-events';
+import { eventUsesAdultsKids, getPaidEvent } from '@/lib/events/paid-events';
 import {
   computePaidEventTotal,
   totalToCents,
@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
         card_fee: String(pricing.cardFee),
         cover_fee: body.coverFee ? '1' : '0',
         women: event.type === 'womens' ? String(body.womens?.women ?? 1) : '',
-        adults: event.type === 'dinner' ? String(body.dinner?.adults ?? 0) : '',
-        kids: event.type === 'dinner' ? String(body.dinner?.kids ?? 0) : '',
+        adults: eventUsesAdultsKids(event) ? String(body.dinner?.adults ?? 0) : '',
+        kids: eventUsesAdultsKids(event) ? String(body.dinner?.kids ?? 0) : '',
         fair_children:
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
       },

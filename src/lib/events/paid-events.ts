@@ -1,9 +1,10 @@
 export type PaidEventSlug =
   | 'rosh-hashana-dinner'
   | 'rosh-hashana-family-fair'
-  | 'pre-rosh-hashana-womens';
+  | 'pre-rosh-hashana-womens'
+  | 'simchat-torah';
 
-export type PaidEventType = 'dinner' | 'family-fair' | 'womens';
+export type PaidEventType = 'dinner' | 'family-fair' | 'womens' | 'celebration';
 
 /**
  * CRM headcount display for this event (kept with the event definition so
@@ -13,6 +14,11 @@ export type PaidEventType = 'dinner' | 'family-fair' | 'womens';
  * - kids: children + total
  */
 export type PaidEventPeopleMode = 'people' | 'adults_kids' | 'kids';
+
+export interface PaidEventSponsorOption {
+  amount: number;
+  label: string;
+}
 
 export interface PaidEventConfig {
   slug: PaidEventSlug;
@@ -33,10 +39,16 @@ export interface PaidEventConfig {
   hebrewKidsFreeWithCode?: boolean;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
+  /** Labels shown next to preset amounts (donation / sponsor tiers). */
+  sponsorOptions?: PaidEventSponsorOption[];
   /** Extra line under Become a Sponsor — dinner only. */
   sponsorNote?: string;
+  /** When true, guests must pick a donation amount or None. */
+  requireDonationChoice?: boolean;
   /** Env var name for this event's Google Sheet ID. */
   sheetEnvVar: string;
+  /** Google Sheet tab created on first registration. */
+  sheetTab: string;
 }
 
 export const CARD_PROCESSING_RATE = 0.03;
@@ -59,6 +71,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     peopleMode: 'people',
     sponsorPresets: [54, 72, 180, 360],
     sheetEnvVar: 'GOOGLE_SHEETS_PRE_RH_WOMENS_ID',
+    sheetTab: 'Kintsugi - For Women',
   },
   {
     slug: 'rosh-hashana-family-fair',
@@ -78,6 +91,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     hebrewKidsFreeWithCode: true,
     sponsorPresets: [54, 72, 180, 360],
     sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_FAIR_ID',
+    sheetTab: 'Rosh Hashana Family Fair',
   },
   {
     slug: 'rosh-hashana-dinner',
@@ -96,6 +110,38 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     sponsorPresets: [54, 72, 180, 360, 1000],
     sponsorNote: 'Sponsorship makes this meal possible.',
     sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_DINNER_ID',
+    sheetTab: 'Rosh Hashana Dinner',
+  },
+  {
+    slug: 'simchat-torah',
+    title: 'Simchat Torah Celebration',
+    program: 'Community',
+    month: 'Oct',
+    day: '3',
+    dateLabel: 'Shabbos, October 3rd',
+    time: '5:45 PM',
+    startsAt: '2026-10-03T17:45:00-04:00',
+    description:
+      'Celebrate the joy of the Torah with our community. Kids activities begin at 5:45 PM, then hakafot and a family celebration at 6:30 PM — dinner, dancing, and a special hakafah in memory of those we lost on Simchat Torah 2023.',
+    location: 'Embassy Lakes Clubhouse',
+    flyer: '/flyers/simchat-torah.jpg',
+    type: 'celebration',
+    peopleMode: 'adults_kids',
+    sponsorPresets: [54, 72, 100, 180, 360, 770, 1800],
+    sponsorOptions: [
+      { amount: 54, label: 'Contribution' },
+      { amount: 72, label: 'Family suggested donation' },
+      { amount: 100, label: 'Family suggested donation' },
+      { amount: 180, label: 'HaBayit Friend' },
+      { amount: 360, label: 'Flags & Swag Sponsor' },
+      { amount: 770, label: 'Co-sponsor' },
+      { amount: 1800, label: 'Event Co-sponsor' },
+    ],
+    sponsorNote:
+      'A donation helps cover dinner, kids activities, an open bar for adults, and hakafot.',
+    requireDonationChoice: true,
+    sheetEnvVar: 'GOOGLE_SHEETS_SIMCHAT_TORAH_ID',
+    sheetTab: 'Simchat Torah',
   },
 ];
 
@@ -103,10 +149,15 @@ export function getPaidEvent(slug: string): PaidEventConfig | undefined {
   return PAID_EVENTS.find((e) => e.slug === slug);
 }
 
+export function eventUsesAdultsKids(event: Pick<PaidEventConfig, 'type'>): boolean {
+  return event.type === 'dinner' || event.type === 'celebration';
+}
+
 export function paidEventRegisterPath(slug: PaidEventSlug): string {
+  if (slug === 'simchat-torah') return '/simchat-torah';
   return `/events/register/${slug}`;
 }
 
 export function getPaidEventSheetId(config: PaidEventConfig): string | undefined {
-  return process.env[config.sheetEnvVar];
+  return process.env[config.sheetEnvVar] || process.env.GOOGLE_SHEETS_EVENTS_ID;
 }

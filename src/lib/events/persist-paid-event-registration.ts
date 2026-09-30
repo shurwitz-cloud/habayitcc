@@ -11,6 +11,7 @@ import {
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import {
+  eventUsesAdultsKids,
   getPaidEvent,
   getPaidEventSheetId,
   type PaidEventConfig,
@@ -54,8 +55,10 @@ function buildDetailsSummary(
   womens?: WomensRegistrationData,
   fairLines?: ReturnType<typeof computePaidEventTotal>['fairChildLines'],
 ): string {
-  if (event.type === 'dinner' && dinner) {
-    return `Adults: ${dinner.adults}\nChildren (12 & under): ${dinner.kids}`;
+  if (eventUsesAdultsKids(event) && dinner) {
+    return event.type === 'celebration'
+      ? `Adults: ${dinner.adults}\nChildren: ${dinner.kids}`
+      : `Adults: ${dinner.adults}\nChildren (12 & under): ${dinner.kids}`;
   }
   if (event.type === 'family-fair' && fair) {
     const lines =
@@ -174,7 +177,7 @@ export async function persistPaidEventRegistration(
   );
 
   const guestCount =
-    event.type === 'dinner'
+    eventUsesAdultsKids(event)
       ? (input.dinner?.adults ?? 0) + (input.dinner?.kids ?? 0)
       : event.type === 'family-fair'
         ? (input.fair?.children.length ?? 0)
@@ -314,7 +317,7 @@ export async function persistPaidEventRegistration(
       });
 
       let sheetValues: (string | number)[];
-      if (event.type === 'dinner') {
+      if (eventUsesAdultsKids(event)) {
         sheetValues = [
           timestamp,
           lastName,
@@ -368,7 +371,7 @@ export async function persistPaidEventRegistration(
       }
 
       try {
-        await appendPaidEventRow(sheetId, event.type, sheetValues);
+        await appendPaidEventRow(sheetId, event.type, sheetValues, event.sheetTab);
       } catch (sheetErr) {
         console.error('[paid event] Sheets append failed:', sheetErr);
       }
@@ -438,7 +441,7 @@ export function paidEventInputFromPaymentIntentMetadata(
     sponsorAmount: Number(meta.sponsor_amount || 0) || 0,
     paymentIntentId,
     dinner:
-      event.type === 'dinner'
+      eventUsesAdultsKids(event)
         ? { adults: Math.max(0, adults), kids: Math.max(0, kids) }
         : undefined,
     fair:

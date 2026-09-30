@@ -99,6 +99,9 @@ export function computePaidEventTotal(input: {
     case 'womens':
       ticketSubtotal = computeWomensTickets(input.womens ?? { women: 0 });
       break;
+    case 'celebration':
+      ticketSubtotal = 0;
+      break;
   }
 
   const sponsorAmount = roundMoney(Math.max(0, input.sponsorAmount));

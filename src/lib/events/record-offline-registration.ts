@@ -2,7 +2,7 @@ import { logFormSubmission } from '@/lib/admin/form-log';
 import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { appendPaidEventRow } from '@/lib/google/sheets';
-import { getPaidEvent, getPaidEventSheetId } from '@/lib/events/paid-events';
+import { eventUsesAdultsKids, getPaidEvent, getPaidEventSheetId } from '@/lib/events/paid-events';
 import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 import { createAdminClient } from '@/lib/supabase/server';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
@@ -107,7 +107,7 @@ export async function recordOfflinePaidEventRegistration(
   const detailsSummary =
     event.type === 'womens'
       ? `Women attending: ${guestCount}\n${paidNote}`
-      : event.type === 'dinner'
+      : eventUsesAdultsKids(event)
         ? `Guests: ${guestCount}\n${paidNote}`
         : `Children: ${guestCount}\n${paidNote}`;
   const extraNotes = (input.notes || '').trim();
@@ -116,7 +116,7 @@ export async function recordOfflinePaidEventRegistration(
   const registrationDetails = {
     type: event.type,
     womens: event.type === 'womens' ? { women: guestCount } : undefined,
-    dinner: event.type === 'dinner' ? { adults: guestCount, kids: 0 } : undefined,
+    dinner: eventUsesAdultsKids(event) ? { adults: guestCount, kids: 0 } : undefined,
     fair: event.type === 'family-fair' ? { children: Array.from({ length: guestCount }, () => ({})) } : undefined,
     ticketSubtotal: amount,
     coverFee: false,
@@ -212,9 +212,9 @@ export async function recordOfflinePaidEventRegistration(
           '',
           `$${amount.toFixed(2)}`,
           paymentMethod,
-        ]);
-      } else if (event.type === 'dinner') {
-        await appendPaidEventRow(sheetId, 'dinner', [
+        ], event.sheetTab);
+      } else if (eventUsesAdultsKids(event)) {
+        await appendPaidEventRow(sheetId, event.type === 'celebration' ? 'celebration' : 'dinner', [
           timestamp,
           lastName,
           firstName,
@@ -227,7 +227,7 @@ export async function recordOfflinePaidEventRegistration(
           '',
           `$${amount.toFixed(2)}`,
           paymentMethod,
-        ]);
+        ], event.sheetTab);
       } else {
         await appendPaidEventRow(sheetId, 'family-fair', [
           timestamp,
@@ -242,7 +242,7 @@ export async function recordOfflinePaidEventRegistration(
           '',
           `$${amount.toFixed(2)}`,
           paymentMethod,
-        ]);
+        ], event.sheetTab);
       }
     } catch (sheetErr) {
       console.error('[offline event] Sheets append failed:', sheetErr);

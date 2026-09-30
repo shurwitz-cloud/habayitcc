@@ -419,6 +419,11 @@ const PAID_EVENT_HEADERS: Record<string, string[]> = {
     'Women Attending', 'Ticket Subtotal', 'Sponsor Amount',
     'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
   ],
+  celebration: [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Adults', 'Kids', 'Ticket Subtotal', 'Sponsor Amount',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
+  ],
 };
 
 function quoteSheetTab(tabName: string): string {
@@ -490,7 +495,7 @@ async function ensureTabWithHeaders(
  */
 export async function appendPaidEventRow(
   spreadsheetId: string,
-  eventType: 'dinner' | 'family-fair' | 'womens',
+  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration',
   values: (string | number)[],
   tabName: string,
 ): Promise<void> {
@@ -516,7 +521,7 @@ export async function appendPaidEventRow(
 
 export async function ensurePaidEventTabs(
   spreadsheetId: string,
-  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' }>,
+  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' }>,
 ): Promise<void> {
   for (const tab of tabs) {
     const headers = PAID_EVENT_HEADERS[tab.eventType];
@@ -528,7 +533,7 @@ export async function ensurePaidEventTabs(
 /** Replace a tab's header + data rows (used for backfill). */
 export async function replacePaidEventTab(
   spreadsheetId: string,
-  eventType: 'dinner' | 'family-fair' | 'womens',
+  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration',
   tabName: string,
   rows: (string | number)[][],
 ): Promise<void> {

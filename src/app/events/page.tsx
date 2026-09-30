@@ -21,7 +21,7 @@ export default function EventsPage() {
           slotId="events.hero"
           kicker="What's Happening"
           minHeight={HERO_HEIGHT.page}
-          subtitle="Rosh Hashana gatherings, community dinners, and family programs."
+          subtitle="Holiday celebrations, community dinners, and family programs."
         >
           Upcoming Events
         </SiteRotatingHero>
@@ -29,10 +29,12 @@ export default function EventsPage() {
         <Section background="soft">
           <div className="max-w-[960px] mx-auto">
             <p className="text-gold text-[0.75rem] font-extrabold uppercase tracking-[0.14em] mb-6 text-center">
-              Rosh Hashana
+              Simchat Torah
             </p>
             <div className="grid md:grid-cols-3 gap-6">
-              {PAID_EVENTS.map((event) => (
+              {[...PAID_EVENTS]
+                .sort((a, b) => Number(b.slug === 'simchat-torah') - Number(a.slug === 'simchat-torah'))
+                .map((event) => (
                 <a
                   key={event.slug}
                   href={paidEventRegisterPath(event.slug)}

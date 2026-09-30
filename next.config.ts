@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
         destination: '/achim/senior-home-permission',
         permanent: true,
       },
+      {
+        source: '/events/register/simchat-torah',
+        destination: '/simchat-torah',
+        permanent: false,
+      },
     ];
   },
 };

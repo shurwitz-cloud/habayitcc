@@ -21,8 +21,8 @@ export async function sendPaidEventConfirmationEmail(
   const paymentBlock =
     pricing.total > 0
       ? `<table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.6;margin:16px 0;">
-          <tr><td style="padding:4px 0;color:#6f6a60;">Tickets</td><td style="padding:4px 0;text-align:right;">$${pricing.ticketSubtotal.toFixed(2)}</td></tr>
-          ${pricing.sponsorAmount > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">Sponsorship</td><td style="padding:4px 0;text-align:right;">$${pricing.sponsorAmount.toFixed(2)}</td></tr>` : ''}
+          ${pricing.ticketSubtotal > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">Tickets</td><td style="padding:4px 0;text-align:right;">$${pricing.ticketSubtotal.toFixed(2)}</td></tr>` : ''}
+          ${pricing.sponsorAmount > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">${event.requireDonationChoice ? 'Donation' : 'Sponsorship'}</td><td style="padding:4px 0;text-align:right;">$${pricing.sponsorAmount.toFixed(2)}</td></tr>` : ''}
           ${pricing.cardFee > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">Card processing</td><td style="padding:4px 0;text-align:right;">$${pricing.cardFee.toFixed(2)}</td></tr>` : ''}
           <tr><td style="padding:8px 0;font-weight:bold;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;">$${pricing.total.toFixed(2)}</td></tr>
         </table>`
@@ -39,6 +39,7 @@ export async function sendPaidEventConfirmationEmail(
     </p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.6;margin:0 0 16px;">
       <tr><td style="padding:6px 0;color:#6f6a60;width:120px;">Date</td><td style="padding:6px 0;">${event.dateLabel} · ${event.time}</td></tr>
+      ${event.location ? `<tr><td style="padding:6px 0;color:#6f6a60;">Location</td><td style="padding:6px 0;">${event.location}</td></tr>` : ''}
       <tr><td style="padding:6px 0;color:#6f6a60;vertical-align:top;">Details</td><td style="padding:6px 0;">${detailsSummary.replace(/\n/g, '<br>')}</td></tr>
     </table>
     ${paymentBlock}

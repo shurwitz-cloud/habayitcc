@@ -12,6 +12,7 @@ export const DEFAULT_EVENT_PEOPLE_MODE: EventPeopleMode = 'people';
 const PAID_TYPE_FALLBACK: Record<PaidEventType, EventPeopleMode> = {
   womens: 'people',
   dinner: 'adults_kids',
+  celebration: 'adults_kids',
   'family-fair': 'kids',
 };
 

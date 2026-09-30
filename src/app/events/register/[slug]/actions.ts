@@ -7,7 +7,7 @@ import {
   type FairRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
-import { getPaidEvent } from '@/lib/events/paid-events';
+import { eventUsesAdultsKids, getPaidEvent } from '@/lib/events/paid-events';
 import { verifyPaidEventPaymentIntent } from '@/lib/events/verify-event-payment';
 import { persistPaidEventRegistration } from '@/lib/events/persist-paid-event-registration';
 import {
@@ -131,7 +131,7 @@ export async function submitPaidEventRegistration(
       }
     }
 
-    if (event.type === 'dinner') {
+    if (eventUsesAdultsKids(event)) {
       const adults = input.dinner?.adults ?? 0;
       const kids = input.dinner?.kids ?? 0;
       if (adults + kids < 1) {

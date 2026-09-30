@@ -72,7 +72,9 @@ export function enrichEventRegistrationsFromFormSubmissions(
               ? 'family-fair'
               : slug.includes('womens')
                 ? 'womens'
-                : undefined),
+                : slug.includes('simchat')
+                  ? 'celebration'
+                  : undefined),
         dinner: existingDetails.dinner ?? p.dinner,
         fair: existingDetails.fair ?? p.fair,
         womens: existingDetails.womens ?? p.womens,

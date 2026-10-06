@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
 import type { AdminRole } from '@/lib/admin/roles';
+import type { EmailAudienceSummary } from '@/lib/admin/email-audiences';
 import type { ResendSentEmailDetail, ResendSentEmailSummary } from '@/lib/resend/sent-mail';
 
 type EmailTab = 'sent' | 'inbox' | 'compose';
@@ -136,7 +137,7 @@ function SentDetailDrawer({
   );
 }
 
-function ComposeTab({ onSent }: { onSent: () => void }) {
+function IndividualCompose({ onSent }: { onSent: () => void }) {
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [subject, setSubject] = useState('');
@@ -270,6 +271,226 @@ function ComposeTab({ onSent }: { onSent: () => void }) {
           {sending ? 'Sending…' : 'Send'}
         </button>
       </form>
+    </div>
+  );
+}
+
+function GroupCompose({ onSent }: { onSent: () => void }) {
+  const [audiences, setAudiences] = useState<EmailAudienceSummary[]>([]);
+  const [audienceId, setAudienceId] = useState('');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/email/audiences');
+        const json = (await res.json()) as {
+          audiences?: EmailAudienceSummary[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(json.error || 'Could not load CRM groups.');
+          return;
+        }
+        const rows = json.audiences ?? [];
+        setAudiences(rows);
+        setAudienceId((current) => current || rows[0]?.id || '');
+      } catch {
+        if (!cancelled) setError('Could not load CRM groups.');
+      } finally {
+        if (!cancelled) setLoadingGroups(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selected = audiences.find((item) => item.id === audienceId);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!selected || !subject.trim() || !message.trim()) {
+      setError('Group, subject, and message are required.');
+      return;
+    }
+    if (selected.recipientCount === 0) {
+      setError('This group has no valid email recipients.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Send "${subject.trim()}" to ${selected.recipientCount} ${selected.label} recipient${selected.recipientCount === 1 ? '' : 's'}?\n\nEach person receives a separate private email.`
+    );
+    if (!confirmed) return;
+
+    setSending(true);
+    try {
+      const res = await fetch('/api/admin/email/send-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audienceId: selected.id,
+          expectedRecipientCount: selected.recipientCount,
+          confirm: `SEND ${selected.recipientCount}`,
+          subject,
+          message,
+        }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        sent?: number;
+        audience?: string;
+      };
+      if (!res.ok) {
+        setError(
+          json.sent
+            ? `${json.error || 'Group send failed.'} ${json.sent} message(s) were sent before it stopped.`
+            : json.error || 'Could not send group email.',
+        );
+        return;
+      }
+      setSuccess(`Sent ${json.sent ?? selected.recipientCount} private emails to ${json.audience ?? selected.label}.`);
+      setSubject('');
+      setMessage('');
+      onSent();
+    } catch {
+      setError('Could not send group email.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <p className="mb-4 text-sm text-muted">
+        Groups come directly from current CRM program registrations. Each recipient receives a
+        separate email, so addresses stay private.
+      </p>
+
+      {error && (
+        <p className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p className="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+          {success}
+        </p>
+      )}
+
+      <form className="bg-white border border-line rounded-2xl p-6 space-y-4" onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="group-audience" className="block text-sm font-semibold text-navy mb-1">
+            CRM group
+          </label>
+          <select
+            id="group-audience"
+            value={audienceId}
+            disabled={loadingGroups || sending}
+            onChange={(e) => setAudienceId(e.target.value)}
+            className="w-full rounded-xl border border-line px-3 py-2 text-sm bg-white disabled:opacity-60"
+          >
+            {loadingGroups && <option value="">Loading groups…</option>}
+            {!loadingGroups && audiences.length === 0 && <option value="">No program groups found</option>}
+            {audiences.map((audience) => (
+              <option key={audience.id} value={audience.id}>
+                {audience.label} — {audience.recipientCount} recipient{audience.recipientCount === 1 ? '' : 's'}
+              </option>
+            ))}
+          </select>
+          {selected && (
+            <p className="mt-2 text-xs text-muted">
+              {selected.description}. Email addresses are deduplicated.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="group-subject" className="block text-sm font-semibold text-navy mb-1">
+            Subject
+          </label>
+          <input
+            id="group-subject"
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Subject line"
+            maxLength={200}
+            className="w-full rounded-xl border border-line px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="group-message" className="block text-sm font-semibold text-navy mb-1">
+            Message
+          </label>
+          <textarea
+            id="group-message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={12}
+            placeholder="Write your message…"
+            className="w-full rounded-xl border border-line px-3 py-2 text-sm resize-y"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={sending || loadingGroups || !selected}
+          className="px-5 py-2.5 rounded-full text-sm font-semibold bg-gold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {sending
+            ? 'Sending…'
+            : selected
+              ? `Review & Send to ${selected.recipientCount}`
+              : 'Review & Send'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ComposeTab({ onSent }: { onSent: () => void }) {
+  const [mode, setMode] = useState<'individual' | 'group'>('individual');
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => setMode('individual')}
+          className={`px-4 py-2 rounded-full text-sm font-semibold ${
+            mode === 'individual' ? 'bg-navy text-white' : 'bg-white text-navy border border-line'
+          }`}
+        >
+          Individual
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('group')}
+          className={`px-4 py-2 rounded-full text-sm font-semibold ${
+            mode === 'group' ? 'bg-navy text-white' : 'bg-white text-navy border border-line'
+          }`}
+        >
+          CRM Group
+        </button>
+      </div>
+      {mode === 'individual' ? (
+        <IndividualCompose onSent={onSent} />
+      ) : (
+        <GroupCompose onSent={onSent} />
+      )}
     </div>
   );
 }

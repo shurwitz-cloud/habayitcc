@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
 import type { AdminRole } from '@/lib/admin/roles';
-import type { EmailAudienceSummary } from '@/lib/admin/email-audiences';
+import type {
+  EmailAudienceRecipient,
+  EmailAudienceSummary,
+} from '@/lib/admin/email-audiences';
 import type { ResendSentEmailDetail, ResendSentEmailSummary } from '@/lib/resend/sent-mail';
 
 type EmailTab = 'sent' | 'inbox' | 'compose';
@@ -284,6 +287,13 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showMembers, setShowMembers] = useState(false);
+  const [members, setMembers] = useState<EmailAudienceRecipient[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [updatingMember, setUpdatingMember] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastName, setNewLastName] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -314,6 +324,103 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
   }, []);
 
   const selected = audiences.find((item) => item.id === audienceId);
+
+  const loadMembers = useCallback(async (id: string) => {
+    if (!id) return;
+    setLoadingMembers(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ audienceId: id });
+      const res = await fetch(`/api/admin/email/group-members?${params.toString()}`);
+      const json = (await res.json()) as {
+        summary?: EmailAudienceSummary;
+        recipients?: EmailAudienceRecipient[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(json.error || 'Could not load group contacts.');
+        return;
+      }
+      setMembers(json.recipients ?? []);
+      if (json.summary) {
+        setAudiences((current) =>
+          current.map((item) => item.id === json.summary!.id ? json.summary! : item),
+        );
+      }
+    } catch {
+      setError('Could not load group contacts.');
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showMembers && audienceId) void loadMembers(audienceId);
+  }, [audienceId, loadMembers, showMembers]);
+
+  async function updateMember(input: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    action: 'include' | 'exclude';
+  }) {
+    if (!selected) return;
+    setUpdatingMember(input.email);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/admin/email/group-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audienceId: selected.id, ...input }),
+      });
+      const json = (await res.json()) as {
+        audience?: {
+          summary: EmailAudienceSummary;
+          recipients: EmailAudienceRecipient[];
+        };
+        error?: string;
+      };
+      if (!res.ok || !json.audience) {
+        setError(json.error || 'Could not update group contact.');
+        return;
+      }
+      setMembers(json.audience.recipients);
+      setAudiences((current) =>
+        current.map((item) =>
+          item.id === json.audience!.summary.id ? json.audience!.summary : item,
+        ),
+      );
+      setSuccess(
+        input.action === 'include'
+          ? `${input.email} was added to ${selected.label}.`
+          : `${input.email} was removed from ${selected.label}.`,
+      );
+      if (input.action === 'include') {
+        setNewEmail('');
+        setNewFirstName('');
+        setNewLastName('');
+      }
+    } catch {
+      setError('Could not update group contact.');
+    } finally {
+      setUpdatingMember('');
+    }
+  }
+
+  function handleAddMember() {
+    const email = newEmail.trim().toLowerCase();
+    if (!email) {
+      setError('Enter an email address to add.');
+      return;
+    }
+    void updateMember({
+      email,
+      firstName: newFirstName,
+      lastName: newLastName,
+      action: 'include',
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -410,11 +517,102 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
             ))}
           </select>
           {selected && (
-            <p className="mt-2 text-xs text-muted">
-              {selected.description}. Email addresses are deduplicated.
-            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted">
+                {selected.description}. Email addresses are deduplicated.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowMembers((current) => !current)}
+                className="text-xs font-semibold text-navy underline underline-offset-2"
+              >
+                {showMembers ? 'Hide contacts' : 'Add or remove contacts'}
+              </button>
+            </div>
           )}
         </div>
+
+        {showMembers && selected && (
+          <div className="rounded-xl border border-line bg-soft/30 p-4 space-y-4">
+            <div>
+              <h3 className="font-semibold text-navy">Manage {selected.label}</h3>
+              <p className="text-xs text-muted mt-1">
+                Manual changes override CRM registrations for this email group only.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="Email address"
+                className="rounded-lg border border-line px-3 py-2 text-sm sm:col-span-3"
+              />
+              <input
+                type="text"
+                value={newFirstName}
+                onChange={(e) => setNewFirstName(e.target.value)}
+                placeholder="First name (optional)"
+                className="rounded-lg border border-line px-3 py-2 text-sm"
+              />
+              <input
+                type="text"
+                value={newLastName}
+                onChange={(e) => setNewLastName(e.target.value)}
+                placeholder="Last name (optional)"
+                className="rounded-lg border border-line px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={!newEmail.trim() || Boolean(updatingMember)}
+                onClick={handleAddMember}
+                className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {updatingMember === newEmail.trim().toLowerCase() ? 'Adding…' : 'Add contact'}
+              </button>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto rounded-lg border border-line bg-white">
+              {loadingMembers ? (
+                <p className="p-4 text-sm text-muted">Loading contacts…</p>
+              ) : members.length === 0 ? (
+                <p className="p-4 text-sm text-muted">No contacts in this group.</p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {members.map((member) => {
+                    const name = [member.firstName, member.lastName].filter(Boolean).join(' ');
+                    return (
+                      <li key={member.email} className="flex items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-navy">
+                            {name || member.email}
+                          </p>
+                          {name && <p className="truncate text-xs text-muted">{member.email}</p>}
+                          <p className="text-[11px] text-muted">
+                            {member.source === 'manual' ? 'Manually added' : 'CRM registration'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={Boolean(updatingMember)}
+                          onClick={() => {
+                            if (window.confirm(`Remove ${member.email} from ${selected.label}?`)) {
+                              void updateMember({ email: member.email, action: 'exclude' });
+                            }
+                          }}
+                          className="shrink-0 text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                        >
+                          {updatingMember === member.email ? 'Removing…' : 'Remove'}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
 
         <div>
           <label htmlFor="group-subject" className="block text-sm font-semibold text-navy mb-1">

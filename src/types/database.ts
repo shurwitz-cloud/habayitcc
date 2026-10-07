@@ -323,6 +323,18 @@ export interface FormSubmission {
   created_at: string;
 }
 
+export interface EmailGroupOverride {
+  [key: string]: unknown;
+  id: string;
+  program_id: string;
+  email: string;
+  action: 'include' | 'exclude';
+  first_name: string | null;
+  last_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================
 // Supabase Database type — used to type the Supabase client.
 // Extend this as tables are added.
@@ -411,6 +423,11 @@ export interface Database {
         Row: FormSubmission;
         Insert: Omit<FormSubmission, 'id' | 'created_at'>;
         Update: Partial<Omit<FormSubmission, 'id' | 'created_at'>>;
+      };
+      email_group_overrides: {
+        Row: EmailGroupOverride;
+        Insert: Insertable<EmailGroupOverride>;
+        Update: Partial<Insertable<EmailGroupOverride>>;
       };
       site_image_slots: {
         Row: SiteImageSlotRow;

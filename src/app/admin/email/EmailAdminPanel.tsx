@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
 import type { AdminRole } from '@/lib/admin/roles';
 import type {
+  EmailAudienceContact,
+  EmailAudienceOverride,
   EmailAudienceRecipient,
   EmailAudienceSummary,
 } from '@/lib/admin/email-audiences';
@@ -289,6 +291,10 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
   const [success, setSuccess] = useState('');
   const [showMembers, setShowMembers] = useState(false);
   const [members, setMembers] = useState<EmailAudienceRecipient[]>([]);
+  const [overrides, setOverrides] = useState<EmailAudienceOverride[]>([]);
+  const [contactQuery, setContactQuery] = useState('');
+  const [contactMatches, setContactMatches] = useState<EmailAudienceContact[]>([]);
+  const [searchingContacts, setSearchingContacts] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [updatingMember, setUpdatingMember] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -335,6 +341,7 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
       const json = (await res.json()) as {
         summary?: EmailAudienceSummary;
         recipients?: EmailAudienceRecipient[];
+        overrides?: EmailAudienceOverride[];
         error?: string;
       };
       if (!res.ok) {
@@ -342,6 +349,7 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
         return;
       }
       setMembers(json.recipients ?? []);
+      setOverrides(json.overrides ?? []);
       if (json.summary) {
         setAudiences((current) =>
           current.map((item) => item.id === json.summary!.id ? json.summary! : item),
@@ -357,6 +365,45 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
   useEffect(() => {
     if (showMembers && audienceId) void loadMembers(audienceId);
   }, [audienceId, loadMembers, showMembers]);
+
+  useEffect(() => {
+    const query = contactQuery.trim();
+    if (!showMembers || !audienceId || query.length < 2) {
+      setContactMatches([]);
+      setSearchingContacts(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setSearchingContacts(true);
+      void (async () => {
+        try {
+          const params = new URLSearchParams({ audienceId, query });
+          const res = await fetch(`/api/admin/email/group-members?${params.toString()}`);
+          const json = (await res.json()) as {
+            contacts?: EmailAudienceContact[];
+            error?: string;
+          };
+          if (cancelled) return;
+          if (!res.ok) {
+            setError(json.error || 'Could not search CRM contacts.');
+            return;
+          }
+          setContactMatches(json.contacts ?? []);
+        } catch {
+          if (!cancelled) setError('Could not search CRM contacts.');
+        } finally {
+          if (!cancelled) setSearchingContacts(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [audienceId, contactQuery, showMembers]);
 
   async function updateMember(input: {
     email: string;
@@ -378,6 +425,7 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
         audience?: {
           summary: EmailAudienceSummary;
           recipients: EmailAudienceRecipient[];
+          overrides: EmailAudienceOverride[];
         };
         error?: string;
       };
@@ -386,6 +434,7 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
         return;
       }
       setMembers(json.audience.recipients);
+      setOverrides(json.audience.overrides);
       setAudiences((current) =>
         current.map((item) =>
           item.id === json.audience!.summary.id ? json.audience!.summary : item,
@@ -400,9 +449,49 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
         setNewEmail('');
         setNewFirstName('');
         setNewLastName('');
+        setContactQuery('');
+        setContactMatches([]);
       }
     } catch {
       setError('Could not update group contact.');
+    } finally {
+      setUpdatingMember('');
+    }
+  }
+
+  async function undoOverride(email: string) {
+    if (!selected) return;
+    setUpdatingMember(email);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/admin/email/group-members', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audienceId: selected.id, email }),
+      });
+      const json = (await res.json()) as {
+        audience?: {
+          summary: EmailAudienceSummary;
+          recipients: EmailAudienceRecipient[];
+          overrides: EmailAudienceOverride[];
+        };
+        error?: string;
+      };
+      if (!res.ok || !json.audience) {
+        setError(json.error || 'Could not undo group override.');
+        return;
+      }
+      setMembers(json.audience.recipients);
+      setOverrides(json.audience.overrides);
+      setAudiences((current) =>
+        current.map((item) =>
+          item.id === json.audience!.summary.id ? json.audience!.summary : item,
+        ),
+      );
+      setSuccess(`The manual change for ${email} was undone.`);
+    } catch {
+      setError('Could not undo group override.');
     } finally {
       setUpdatingMember('');
     }
@@ -541,6 +630,63 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
               </p>
             </div>
 
+            <div className="space-y-2">
+              <label htmlFor="group-contact-search" className="block text-sm font-semibold text-navy">
+                Search CRM parents to add
+              </label>
+              <input
+                id="group-contact-search"
+                type="search"
+                value={contactQuery}
+                onChange={(e) => setContactQuery(e.target.value)}
+                placeholder="Search by name or email"
+                autoComplete="off"
+                className="w-full rounded-lg border border-line px-3 py-2 text-sm"
+              />
+              {searchingContacts && <p className="text-xs text-muted">Searching…</p>}
+              {!searchingContacts && contactQuery.trim().length >= 2 && contactMatches.length === 0 && (
+                <p className="text-xs text-muted">No matching CRM parents found.</p>
+              )}
+              {contactMatches.length > 0 && (
+                <ul className="max-h-48 overflow-y-auto rounded-lg border border-line bg-white divide-y divide-line">
+                  {contactMatches.map((contact) => {
+                    const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ');
+                    const alreadyIncluded = members.some((member) => member.email === contact.email);
+                    return (
+                      <li key={contact.email} className="flex items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-navy">
+                            {name || contact.email}
+                          </p>
+                          {name && <p className="truncate text-xs text-muted">{contact.email}</p>}
+                          <p className="text-[11px] text-muted">
+                            {contact.source === 'parent' ? 'CRM parent' : 'CRM contact'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={alreadyIncluded || Boolean(updatingMember)}
+                          onClick={() => void updateMember({
+                            email: contact.email,
+                            firstName: contact.firstName,
+                            lastName: contact.lastName,
+                            action: 'include',
+                          })}
+                          className="shrink-0 rounded-lg bg-navy px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                        >
+                          {alreadyIncluded
+                            ? 'Included'
+                            : updatingMember === contact.email ? 'Adding…' : 'Add'}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="border-t border-line pt-4">
+              <p className="mb-2 text-sm font-semibold text-navy">Add another email</p>
             <div className="grid gap-2 sm:grid-cols-3">
               <input
                 type="email"
@@ -572,7 +718,12 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
                 {updatingMember === newEmail.trim().toLowerCase() ? 'Adding…' : 'Add contact'}
               </button>
             </div>
+            </div>
 
+            <div>
+              <p className="mb-2 text-sm font-semibold text-navy">
+                Current recipients ({members.length})
+              </p>
             <div className="max-h-72 overflow-y-auto rounded-lg border border-line bg-white">
               {loadingMembers ? (
                 <p className="p-4 text-sm text-muted">Loading contacts…</p>
@@ -597,13 +748,24 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
                           type="button"
                           disabled={Boolean(updatingMember)}
                           onClick={() => {
-                            if (window.confirm(`Remove ${member.email} from ${selected.label}?`)) {
-                              void updateMember({ email: member.email, action: 'exclude' });
+                            if (member.source === 'manual') {
+                              void undoOverride(member.email);
+                            } else if (window.confirm(`Remove ${member.email} from ${selected.label}?`)) {
+                              void updateMember({
+                                email: member.email,
+                                firstName: member.firstName,
+                                lastName: member.lastName,
+                                action: 'exclude',
+                              });
                             }
                           }}
-                          className="shrink-0 text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                          className={`shrink-0 text-xs font-semibold hover:underline disabled:opacity-50 ${
+                            member.source === 'manual' ? 'text-navy' : 'text-red-700'
+                          }`}
                         >
-                          {updatingMember === member.email ? 'Removing…' : 'Remove'}
+                          {updatingMember === member.email
+                            ? 'Updating…'
+                            : member.source === 'manual' ? 'Undo addition' : 'Remove'}
                         </button>
                       </li>
                     );
@@ -611,6 +773,36 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
                 </ul>
               )}
             </div>
+            </div>
+
+            {overrides.some((override) => override.action === 'exclude') && (
+              <div>
+                <p className="mb-2 text-sm font-semibold text-navy">Manually excluded</p>
+                <ul className="max-h-48 overflow-y-auto rounded-lg border border-line bg-white divide-y divide-line">
+                  {overrides.filter((override) => override.action === 'exclude').map((override) => {
+                    const name = [override.firstName, override.lastName].filter(Boolean).join(' ');
+                    return (
+                      <li key={override.email} className="flex items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-navy">
+                            {name || override.email}
+                          </p>
+                          {name && <p className="truncate text-xs text-muted">{override.email}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={Boolean(updatingMember)}
+                          onClick={() => void undoOverride(override.email)}
+                          className="shrink-0 text-xs font-semibold text-navy hover:underline disabled:opacity-50"
+                        >
+                          {updatingMember === override.email ? 'Restoring…' : 'Undo removal'}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 

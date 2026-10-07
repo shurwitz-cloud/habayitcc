@@ -1,12 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
-  FormSubmission,
+  Contact,
+  EmailGroupOverride,
   Parent,
   Program,
   ProgramRegistration,
 } from '@/types/database';
-
-const OVERRIDE_FORM_TYPE = 'email_group_override';
 
 export interface EmailAudienceSummary {
   id: string;
@@ -22,9 +21,24 @@ export interface EmailAudienceRecipient {
   source: 'registration' | 'manual';
 }
 
+export interface EmailAudienceOverride {
+  email: string;
+  firstName: string;
+  lastName: string;
+  action: 'include' | 'exclude';
+}
+
+export interface EmailAudienceContact {
+  email: string;
+  firstName: string;
+  lastName: string;
+  source: 'parent' | 'contact';
+}
+
 type AudienceData = {
   summaries: EmailAudienceSummary[];
   recipientsById: Map<string, EmailAudienceRecipient[]>;
+  overridesById: Map<string, EmailAudienceOverride[]>;
 };
 
 export function normalizeAudienceEmail(value: string | null | undefined): string | null {
@@ -38,6 +52,17 @@ function programIdFromAudienceId(audienceId: string): string | null {
   return programId || null;
 }
 
+function overrideStorageError(message: string): Error {
+  const missingTable =
+    message.includes('email_group_overrides') &&
+    (message.includes('does not exist') || message.includes('schema cache'));
+  return new Error(
+    missingTable
+      ? 'Email group overrides are not available until Supabase migration 0017_email_group_overrides.sql is applied.'
+      : message,
+  );
+}
+
 /**
  * Program audiences are built from current CRM registrations.
  * Withdrawn registrations are excluded; duplicate parent emails are collapsed.
@@ -49,10 +74,9 @@ async function loadProgramAudiences(): Promise<AudienceData> {
     supabase.from('program_registrations').select('*').neq('status', 'withdrawn'),
     supabase.from('parents').select('*'),
     supabase
-      .from('form_submissions')
+      .from('email_group_overrides')
       .select('*')
-      .eq('form_type', OVERRIDE_FORM_TYPE)
-      .order('created_at', { ascending: true }),
+      .order('updated_at', { ascending: true }),
   ]);
 
   const error =
@@ -60,12 +84,12 @@ async function loadProgramAudiences(): Promise<AudienceData> {
     registrationsResult.error ??
     parentsResult.error ??
     overridesResult.error;
-  if (error) throw new Error(error.message);
+  if (error) throw overrideStorageError(error.message);
 
   const programs = (programsResult.data ?? []) as Program[];
   const registrations = (registrationsResult.data ?? []) as ProgramRegistration[];
   const parents = (parentsResult.data ?? []) as Parent[];
-  const overrideRows = (overridesResult.data ?? []) as FormSubmission[];
+  const overrideRows = (overridesResult.data ?? []) as EmailGroupOverride[];
 
   const familyIdsByProgram = new Map<string, Set<string>>();
   for (const registration of registrations) {
@@ -82,14 +106,14 @@ async function loadProgramAudiences(): Promise<AudienceData> {
   }
 
   const recipientsById = new Map<string, EmailAudienceRecipient[]>();
+  const audienceOverridesById = new Map<string, EmailAudienceOverride[]>();
   const summaries: EmailAudienceSummary[] = [];
-  const overridesByProgram = new Map<string, Map<string, FormSubmission>>();
+  const overridesByProgram = new Map<string, Map<string, EmailGroupOverride>>();
   for (const override of overrideRows) {
-    const programId = override.source_id;
+    const programId = override.program_id;
     const email = normalizeAudienceEmail(override.email);
     if (!programId || !email) continue;
-    const rows = overridesByProgram.get(programId) ?? new Map<string, FormSubmission>();
-    // Rows are oldest first, so the last action for an address wins.
+    const rows = overridesByProgram.get(programId) ?? new Map<string, EmailGroupOverride>();
     rows.set(email, override);
     overridesByProgram.set(programId, rows);
   }
@@ -113,25 +137,26 @@ async function loadProgramAudiences(): Promise<AudienceData> {
 
     let manualIncludes = 0;
     let manualExcludes = 0;
+    const audienceOverrides: EmailAudienceOverride[] = [];
     for (const override of overridesByProgram.get(program.id)?.values() ?? []) {
       const email = normalizeAudienceEmail(override.email);
       if (!email) continue;
-      const action = override.payload.action;
+      const action = override.action;
+      audienceOverrides.push({
+        email,
+        firstName: override.first_name?.trim() || '',
+        lastName: override.last_name?.trim() || '',
+        action,
+      });
       if (action === 'exclude') {
-        if (byEmail.delete(email)) manualExcludes += 1;
+        byEmail.delete(email);
+        manualExcludes += 1;
         continue;
       }
-      if (action !== 'include') continue;
       byEmail.set(email, {
         email,
-        firstName:
-          typeof override.payload.first_name === 'string'
-            ? override.payload.first_name.trim()
-            : '',
-        lastName:
-          typeof override.payload.last_name === 'string'
-            ? override.payload.last_name.trim()
-            : '',
+        firstName: override.first_name?.trim() || '',
+        lastName: override.last_name?.trim() || '',
         source: 'manual',
       });
       manualIncludes += 1;
@@ -144,6 +169,10 @@ async function loadProgramAudiences(): Promise<AudienceData> {
       a.email.localeCompare(b.email),
     );
     recipientsById.set(id, recipients);
+    audienceOverridesById.set(
+      id,
+      audienceOverrides.sort((a, b) => a.email.localeCompare(b.email)),
+    );
     summaries.push({
       id,
       label: program.name,
@@ -160,6 +189,7 @@ async function loadProgramAudiences(): Promise<AudienceData> {
   return {
     summaries: summaries.sort((a, b) => a.label.localeCompare(b.label)),
     recipientsById,
+    overridesById: audienceOverridesById,
   };
 }
 
@@ -169,11 +199,16 @@ export async function listEmailAudiences(): Promise<EmailAudienceSummary[]> {
 
 export async function resolveEmailAudience(
   audienceId: string,
-): Promise<{ summary: EmailAudienceSummary; recipients: EmailAudienceRecipient[] } | null> {
+): Promise<{
+  summary: EmailAudienceSummary;
+  recipients: EmailAudienceRecipient[];
+  overrides: EmailAudienceOverride[];
+} | null> {
   const data = await loadProgramAudiences();
   const summary = data.summaries.find((item) => item.id === audienceId);
   const recipients = data.recipientsById.get(audienceId);
-  return summary && recipients ? { summary, recipients } : null;
+  const overrides = data.overridesById.get(audienceId);
+  return summary && recipients && overrides ? { summary, recipients, overrides } : null;
 }
 
 export async function setEmailAudienceOverride(input: {
@@ -197,15 +232,76 @@ export async function setEmailAudienceOverride(input: {
     throw new Error(programError?.message || 'Program group not found.');
   }
 
-  const { error } = await supabase.from('form_submissions').insert({
-    form_type: OVERRIDE_FORM_TYPE,
-    source_id: programId,
+  const { error } = await supabase.from('email_group_overrides').upsert({
+    program_id: programId,
     email,
-    payload: {
-      action: input.action,
-      first_name: input.firstName?.trim() || null,
-      last_name: input.lastName?.trim() || null,
-    },
+    action: input.action,
+    first_name: input.firstName?.trim() || null,
+    last_name: input.lastName?.trim() || null,
+    updated_at: new Date().toISOString(),
+  }, {
+    onConflict: 'program_id,email',
   });
+  if (error) throw overrideStorageError(error.message);
+}
+
+export async function clearEmailAudienceOverride(input: {
+  audienceId: string;
+  email: string;
+}): Promise<void> {
+  const programId = programIdFromAudienceId(input.audienceId);
+  const email = normalizeAudienceEmail(input.email);
+  if (!programId || !email) throw new Error('Invalid program group or email address.');
+
+  const { error } = await createAdminClient()
+    .from('email_group_overrides')
+    .delete()
+    .eq('program_id', programId)
+    .eq('email', email);
+  if (error) throw overrideStorageError(error.message);
+}
+
+export async function searchEmailAudienceContacts(
+  query: string,
+  limit = 20,
+): Promise<EmailAudienceContact[]> {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return [];
+
+  const supabase = createAdminClient();
+  const [parentsResult, contactsResult] = await Promise.all([
+    supabase.from('parents').select('*').not('email', 'is', null).limit(500),
+    supabase.from('contacts').select('*').limit(500),
+  ]);
+  const error = parentsResult.error ?? contactsResult.error;
   if (error) throw new Error(error.message);
+
+  const byEmail = new Map<string, EmailAudienceContact>();
+  const candidates: Array<{
+    row: Parent | Contact;
+    source: EmailAudienceContact['source'];
+  }> = [
+    ...((parentsResult.data ?? []) as Parent[]).map((row) => ({ row, source: 'parent' as const })),
+    ...((contactsResult.data ?? []) as Contact[]).map((row) => ({ row, source: 'contact' as const })),
+  ];
+  for (const { row, source } of candidates) {
+    const email = normalizeAudienceEmail(row.email);
+    if (!email || byEmail.has(email)) continue;
+    const firstName = row.first_name?.trim() || '';
+    const lastName = row.last_name?.trim() || '';
+    const searchable = `${firstName} ${lastName} ${email}`.toLowerCase();
+    if (!searchable.includes(normalizedQuery)) continue;
+    byEmail.set(email, { email, firstName, lastName, source });
+  }
+
+  return [...byEmail.values()]
+    .sort((a, b) => {
+      const aStarts = `${a.firstName} ${a.lastName}`.toLowerCase().startsWith(normalizedQuery);
+      const bStarts = `${b.firstName} ${b.lastName}`.toLowerCase().startsWith(normalizedQuery);
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+      return `${a.lastName} ${a.firstName} ${a.email}`.localeCompare(
+        `${b.lastName} ${b.firstName} ${b.email}`,
+      );
+    })
+    .slice(0, limit);
 }

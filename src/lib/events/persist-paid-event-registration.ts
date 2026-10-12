@@ -368,7 +368,7 @@ export async function persistPaidEventRegistration(
       }
 
       try {
-        await appendPaidEventRow(sheetId, event.type, sheetValues);
+        await appendPaidEventRow(sheetId, event.type, sheetValues, event.sheetTab);
       } catch (sheetErr) {
         console.error('[paid event] Sheets append failed:', sheetErr);
       }

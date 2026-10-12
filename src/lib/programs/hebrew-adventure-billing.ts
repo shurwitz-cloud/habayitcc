@@ -31,8 +31,8 @@ export function getHebrewAdventureInstallmentDueDates(
     return [new Date()];
   }
   if (paymentPlan === 'two_installments') {
-    // Two payments: upon acceptance and by October 1
-    return [new Date(), new Date(startYear, 9, 1)];
+    // Two payments: upon acceptance and by November 1
+    return [new Date(), new Date(startYear, 10, 1)];
   }
   // Three payments: upon acceptance, October 1, and November 1
   return [new Date(), new Date(startYear, 9, 1), new Date(startYear, 10, 1)];

@@ -169,8 +169,11 @@ export async function submitHebrewSchoolRegistration(
       };
     }
 
-    if (!input.paymentPlan) {
-      return { success: false, error: 'Please select a payment plan.' };
+    if (input.paymentPlan !== 'full' && input.paymentPlan !== 'two_installments') {
+      return {
+        success: false,
+        error: 'Please select pay in full or the two-payment plan.',
+      };
     }
     if (!input.paymentMethod) {
       return { success: false, error: 'Please select a payment method.' };

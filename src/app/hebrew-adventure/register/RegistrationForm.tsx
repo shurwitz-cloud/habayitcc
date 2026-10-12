@@ -62,12 +62,7 @@ const PAYMENT_PLAN_OPTIONS: {
   {
     value: 'two_installments',
     title: 'Two-payment plan',
-    description: 'Upon acceptance and by October 1.',
-  },
-  {
-    value: 'three_installments',
-    title: 'Three-payment plan',
-    description: 'Upon acceptance, October 1, and November 1.',
+    description: 'Upon acceptance and by November 1.',
   },
 ];
 
@@ -727,11 +722,7 @@ export function RegistrationForm() {
                       ? ' — upon acceptance'
                       : i === 0
                         ? ' — upon acceptance'
-                        : paymentPlan === 'two_installments'
-                          ? ' — by October 1'
-                          : i === 1
-                            ? ' — October 1'
-                            : ' — November 1'}
+                        : ' — by November 1'}
                   </span>
                   <strong className="tabular-nums">${formatCurrency(amount)}</strong>
                 </div>

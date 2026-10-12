@@ -10,7 +10,7 @@ function hebrewAdventurePaymentPlanLabel(plan: HebrewAdventurePaymentPlan): stri
     case 'full':
       return 'Pay in full upon acceptance ($25 off)';
     case 'two_installments':
-      return 'Two payments (acceptance + by October 1)';
+      return 'Two payments (acceptance + by November 1)';
     case 'three_installments':
       return 'Three payments (acceptance, October 1, November 1)';
   }

@@ -212,7 +212,7 @@ export async function recordOfflinePaidEventRegistration(
           '',
           `$${amount.toFixed(2)}`,
           paymentMethod,
-        ]);
+        ], event.title);
       } else if (event.type === 'dinner') {
         await appendPaidEventRow(sheetId, 'dinner', [
           timestamp,
@@ -227,7 +227,7 @@ export async function recordOfflinePaidEventRegistration(
           '',
           `$${amount.toFixed(2)}`,
           paymentMethod,
-        ]);
+        ], event.title);
       } else {
         await appendPaidEventRow(sheetId, 'family-fair', [
           timestamp,
@@ -242,7 +242,7 @@ export async function recordOfflinePaidEventRegistration(
           '',
           `$${amount.toFixed(2)}`,
           paymentMethod,
-        ]);
+        ], event.title);
       }
     } catch (sheetErr) {
       console.error('[offline event] Sheets append failed:', sheetErr);

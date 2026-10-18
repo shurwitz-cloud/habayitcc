@@ -39,6 +39,8 @@ export async function middleware(req: NextRequest) {
   const isProduction = process.env.NODE_ENV === 'production';
   const adminSecret = process.env.ADMIN_SECRET?.trim();
   const volunteerSecret = process.env.VOLUNTEER_SECRET?.trim();
+  const officeSecret = process.env.OFFICE_SECRET?.trim();
+  const teacherSecret = process.env.TEACHER_SECRET?.trim();
 
   if (req.method === 'POST' && pathname === '/api/admin/auth') {
     const ip = getClientIp(req);
@@ -89,7 +91,9 @@ export async function middleware(req: NextRequest) {
   const isStaffAuthed = await verifyAdminCookieValue(
     adminSession,
     adminSecret,
-    volunteerSecret
+    volunteerSecret,
+    officeSecret,
+    teacherSecret,
   );
 
   const isAdminAuthRoute = pathname === '/api/admin/auth';

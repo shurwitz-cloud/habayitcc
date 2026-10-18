@@ -42,6 +42,7 @@ export default async function ClassSessionPage({
             wasPresent: mark?.wasPresent ?? null,
             behaviorNote: mark?.behaviorNote ?? '',
             participationNote: mark?.participationNote ?? '',
+            hebrewNote: mark?.hebrewNote ?? '',
           };
         })
         .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))

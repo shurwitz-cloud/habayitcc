@@ -32,6 +32,7 @@ export type AttendanceMarkRecord = {
   wasPresent: boolean | null;
   behaviorNote: string | null;
   participationNote: string | null;
+  hebrewNote: string | null;
 };
 
 export type ProgressRecord = {
@@ -81,4 +82,5 @@ export type ClassMarkInput = {
   wasPresent: boolean | null;
   behaviorNote: string;
   participationNote: string;
+  hebrewNote: string;
 };

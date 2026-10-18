@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AdminLogoutButton } from './AdminLogoutButton';
 import type { AdminRole } from '@/lib/admin/roles';
-import { roleHasCapability } from '@/lib/admin/roles';
+import { roleDisplayLabel, roleHasCapability } from '@/lib/admin/roles';
 
 const LINKS = [
   { href: '/admin/crm', label: 'CRM', capability: 'crm' as const },
-  { href: '/admin/attendance', label: 'Attendance', capability: 'crm' as const },
+  { href: '/admin/attendance', label: 'Attendance', capability: 'attendance' as const },
   { href: '/admin/email', label: 'Email', capability: 'emails' as const },
   { href: '/admin/registrations', label: 'Registrations', capability: 'registrations' as const },
   { href: '/admin/photos', label: 'Photos', capability: 'photos' as const },
@@ -17,6 +17,7 @@ const LINKS = [
 export function AdminNav({ role = 'admin' }: { role?: AdminRole }) {
   const pathname = usePathname();
   const links = LINKS.filter((link) => roleHasCapability(role, link.capability));
+  const accessLabel = roleDisplayLabel(role);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-line">
@@ -35,9 +36,9 @@ export function AdminNav({ role = 'admin' }: { role?: AdminRole }) {
             </Link>
           );
         })}
-        {role === 'volunteer' && (
+        {accessLabel && (
           <span className="text-xs text-muted font-semibold uppercase tracking-wide ml-1">
-            Volunteer access
+            {accessLabel}
           </span>
         )}
       </nav>

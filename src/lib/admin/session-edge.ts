@@ -3,7 +3,7 @@ const SESSION_SALT = 'habayit-admin-session-v2';
 const LEGACY_SESSION_SALT = 'habayit-admin-session-v1';
 const LOCAL_DEV_SECRET = 'habayit-local-dev';
 
-type EdgeRole = 'admin' | 'volunteer';
+type EdgeRole = 'admin' | 'volunteer' | 'office' | 'teacher';
 
 function bytesToHex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes))
@@ -17,7 +17,7 @@ async function hmacHex(secret: string, message: string): Promise<string> {
     new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
   return bytesToHex(signature);
@@ -40,13 +40,15 @@ function resolveSecret(secret: string | undefined): string | undefined {
 }
 
 /**
- * Verifies staff session cookie (admin or volunteer).
- * `adminSecret` / `volunteerSecret` come from env in middleware.
+ * Verifies staff session cookie (admin, volunteer, office, or teacher).
+ * Secrets come from env in middleware.
  */
 export async function verifyAdminCookieValue(
   value: string | undefined,
   adminSecret: string | undefined,
-  volunteerSecret?: string | undefined
+  volunteerSecret?: string | undefined,
+  officeSecret?: string | undefined,
+  teacherSecret?: string | undefined,
 ): Promise<boolean> {
   if (process.env.NODE_ENV === 'development') return true;
   if (!value) return false;
@@ -55,9 +57,17 @@ export async function verifyAdminCookieValue(
   if (dotted > 0) {
     const role = value.slice(0, dotted) as EdgeRole;
     const sig = value.slice(dotted + 1);
-    if (role !== 'admin' && role !== 'volunteer') return false;
+    if (role !== 'admin' && role !== 'volunteer' && role !== 'office' && role !== 'teacher') {
+      return false;
+    }
     const secret =
-      role === 'admin' ? resolveSecret(adminSecret) : resolveSecret(volunteerSecret ?? adminSecret);
+      role === 'admin'
+        ? resolveSecret(adminSecret)
+        : role === 'teacher'
+          ? resolveSecret(teacherSecret)
+          : role === 'office'
+            ? resolveSecret(officeSecret ?? volunteerSecret)
+            : resolveSecret(volunteerSecret ?? adminSecret);
     if (!secret) return false;
     const expected = await hmacHex(secret, `${SESSION_SALT}:${role}`);
     return safeEqual(sig, expected);

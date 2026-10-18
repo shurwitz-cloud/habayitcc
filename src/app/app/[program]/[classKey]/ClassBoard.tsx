@@ -8,7 +8,8 @@ import {
   saveClassAttendanceAction,
   searchChildrenAction,
 } from '@/app/app/actions';
-import { packRatedNote, ratingLabel, unpackRatedNote } from '@/lib/attendance/notes';
+import { RatingDial } from '@/components/attendance/RatingDial';
+import { packRatedNote, unpackRatedNote } from '@/lib/attendance/notes';
 import type { ChildSearchHit } from '@/lib/attendance/types';
 
 export type BoardChild = {
@@ -20,6 +21,7 @@ export type BoardChild = {
   wasPresent: boolean | null;
   behaviorNote: string;
   participationNote: string;
+  hebrewNote: string;
 };
 
 type Draft = {
@@ -28,17 +30,22 @@ type Draft = {
   behaviorNote: string;
   participationRating: number | null;
   participationNote: string;
+  hebrewRating: number | null;
+  hebrewNote: string;
 };
 
 function draftFromChild(child: BoardChild): Draft {
   const behavior = unpackRatedNote(child.behaviorNote);
   const participation = unpackRatedNote(child.participationNote);
+  const hebrew = unpackRatedNote(child.hebrewNote);
   return {
     wasPresent: child.wasPresent,
     behaviorRating: behavior.rating,
     behaviorNote: behavior.note,
     participationRating: participation.rating,
     participationNote: participation.note,
+    hebrewRating: hebrew.rating,
+    hebrewNote: hebrew.note,
   };
 }
 
@@ -99,6 +106,7 @@ export function ClassBoard({
               draft?.participationRating ?? null,
               draft?.participationNote ?? '',
             ),
+            hebrewNote: packRatedNote(draft?.hebrewRating ?? null, draft?.hebrewNote ?? ''),
           };
         }),
       });
@@ -140,6 +148,14 @@ export function ClassBoard({
         <ul className="space-y-3">
           {children.map((child) => {
             const draft = drafts[child.childId];
+            const hasExtras = Boolean(
+              draft?.behaviorRating ||
+                draft?.behaviorNote ||
+                draft?.participationRating ||
+                draft?.participationNote ||
+                draft?.hebrewRating ||
+                draft?.hebrewNote,
+            );
             return (
               <li key={child.childId} className="bg-white border border-line rounded-2xl overflow-hidden">
                 <a
@@ -183,33 +199,60 @@ export function ClassBoard({
                     </button>
                   </div>
 
-                  <RatingSlider
-                    label="Behavior"
-                    value={draft?.behaviorRating ?? null}
-                    onChange={(rating) => update(child.childId, { behaviorRating: rating })}
-                  />
-                  <textarea
-                    value={draft?.behaviorNote ?? ''}
-                    onChange={(event) => update(child.childId, { behaviorNote: event.target.value })}
-                    rows={2}
-                    placeholder="Behavior notes"
-                    aria-label={`${child.firstName} behavior notes`}
-                    className="mt-2"
-                  />
+                  <details className="mt-3">
+                    <summary className="text-sm font-semibold text-navy cursor-pointer list-none flex items-center justify-between gap-2">
+                      <span>
+                        {hasExtras
+                          ? 'Behavior, participation, Hebrew reading'
+                          : 'Add behavior, participation, Hebrew reading'}
+                      </span>
+                      <span className="text-muted text-xs" aria-hidden>
+                        ▾
+                      </span>
+                    </summary>
 
-                  <RatingSlider
-                    label="Participation"
-                    value={draft?.participationRating ?? null}
-                    onChange={(rating) => update(child.childId, { participationRating: rating })}
-                  />
-                  <textarea
-                    value={draft?.participationNote ?? ''}
-                    onChange={(event) => update(child.childId, { participationNote: event.target.value })}
-                    rows={2}
-                    placeholder="Participation notes"
-                    aria-label={`${child.firstName} participation notes`}
-                    className="mt-2"
-                  />
+                    <RatingDial
+                      label="Behavior"
+                      value={draft?.behaviorRating ?? null}
+                      onChange={(rating) => update(child.childId, { behaviorRating: rating })}
+                    />
+                    <textarea
+                      value={draft?.behaviorNote ?? ''}
+                      onChange={(event) => update(child.childId, { behaviorNote: event.target.value })}
+                      rows={2}
+                      placeholder="Behavior notes"
+                      aria-label={`${child.firstName} behavior notes`}
+                      className="mt-2"
+                    />
+
+                    <RatingDial
+                      label="Participation"
+                      value={draft?.participationRating ?? null}
+                      onChange={(rating) => update(child.childId, { participationRating: rating })}
+                    />
+                    <textarea
+                      value={draft?.participationNote ?? ''}
+                      onChange={(event) => update(child.childId, { participationNote: event.target.value })}
+                      rows={2}
+                      placeholder="Participation notes"
+                      aria-label={`${child.firstName} participation notes`}
+                      className="mt-2"
+                    />
+
+                    <RatingDial
+                      label="Hebrew reading"
+                      value={draft?.hebrewRating ?? null}
+                      onChange={(rating) => update(child.childId, { hebrewRating: rating })}
+                    />
+                    <textarea
+                      value={draft?.hebrewNote ?? ''}
+                      onChange={(event) => update(child.childId, { hebrewNote: event.target.value })}
+                      rows={2}
+                      placeholder="Hebrew reading notes"
+                      aria-label={`${child.firstName} Hebrew reading notes`}
+                      className="mt-2"
+                    />
+                  </details>
                 </div>
               </li>
             );
@@ -231,52 +274,6 @@ export function ClassBoard({
           {pending ? 'Saving…' : 'Save attendance'}
         </button>
       </div>
-    </div>
-  );
-}
-
-function RatingSlider({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (value: number | null) => void;
-}) {
-  const shown = value ?? 3;
-  return (
-    <div className="mt-4">
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <label className="text-[0.72rem] font-bold uppercase tracking-wide text-muted">{label}</label>
-        <span className="text-sm font-semibold text-navy">{ratingLabel(value)}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-muted shrink-0">Less</span>
-        <input
-          type="range"
-          min={1}
-          max={5}
-          step={1}
-          value={shown}
-          onChange={(event) => onChange(Number(event.target.value))}
-          onPointerDown={() => {
-            if (value == null) onChange(3);
-          }}
-          aria-label={`${label} rating, left less, right more`}
-          className="w-full accent-navy h-8"
-        />
-        <span className="text-xs font-semibold text-muted shrink-0">More</span>
-      </div>
-      {value != null && (
-        <button
-          type="button"
-          className="text-xs font-semibold text-muted mt-1 underline underline-offset-2"
-          onClick={() => onChange(null)}
-        >
-          Clear {label.toLowerCase()}
-        </button>
-      )}
     </div>
   );
 }

@@ -122,6 +122,12 @@ export default async function ChildAttendancePage({
                         {formatRatedNote(mark.participationNote)}
                       </p>
                     )}
+                    {mark?.hebrewNote && (
+                      <p className="text-sm mt-1">
+                        <span className="font-semibold text-navy">Hebrew reading. </span>
+                        {formatRatedNote(mark.hebrewNote)}
+                      </p>
+                    )}
                   </li>
                 );
               })}

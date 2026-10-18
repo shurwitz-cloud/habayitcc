@@ -166,6 +166,7 @@ function WeekView({
                         <th className="px-4 py-2 font-bold">Attendance</th>
                         <th className="px-4 py-2 font-bold">Behavior</th>
                         <th className="px-4 py-2 font-bold">Participation</th>
+                        <th className="px-4 py-2 font-bold">Hebrew</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -195,6 +196,9 @@ function WeekView({
                             </td>
                             <td className="px-4 py-3 whitespace-pre-wrap">
                               {formatRatedNote(mark?.participationNote)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-pre-wrap">
+                              {formatRatedNote(mark?.hebrewNote)}
                             </td>
                           </tr>
                         );
@@ -438,6 +442,11 @@ function ChildView({
                         {mark?.participationNote && (
                           <p className="mt-1 whitespace-pre-wrap">
                             Participation: {formatRatedNote(mark.participationNote)}
+                          </p>
+                        )}
+                        {mark?.hebrewNote && (
+                          <p className="mt-1 whitespace-pre-wrap">
+                            Hebrew reading: {formatRatedNote(mark.hebrewNote)}
                           </p>
                         )}
                       </li>

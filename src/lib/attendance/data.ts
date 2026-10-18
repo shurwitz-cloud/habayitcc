@@ -212,7 +212,7 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
   if (sessionIds.length > 0) {
     const marksRes = await supabase
       .from('attendance')
-      .select('id, child_id, class_session_id, was_present, behavior_note, participation_note')
+      .select('id, child_id, class_session_id, was_present, behavior_note, participation_note, notes')
       .in('class_session_id', sessionIds);
     if (marksRes.error) return fail(marksRes.error, 'Could not load attendance.');
     marks = (marksRes.data ?? []).flatMap((row) => {
@@ -228,6 +228,7 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
           wasPresent: row.was_present,
           behaviorNote: row.behavior_note,
           participationNote: row.participation_note,
+          hebrewNote: row.notes,
         },
       ];
     });
@@ -580,17 +581,24 @@ export async function saveClassMarks(input: {
     was_present: boolean | null;
     behavior_note: string | null;
     participation_note: string | null;
-    notes: null;
+    notes: string | null;
   }[] = [];
-  const updates: { id: string; was_present: boolean | null; behavior_note: string | null; participation_note: string | null }[] = [];
+  const updates: {
+    id: string;
+    was_present: boolean | null;
+    behavior_note: string | null;
+    participation_note: string | null;
+    notes: string | null;
+  }[] = [];
   const deleteIds: string[] = [];
 
   for (const mark of input.marks) {
     if (!allowed.has(mark.childId)) continue;
     const behavior = clip(mark.behaviorNote, 2000) || null;
     const participation = clip(mark.participationNote, 2000) || null;
+    const hebrew = clip(mark.hebrewNote, 2000) || null;
     const wasPresent = mark.wasPresent === true ? true : mark.wasPresent === false ? false : null;
-    const keep = wasPresent !== null || behavior || participation;
+    const keep = wasPresent !== null || behavior || participation || hebrew;
     const existingId = currentByChild.get(mark.childId);
     if (!keep) {
       if (existingId) deleteIds.push(existingId);
@@ -602,6 +610,7 @@ export async function saveClassMarks(input: {
         was_present: wasPresent,
         behavior_note: behavior,
         participation_note: participation,
+        notes: hebrew,
       });
     } else {
       inserts.push({
@@ -613,7 +622,7 @@ export async function saveClassMarks(input: {
         was_present: wasPresent,
         behavior_note: behavior,
         participation_note: participation,
-        notes: null,
+        notes: hebrew,
       });
     }
   }
@@ -629,6 +638,7 @@ export async function saveClassMarks(input: {
         was_present: update.was_present,
         behavior_note: update.behavior_note,
         participation_note: update.participation_note,
+        notes: update.notes,
         attended_on: input.sessionDate,
       })
       .eq('id', update.id);

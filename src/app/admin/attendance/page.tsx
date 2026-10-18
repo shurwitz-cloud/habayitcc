@@ -22,7 +22,10 @@ export default async function AdminAttendancePage({
   const role = authed ? await getAdminRole() : null;
   const params = await searchParams;
   const program = getAttendanceProgram(params.program ?? '') ?? defaultProgram();
-  const snapshot = authed && role && roleHasCapability(role, 'crm') ? await getAttendanceSnapshot(program.slug) : null;
+  const snapshot =
+    authed && role && roleHasCapability(role, 'attendance')
+      ? await getAttendanceSnapshot(program.slug)
+      : null;
 
   return (
     <>
@@ -35,7 +38,7 @@ export default async function AdminAttendancePage({
               description="Sign in to view Hebrew Adventure attendance."
               alternateLink={{ href: '/app', label: 'Open the attendance app' }}
             />
-          ) : !roleHasCapability(role, 'crm') ? (
+          ) : !roleHasCapability(role, 'attendance') ? (
             <div>
               <AdminNav role={role} />
               <p className="text-muted">This account cannot open attendance.</p>

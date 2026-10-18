@@ -4,6 +4,7 @@ import { SchemaBanner } from '@/components/attendance/SchemaBanner';
 import { getAttendanceSnapshot } from '@/lib/attendance/data';
 import { formatSessionDate, rosterCoversDate } from '@/lib/attendance/dates';
 import { getAttendanceClass, getAttendanceProgram } from '@/lib/attendance/programs';
+import { formatRatedNote } from '@/lib/attendance/notes';
 import { attendanceRate, formatRate } from '@/lib/attendance/stats';
 import type { ProgressRecord } from '@/lib/attendance/types';
 import { ProgressEditor, RemoveTryoutButton } from './ChildTools';
@@ -112,13 +113,13 @@ export default async function ChildAttendancePage({
                     {mark?.behaviorNote && (
                       <p className="text-sm mt-1">
                         <span className="font-semibold text-navy">Behavior. </span>
-                        {mark.behaviorNote}
+                        {formatRatedNote(mark.behaviorNote)}
                       </p>
                     )}
                     {mark?.participationNote && (
                       <p className="text-sm mt-1">
                         <span className="font-semibold text-navy">Participation. </span>
-                        {mark.participationNote}
+                        {formatRatedNote(mark.participationNote)}
                       </p>
                     )}
                   </li>

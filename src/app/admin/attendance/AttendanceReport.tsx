@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { SchemaBanner } from '@/components/attendance/SchemaBanner';
 import { addDays, formatSessionDate, parseSessionDate, rosterCoversDate, sessionDateLabel } from '@/lib/attendance/dates';
 import { getAttendanceProgram, type AttendanceProgram } from '@/lib/attendance/programs';
+import { formatRatedNote } from '@/lib/attendance/notes';
 import { attendanceRate, formatPercent, formatRate } from '@/lib/attendance/stats';
 import type { AttendanceChild, AttendanceSnapshot, RosterEntry } from '@/lib/attendance/types';
 
@@ -189,8 +190,12 @@ function WeekView({
                               )}
                             </td>
                             <td className="px-4 py-3">{markLabel(mark?.wasPresent)}</td>
-                            <td className="px-4 py-3 whitespace-pre-wrap">{mark?.behaviorNote || '—'}</td>
-                            <td className="px-4 py-3 whitespace-pre-wrap">{mark?.participationNote || '—'}</td>
+                            <td className="px-4 py-3 whitespace-pre-wrap">
+                              {formatRatedNote(mark?.behaviorNote)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-pre-wrap">
+                              {formatRatedNote(mark?.participationNote)}
+                            </td>
                           </tr>
                         );
                       })}
@@ -427,9 +432,13 @@ function ChildView({
                           <span className="font-semibold text-navy">{formatSessionDate(session.sessionDate)}</span>
                           <span>{markLabel(mark?.wasPresent)}</span>
                         </div>
-                        {mark?.behaviorNote && <p className="mt-1 whitespace-pre-wrap">Behavior: {mark.behaviorNote}</p>}
+                        {mark?.behaviorNote && (
+                          <p className="mt-1 whitespace-pre-wrap">Behavior: {formatRatedNote(mark.behaviorNote)}</p>
+                        )}
                         {mark?.participationNote && (
-                          <p className="mt-1 whitespace-pre-wrap">Participation: {mark.participationNote}</p>
+                          <p className="mt-1 whitespace-pre-wrap">
+                            Participation: {formatRatedNote(mark.participationNote)}
+                          </p>
                         )}
                       </li>
                     );

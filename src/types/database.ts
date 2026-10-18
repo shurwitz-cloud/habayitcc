@@ -146,6 +146,16 @@ export interface HebrewFairCodeRedemption {
   redeemed_at: string;
 }
 
+export interface ChaiEventCodeRedemption {
+  [key: string]: unknown;
+  id: string;
+  chai_partner_id: string;
+  event_id: string;
+  event_registration_id: string | null;
+  access_code: string;
+  redeemed_at: string;
+}
+
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export type DedicationType = 'honor' | 'memory';
 
@@ -266,9 +276,50 @@ export interface Attendance {
   id: string;
   program_registration_id: string | null;
   event_registration_id: string | null;
+  child_id: string | null;
+  class_session_id: string | null;
   attended_on: string;
-  was_present: boolean;
+  was_present: boolean | null;
+  behavior_note: string | null;
+  participation_note: string | null;
   notes: string | null;
+  created_at: string;
+}
+
+export type ClassRosterStatus = 'enrolled' | 'tryout';
+
+export interface ClassRoster {
+  [key: string]: unknown;
+  id: string;
+  program_slug: string;
+  class_key: string;
+  child_id: string;
+  status: ClassRosterStatus;
+  joined_on: string;
+  removed_on: string | null;
+  created_at: string;
+}
+
+export interface ClassSession {
+  [key: string]: unknown;
+  id: string;
+  program_slug: string;
+  class_key: string;
+  session_date: string;
+  created_at: string;
+}
+
+export type LearningTrack = 'torah' | 'hebrew_reading';
+
+export interface LearningProgress {
+  [key: string]: unknown;
+  id: string;
+  child_id: string;
+  program_slug: string;
+  track: LearningTrack;
+  standing: string;
+  note: string | null;
+  recorded_on: string;
   created_at: string;
 }
 
@@ -384,6 +435,14 @@ export interface Database {
         };
         Update: Partial<HebrewFairCodeRedemption>;
       };
+      chai_event_code_redemptions: {
+        Row: ChaiEventCodeRedemption;
+        Insert: Omit<ChaiEventCodeRedemption, 'id' | 'redeemed_at'> & {
+          id?: string;
+          redeemed_at?: string;
+        };
+        Update: Partial<ChaiEventCodeRedemption>;
+      };
       donations: { Row: Donation; Insert: Insertable<Donation>; Update: Partial<Insertable<Donation>> };
       chai_partners: {
         Row: ChaiPartner;
@@ -411,6 +470,21 @@ export interface Database {
         Row: Attendance;
         Insert: Insertable<Attendance>;
         Update: Partial<Insertable<Attendance>>;
+      };
+      class_rosters: {
+        Row: ClassRoster;
+        Insert: Insertable<ClassRoster>;
+        Update: Partial<Insertable<ClassRoster>>;
+      };
+      class_sessions: {
+        Row: ClassSession;
+        Insert: Insertable<ClassSession>;
+        Update: Partial<Insertable<ClassSession>>;
+      };
+      learning_progress: {
+        Row: LearningProgress;
+        Insert: Insertable<LearningProgress>;
+        Update: Partial<Insertable<LearningProgress>>;
       };
       waivers: { Row: Waiver; Insert: Insertable<Waiver>; Update: Partial<Insertable<Waiver>> };
       sponsors: { Row: Sponsor; Insert: Insertable<Sponsor>; Update: Partial<Insertable<Sponsor>> };

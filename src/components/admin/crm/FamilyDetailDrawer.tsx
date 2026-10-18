@@ -3,6 +3,7 @@
 import type { CrmFamilyRecord } from '@/lib/admin/crm/types';
 import { formatDate, formatDateTime, formatUsd, statusBadgeClass, stripeCustomerUrl } from '@/lib/admin/crm/utils';
 import type { Waiver } from '@/types/database';
+import Link from 'next/link';
 
 function labelize(value: string | null | undefined): string {
   if (!value) return '—';
@@ -150,6 +151,12 @@ export function FamilyDetailDrawer({
                   <DetailField label="Medications" value={c.medications} />
                   <DetailField label="Notes" value={c.notes} />
                 </div>
+                <Link
+                  href={`/admin/attendance?view=child&child=${c.id}`}
+                  className="inline-block mt-3 text-sm font-semibold text-gold"
+                >
+                  Attendance, Torah, and Hebrew reading
+                </Link>
                 {reg && (
                   <div className="mt-4 pt-4 border-t border-line grid sm:grid-cols-2 gap-4">
                     <DetailField label="Term" value={reg.term} />

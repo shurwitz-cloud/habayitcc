@@ -15,6 +15,7 @@ import type { ChildSearchHit } from '@/lib/attendance/types';
 export type BoardChild = {
   rosterId: string;
   childId: string;
+  displayName: string;
   firstName: string;
   lastName: string;
   status: 'enrolled' | 'tryout';
@@ -162,9 +163,7 @@ export function ClassBoard({
                   href={`/app/${programSlug}/${classKey}/${child.childId}`}
                   className="flex items-center justify-between gap-3 bg-navy px-4 py-3"
                 >
-                  <span className="text-lg font-bold text-white leading-tight">
-                    {child.firstName} {child.lastName}
-                  </span>
+                  <span className="text-lg font-bold text-white leading-tight">{child.displayName}</span>
                   {child.status === 'tryout' && (
                     <span className="shrink-0 text-[0.68rem] font-bold uppercase tracking-wider text-gold">
                       Tryout

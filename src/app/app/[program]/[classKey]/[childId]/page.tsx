@@ -4,6 +4,7 @@ import { SchemaBanner } from '@/components/attendance/SchemaBanner';
 import { getAttendanceSnapshot } from '@/lib/attendance/data';
 import { formatSessionDate, rosterCoversDate } from '@/lib/attendance/dates';
 import { getAttendanceClass, getAttendanceProgram } from '@/lib/attendance/programs';
+import { formatChildDisplayName } from '@/lib/attendance/names';
 import { formatRatedNote } from '@/lib/attendance/notes';
 import { attendanceRate, formatRate } from '@/lib/attendance/stats';
 import type { ProgressRecord } from '@/lib/attendance/types';
@@ -57,7 +58,7 @@ export default async function ChildAttendancePage({
       <AppBar
         backHref={`/app/${program.slug}/${classDef.key}`}
         backLabel={classDef.label}
-        title={`${child.firstName} ${child.lastName}`}
+        title={formatChildDisplayName(child.firstName, child.lastName, child.hebrewName)}
         subtitle={roster.status === 'tryout' ? 'Tryout' : classDef.label}
       />
       <div className="px-4 py-4 space-y-4">

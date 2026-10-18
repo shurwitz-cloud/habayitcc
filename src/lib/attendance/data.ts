@@ -58,11 +58,14 @@ function mapRoster(row: ClassRoster): RosterEntry {
   };
 }
 
-function mapChild(row: Pick<Child, 'id' | 'first_name' | 'last_name' | 'grade' | 'hebrew_level'>): AttendanceChild {
+function mapChild(
+  row: Pick<Child, 'id' | 'first_name' | 'last_name' | 'hebrew_name' | 'grade' | 'hebrew_level'>,
+): AttendanceChild {
   return {
     id: row.id,
     firstName: row.first_name,
     lastName: row.last_name,
+    hebrewName: row.hebrew_name,
     grade: row.grade,
     hebrewLevel: row.hebrew_level,
   };
@@ -167,11 +170,11 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
   const unplacedIds = [...joinedByChild.keys()].filter((id) => !activeIds.has(id));
   const childIds = [...new Set([...roster.map((row) => row.childId), ...unplacedIds])];
 
-  let childRows: Pick<Child, 'id' | 'first_name' | 'last_name' | 'grade' | 'hebrew_level'>[] = [];
+  let childRows: Pick<Child, 'id' | 'first_name' | 'last_name' | 'hebrew_name' | 'grade' | 'hebrew_level'>[] = [];
   if (childIds.length > 0) {
     const kids = await supabase
       .from('children')
-      .select('id, first_name, last_name, grade, hebrew_level')
+      .select('id, first_name, last_name, hebrew_name, grade, hebrew_level')
       .in('id', childIds);
     if (kids.error) return fail(kids.error, 'Could not load children.');
     childRows = kids.data ?? [];

@@ -4,6 +4,7 @@ import { AppBar } from '@/components/attendance/AppBar';
 import { SchemaBanner } from '@/components/attendance/SchemaBanner';
 import { getAttendanceSnapshot } from '@/lib/attendance/data';
 import { addDays, formatSessionDate, parseSessionDate, rosterCoversDate, sessionDateLabel } from '@/lib/attendance/dates';
+import { formatChildDisplayName } from '@/lib/attendance/names';
 import { getAttendanceClass, getAttendanceProgram } from '@/lib/attendance/programs';
 import { ClassBoard } from './ClassBoard';
 
@@ -36,6 +37,11 @@ export default async function ClassSessionPage({
           return {
             rosterId: row.id,
             childId: row.childId,
+            displayName: formatChildDisplayName(
+              child?.firstName ?? 'Child',
+              child?.lastName ?? '',
+              child?.hebrewName,
+            ),
             firstName: child?.firstName ?? 'Child',
             lastName: child?.lastName ?? '',
             status: row.status,
@@ -45,7 +51,7 @@ export default async function ClassSessionPage({
             hebrewNote: mark?.hebrewNote ?? '',
           };
         })
-        .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName))
     : [];
 
   return (

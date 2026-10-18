@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { SchemaBanner } from '@/components/attendance/SchemaBanner';
 import { addDays, formatSessionDate, parseSessionDate, rosterCoversDate, sessionDateLabel } from '@/lib/attendance/dates';
 import { getAttendanceProgram, type AttendanceProgram } from '@/lib/attendance/programs';
+import { formatChildDisplayName } from '@/lib/attendance/names';
 import { formatRatedNote } from '@/lib/attendance/notes';
 import { attendanceRate, formatPercent, formatRate } from '@/lib/attendance/stats';
 import type { AttendanceChild, AttendanceSnapshot, RosterEntry } from '@/lib/attendance/types';
@@ -14,7 +15,7 @@ function childById(children: AttendanceChild[], childId: string): AttendanceChil
 
 function displayName(children: AttendanceChild[], childId: string): string {
   const child = childById(children, childId);
-  return child ? `${child.firstName} ${child.lastName}` : 'Child';
+  return child ? formatChildDisplayName(child.firstName, child.lastName, child.hebrewName) : 'Child';
 }
 
 function markLabel(wasPresent: boolean | null | undefined): string {
@@ -388,7 +389,7 @@ function ChildView({
         <div className="space-y-4">
           <section className="bg-white border border-line rounded-2xl p-4">
             <h2 className="font-display text-3xl text-navy font-bold">
-              {child.firstName} {child.lastName}
+              {formatChildDisplayName(child.firstName, child.lastName, child.hebrewName)}
             </h2>
             {child.hebrewLevel && (
               <p className="text-sm text-navy mt-2">Hebrew level at registration: {child.hebrewLevel}</p>

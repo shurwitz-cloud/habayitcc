@@ -14,6 +14,7 @@ export type AttendanceChild = {
   id: string;
   firstName: string;
   lastName: string;
+  hebrewName: string | null;
   grade: string | null;
   hebrewLevel: string | null;
 };

@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: '/zeffy',
+        destination: 'https://www.zeffy.com/donation-form/donate-to-make-a-difference-18721',
+        permanent: false,
+      },
+      {
         source: '/:path*',
         has: [{ type: 'host', value: 'habayitcc.com' }],
         destination: 'https://www.habayitcc.org/:path*',

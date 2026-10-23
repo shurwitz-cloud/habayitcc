@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 
 type EntryType = 'chai_partner' | 'donation';
 
+// Chai Partner entries only: Zeffy first because the default preserves the
+// form's original behavior for gifts that really arrived via Zeffy.
+const METHODS = ['Zeffy', 'Zelle', 'Check', 'Cash', 'Other'] as const;
+
 const empty = {
   firstName: '',
   lastName: '',
@@ -18,6 +22,7 @@ const empty = {
   paidAtLocal: '',
   campaign: '',
   memo: '',
+  paymentKey: '',
 };
 
 export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { defaultType?: EntryType }) {
@@ -26,6 +31,7 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
   const [type, setType] = useState<EntryType>(defaultType);
   const [form, setForm] = useState(empty);
   const [sendEmail, setSendEmail] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<(typeof METHODS)[number]>('Zeffy');
   const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -50,6 +56,11 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
       const d = new Date(form.paidAtLocal);
       if (!Number.isNaN(d.getTime())) paidAt = d.toISOString();
     }
+    if (type === 'chai_partner' && !paidAt) {
+      setStatus('error');
+      setMessage('Enter the Paid at date - it is part of this payment\'s reference.');
+      return;
+    }
 
     try {
       const res = await fetch('/api/admin/zeffy-manual-entry', {
@@ -68,6 +79,8 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
           zip: form.zip || undefined,
           amount,
           paidAt,
+          paymentMethod: type === 'chai_partner' ? paymentMethod : undefined,
+          paymentKey: type === 'chai_partner' && form.paymentKey ? form.paymentKey : undefined,
           sendEmail,
           campaign: form.campaign || undefined,
           memo: form.memo || undefined,
@@ -80,6 +93,8 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
         emailed?: boolean;
         donationId?: string;
         partnerId?: string;
+        paymentId?: string;
+        matchedKey?: string;
       };
       if (!res.ok) {
         setStatus('error');
@@ -88,12 +103,21 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
       }
       setStatus('done');
       if (data.duplicate) {
-        setMessage('Already in CRM (duplicate). No new email sent.');
+        // Warning styling (not success green): nothing was saved.
+        setStatus('error');
+        // Keep the form filled so the user can add a Reference and retry when
+        // this is actually a distinct payment.
+        setMessage(
+          `Not saved - this payment is already in the CRM (ref ${data.matchedKey ?? data.paymentId}). ` +
+            'If this is a different payment (for example a second identical payment on the same day), ' +
+            'give it a unique Reference and save again. No email sent.'
+        );
+        return;
       } else if (type === 'chai_partner') {
         setMessage(
-          `Saved Chai Partner${data.accessCode ? ` — code ${data.accessCode}` : ''}.${
-            data.emailed ? ' Welcome email sent.' : ' No email sent.'
-          }`
+          `Saved Chai Partner — ref ${data.paymentId}${
+            data.accessCode ? ` — code ${data.accessCode}` : ''
+          }.${data.emailed ? ' Welcome email sent.' : ' No email sent.'}`
         );
       } else {
         setMessage(
@@ -185,11 +209,26 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
             <Field label="State" value={form.state} onChange={(v) => setField('state', v)} />
             <Field label="ZIP" value={form.zip} onChange={(v) => setField('zip', v)} />
             <Field
-              label="Paid at (optional)"
+              label={type === 'chai_partner' ? 'Paid at (date of this payment)' : 'Paid at (optional)'}
               type="datetime-local"
               value={form.paidAtLocal}
               onChange={(v) => setField('paidAtLocal', v)}
+              required={type === 'chai_partner'}
             />
+            {type === 'chai_partner' && (
+              <div className="sm:col-span-2">
+                <Field
+                  label="Reference (optional)"
+                  value={form.paymentKey}
+                  onChange={(v) => setField('paymentKey', v)}
+                  placeholder="e.g. zelle-2026-09"
+                />
+                <p className="mt-1 text-xs text-[#6b7280]">
+                  Only needed for a second identical payment on the same day, or when the CRM says a
+                  matching payment is already on file and you have confirmed it is a different one.
+                </p>
+              </div>
+            )}
             {type === 'donation' && (
               <>
                 <Field
@@ -207,6 +246,33 @@ export function ManualZeffyEntryForm({ defaultType = 'chai_partner' }: { default
               </>
             )}
           </div>
+
+          {type === 'chai_partner' && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-[#172643]">Payment method</p>
+              <div className="flex flex-wrap gap-2">
+                {METHODS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPaymentMethod(m)}
+                    className={`rounded-full px-3 py-1.5 text-sm border ${
+                      paymentMethod === m
+                        ? 'bg-[#172643] text-white border-[#172643]'
+                        : 'bg-white text-[#172643] border-[#d4cfc4]'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {paymentMethod !== 'Zeffy' && (
+                <p className="mt-1 text-xs text-[#6b7280]">
+                  Recorded as {paymentMethod}, not Zeffy.
+                </p>
+              )}
+            </div>
+          )}
 
           <label className="flex items-start gap-2 text-sm text-[#172643]">
             <input

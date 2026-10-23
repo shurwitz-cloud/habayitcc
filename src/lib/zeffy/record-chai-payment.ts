@@ -17,8 +17,23 @@ function generateAccessCode(): string {
   return `HABAYIT-${code}`;
 }
 
-function zeffyPaymentKey(paymentId: string): string {
-  return `zeffy:${paymentId}`;
+function paymentStorageKey(prefix: string, paymentId: string): string {
+  return `${prefix}:${paymentId}`;
+}
+
+// The org runs on US Eastern time. Payment references and dedupe day
+// comparisons use the calendar day in this timezone, not the UTC day, so a
+// payment an admin dates "Sep 17" keys as Sep 17 regardless of the time of
+// day it is entered (UTC conversion can otherwise shift the day).
+export function paymentLocalDay(value: string | Date): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
 }
 
 export type RecordZeffyOptions = {
@@ -30,30 +45,77 @@ export type RecordZeffyOptions = {
   sendEmails?: boolean;
   /** Override payment timestamp (e.g. manual Zeffy feed). */
   paidAt?: string;
+  /**
+   * Storage-key prefix for stripe_payment_intent_id. Default 'zeffy' (real
+   * Zeffy webhook / feed imports). Manual admin entries for money that arrived
+   * by another channel pass that method, e.g. 'zelle', so the ledger does not
+   * mislabel the source.
+   */
+  keyPrefix?: string;
+  /** Provider label recorded in the form-log payload. Default 'zeffy'. */
+  provider?: string;
+  /**
+   * Older manual entries were keyed without a payment date, so a dated manual
+   * key cannot find them and would double-record the same real payment.
+   * Callers that generate dated manual keys pass the old undated key(s) here.
+   * ANY legacy match conservatively blocks the entry as already-recorded
+   * (duplicate + matchedKey): a legacy row's stored date is not reliable
+   * (early manual rows carry entry time, not the real payment date), so a
+   * date comparison could both block a real payment and miss a replayed one.
+   * A genuinely distinct payment is entered with an explicit unique
+   * paymentKey (Reference), which bypasses this guard.
+   */
+  legacyKeys?: string[];
 };
 
 /**
  * Upsert Chai Partner + payment ledger from a verified Zeffy payment.
- * Idempotent on Zeffy payment id (stored in stripe_payment_intent_id as zeffy:<id>).
+ * Idempotent on payment id (stored in stripe_payment_intent_id as <prefix>:<id>,
+ * 'zeffy' for real Zeffy money, the method name for manual admin entries).
  */
 export async function recordZeffyChaiPartnerPayment(
   parsed: ParsedZeffyPayment,
   options: RecordZeffyOptions = {}
-): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
+): Promise<{
+  ok: boolean;
+  partnerId?: string;
+  accessCode?: string;
+  duplicate?: boolean;
+  /** The storage key of the payment row that already covered this entry. */
+  matchedKey?: string;
+}> {
   // Default OFF — never email unless caller explicitly opts in.
   const sendEmails = options.sendEmails === true;
   const paidAt = options.paidAt ?? new Date().toISOString();
   const supabase = createAdminClient();
-  const paymentKey = zeffyPaymentKey(parsed.paymentId);
+  const keyPrefix = options.keyPrefix ?? 'zeffy';
+  const paymentKey = paymentStorageKey(keyPrefix, parsed.paymentId);
 
-  const { data: existingPayment } = await supabase
+  const lookupKeys = [paymentKey, ...(options.legacyKeys ?? [])];
+  const { data: existingPayments } = await supabase
     .from('payments')
-    .select('id, source_id')
-    .eq('stripe_payment_intent_id', paymentKey)
-    .maybeSingle();
+    .select('id, source_id, stripe_payment_intent_id, paid_at')
+    .in('stripe_payment_intent_id', lookupKeys);
 
-  if (existingPayment) {
-    return { ok: true, partnerId: existingPayment.source_id, duplicate: true };
+  const exactMatch = (existingPayments ?? []).find(
+    (row) => row.stripe_payment_intent_id === paymentKey
+  );
+  if (exactMatch) {
+    return { ok: true, partnerId: exactMatch.source_id, duplicate: true, matchedKey: paymentKey };
+  }
+
+  const legacyMatch = (existingPayments ?? [])[0];
+  if (legacyMatch) {
+    // Conservative needs-review block: no date comparison (unreliable on
+    // legacy rows). Surface the matched key so the admin can inspect the
+    // historical row and, when this is truly a different payment, re-enter
+    // it with an explicit unique Reference.
+    return {
+      ok: true,
+      partnerId: legacyMatch.source_id,
+      duplicate: true,
+      matchedKey: legacyMatch.stripe_payment_intent_id ?? undefined,
+    };
   }
 
   const { data: existingPartner } = await supabase
@@ -134,7 +196,7 @@ export async function recordZeffyChaiPartnerPayment(
     email: parsed.email,
     sourceId: partnerId,
     payload: {
-      provider: 'zeffy',
+      provider: options.provider ?? 'zeffy',
       type: isNewPartner ? 'signup' : 'renewal',
       zeffyPaymentId: parsed.paymentId,
       amountDollars: parsed.amountDollars,
@@ -156,7 +218,7 @@ export async function recordZeffyChaiPartnerPayment(
       zip: parsed.zip,
       monthlyAmount: parsed.amountDollars,
       accessCode,
-      subscriptionId: `zeffy:${parsed.paymentId}`,
+      subscriptionId: `${keyPrefix}:${parsed.paymentId}`,
       customerId: '',
     });
 

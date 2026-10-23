@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
 import { persistDonation } from '@/lib/donations/persist-donation';
 import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
-import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
+import {
+  paymentLocalDay,
+  recordZeffyChaiPartnerPayment,
+} from '@/lib/zeffy/record-chai-payment';
 import type { ParsedZeffyPayment } from '@/lib/zeffy/types';
 
 export const dynamic = 'force-dynamic';
 
 type EntryType = 'chai_partner' | 'donation';
+
+// Money source for a manual Chai Partner entry. Default 'Zeffy' preserves
+// existing behavior for gifts that really came through Zeffy; anything else
+// (Zelle, check, ...) is labeled with its own method so the ledger does not
+// misattribute it. (The one-time donation branch below is unchanged.)
+const METHODS = ['Zeffy', 'Zelle', 'Check', 'Cash', 'Other'] as const;
 
 /**
  * Manual CRM entry for Zeffy gifts (Chai Partner or one-time donor).
@@ -31,6 +40,7 @@ export async function POST(req: NextRequest) {
     amount?: number;
     paidAt?: string;
     paymentKey?: string;
+    paymentMethod?: string;
     sendEmail?: boolean;
     campaign?: string;
     memo?: string;
@@ -68,9 +78,46 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const rawMethod = (body.paymentMethod ?? '').trim();
+  const paymentMethod = (METHODS as readonly string[]).includes(rawMethod)
+    ? rawMethod
+    : 'Zeffy';
+  const keyPrefix = paymentMethod === 'Zeffy' ? 'zeffy' : paymentMethod.toLowerCase();
+
+  // Chai Partner: the Paid at date is part of each payment's own reference.
+  // Without it, two entries with the same email + amount (e.g. a monthly payer
+  // recorded for September and October) collapse into one dedupe key and the
+  // second payment is silently skipped. The date is therefore required for
+  // Chai entries; identical re-submits still produce the identical key, and
+  // two distinct payments on the SAME day take an explicit paymentKey
+  // (Reference field) to stay separate.
+  let paidAtDay = '';
+  if (type === 'chai_partner') {
+    const d = new Date((body.paidAt ?? '').trim());
+    if (Number.isNaN(d.getTime())) {
+      return NextResponse.json(
+        { error: 'A valid Paid at date is required for Chai Partner entries - it is part of the payment reference.' },
+        { status: 400 }
+      );
+    }
+    paidAtDay = paymentLocalDay(d).replace(/-/g, '');
+  }
+
+  const emailSlug = email.replace(/[^a-z0-9]+/g, '-');
+  const explicitKey = (body.paymentKey ?? '').trim();
   const paymentId =
-    (body.paymentKey ?? '').trim() ||
-    `manual-${type}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}`;
+    explicitKey ||
+    `manual-${type}-${emailSlug}-${Math.round(amount * 100)}${paidAtDay ? `-${paidAtDay}` : ''}`;
+
+  // Migration guard for pre-fix manual entries, which were keyed without a
+  // date under the 'zeffy' prefix: recordZeffyChaiPartnerPayment treats ANY
+  // match on the old key as already-recorded (visible block with the matched
+  // key) instead of risking a double-record; a genuinely different payment is
+  // entered with an explicit Reference, which bypasses this guard.
+  const legacyKeys =
+    type === 'chai_partner' && !explicitKey
+      ? [`zeffy:manual-${type}-${emailSlug}-${Math.round(amount * 100)}`]
+      : undefined;
 
   const sendEmail = body.sendEmail === true;
 
@@ -90,12 +137,15 @@ export async function POST(req: NextRequest) {
       campaignTitle: 'HaBayit Chai Partner',
       isMonthly: true,
       status: 'succeeded',
-      raw: { source: 'admin_manual_ui', body },
+      raw: { source: 'admin_manual_ui', method: paymentMethod, body },
     };
 
     const result = await recordZeffyChaiPartnerPayment(parsed, {
       sendEmails: sendEmail,
       paidAt: body.paidAt,
+      keyPrefix,
+      provider: keyPrefix,
+      legacyKeys,
     });
 
     if (!result.ok) {
@@ -108,8 +158,10 @@ export async function POST(req: NextRequest) {
       partnerId: result.partnerId,
       accessCode: result.accessCode,
       duplicate: Boolean(result.duplicate),
+      matchedKey: result.matchedKey,
       emailed: sendEmail && !result.duplicate,
       paymentId,
+      paymentMethod,
     });
   }
 

@@ -119,7 +119,9 @@ export async function recordZeffyChaiPartnerPayment(
     stripe_payment_intent_id: paymentKey,
     stripe_charge_id: null,
     status: 'succeeded',
-    paid_at: new Date().toISOString(),
+    // Honor the caller-provided payment date (e.g. admin manual entry backdating);
+    // previously this always stamped "now" and silently ignored options.paidAt.
+    paid_at: paidAt,
   });
 
   if (paymentError) {
@@ -193,4 +195,4 @@ export async function recordZeffyChaiPartnerPayment(
   }
 
   return { ok: true, partnerId, accessCode };
-}
+    }

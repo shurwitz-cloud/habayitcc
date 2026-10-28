@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HaBayit Hebrew Adventure – HaBayit Jewish Center</title>
+<meta name="description" content="Joyful Jewish education for children. HaBayit Hebrew Adventure builds Hebrew literacy, holiday knowledge, and lifelong Jewish identity." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:56vh;}
+
+  .overview{background:var(--white);}
+  .overview-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:60px;align-items:center;}
+  .overview h2{font-size:clamp(2rem,3.5vw,2.8rem);color:var(--navy);font-weight:700;line-height:1.1;}
+  .overview p{color:var(--muted);margin-top:16px;font-size:1.02rem;}
+  .overview .photo-box{min-height:340px;}
+  .schedule-note{display:inline-flex;align-items:center;gap:10px;margin-top:24px;font-weight:600;color:var(--navy);}
+
+  .pillars{background:var(--cream);}
+  .pillars-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:44px;}
+  .pillar{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:32px;}
+  .pillar h3{font-size:1.4rem;color:var(--navy);font-weight:700;margin-bottom:10px;}
+  .pillar p{color:var(--muted);font-size:.92rem;}
+
+  .pricing{background:var(--white);}
+  .pricing-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px;}
+  .price-card{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:34px;position:relative;}
+  .price-card.member{border-color:var(--gold);}
+  .price-card.member::before{content:'CHAI PARTNER RATE';position:absolute;top:-13px;left:28px;background:var(--gold);color:var(--white);font-size:.62rem;font-weight:700;letter-spacing:.1em;padding:4px 14px;border-radius:999px;}
+  .price-card h3{font-size:1.25rem;color:var(--navy);font-weight:700;margin-bottom:4px;}
+  .price-amount{font-size:2.6rem;font-weight:800;color:var(--navy);margin:14px 0 4px;font-variant-numeric:tabular-nums;}
+  .price-amount span{font-size:.95rem;color:var(--muted);font-weight:500;}
+  .price-card ul{margin-top:16px;display:flex;flex-direction:column;gap:8px;}
+  .price-card li{font-size:.88rem;color:var(--muted);padding-left:20px;position:relative;}
+  .price-card li::before{content:'✓';position:absolute;left:0;color:var(--gold);font-weight:700;}
+  .pricing-note{background:var(--cream);border-left:3px solid var(--gold);padding:16px 20px;margin-top:24px;font-size:.88rem;color:var(--muted);border-radius:0 var(--radius-sm) var(--radius-sm) 0;}
+
+  .cta{background:var(--navy);color:var(--white);text-align:center;}
+  .cta h2{font-size:clamp(2.1rem,4vw,3.4rem);font-weight:700;}
+  .cta p{color:rgba(255,255,255,.7);margin-top:10px;}
+
+  @media(max-width:900px){
+    .overview-grid{grid-template-columns:1fr;gap:36px;}
+    .pillars-grid,.pricing-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item">
+      <a href="donate.html" class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">Programs</div>
+      <h1>HaBayit Hebrew Adventure</h1>
+      <p>Joyful Jewish learning where children build skills, confidence, and identity.</p>
+    </div>
+    <div class="photo-note">Photo coming soon</div>
+  </section>
+
+  <section class="overview">
+    <div class="wrap overview-grid">
+      <div>
+        <div class="eyebrow">About the Program</div>
+        <h2>A place to learn, belong, and grow.</h2>
+        <p>HaBayit Hebrew Adventure offers children a meaningful, age-appropriate Jewish education in a warm and supportive environment — Hebrew reading, holidays and values, and genuine friendship, taught by caring, experienced educators.</p>
+        <div class="schedule-note">📅 Classes meet every Sunday, 10:00 AM – 12:00 PM.</div>
+      </div>
+      <div class="photo-box"></div>
+    </div>
+  </section>
+
+  <section class="pillars">
+    <div class="wrap">
+      <div class="eyebrow">What Children Experience</div>
+      <h2 style="font-size:clamp(2rem,3.5vw,2.8rem);color:var(--navy);font-weight:700;">Three Pillars of Our Program</h2>
+      <div class="pillars-grid">
+        <div class="pillar"><h3>Hebrew Reading</h3><p>Step-by-step Hebrew literacy at every child's own pace.</p></div>
+        <div class="pillar"><h3>Holidays &amp; Values</h3><p>Hands-on learning about the Jewish calendar and its meaning.</p></div>
+        <div class="pillar"><h3>Community &amp; Friendship</h3><p>A nurturing space where every child feels they belong.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing">
+    <div class="wrap">
+      <div class="eyebrow">Tuition</div>
+      <h2 style="font-size:clamp(2rem,3.5vw,2.8rem);color:var(--navy);font-weight:700;">Investing in Jewish Education</h2>
+      <div class="pricing-grid">
+        <div class="price-card">
+          <h3>Standard Tuition</h3>
+          <div class="price-amount">$1,100<span> / year</span></div>
+          <ul>
+            <li>Full school year of classes</li>
+            <li>Materials &amp; supplies included</li>
+          </ul>
+        </div>
+        <div class="price-card member">
+          <h3>Chai Partner Tuition</h3>
+          <div class="price-amount">$1,000<span> / year</span></div>
+          <ul>
+            <li>Full school year of classes</li>
+            <li>Materials &amp; supplies included</li>
+          </ul>
+        </div>
+      </div>
+      <div class="pricing-note">Sibling discount: 2nd child receives $50 off, 3rd and additional children receive $75 off each.</div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap" style="text-align:center;">
+      <h2>Ready to register?</h2>
+      <p>Registration takes just a few minutes.</p>
+      <div style="margin-top:28px;">
+        <a class="btn gold" href="hebrew-adventure-registration.html">Begin Registration</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+/**
+ * Central registry of auto-emails for every public form submission.
+ *
+ * When adding a new form:
+ * 1. Add a template in src/lib/email/
+ * 2. Register it in SUBMISSION_EMAILS below
+ * 3. Call the send function from the form's server action (after save succeeds)
+ *
+ * Requires RESEND_API_KEY + RESEND_FROM_EMAIL on Vercel (see .env.example).
+ */
+
+export { sendContactEmails } from './contact';
+export { sendRsvpConfirmationEmail } from './rsvp-confirmation';
+export { sendDonationTaxReceiptEmail, sendDonationReceiptEmailFromRecord } from './donation-receipt';
+export { sendChaiPartnerWelcomeEmail } from './chai-partner-welcome';
+export { sendRegistrationReceivedEmail } from './registration-received';
+export { sendRegistrationAcceptedEmail } from './registration-accepted';
+export { sendSeniorHomePermissionEmails } from './senior-home-permission';
+export { sendLulavOrderEmails } from './lulav-order';
+
+/** Every user-facing submission and its confirmation email. */
+export const SUBMISSION_EMAILS = {
+  contact: {
+    description: 'Contact form — user thank-you + admin notification',
+    handler: 'sendContactEmails',
+    trigger: 'src/app/contact/actions.ts → submitContactForm',
+  },
+  rsvp: {
+    description: 'Event RSVP — attendee confirmation + admin notification',
+    handler: 'sendRsvpConfirmationEmail',
+    trigger: 'src/app/rsvp/[slug]/actions.ts → submitRsvp',
+  },
+  senior_home_permission: {
+    description: 'Achim senior home visit permission — parent confirmation + admin notification',
+    handler: 'sendSeniorHomePermissionEmails',
+    trigger: 'src/app/achim/senior-home-permission/actions.ts → submitSeniorHomePermission',
+  },
+  lulav_order: {
+    description: 'Lulav & Etrog order — confirmation or pending Zelle instructions + admin',
+    handler: 'sendLulavOrderEmails',
+    trigger: 'src/app/lulav/actions.ts → submitLulavOrder',
+  },
+  donation_one_time: {
+    description: 'One-time donation — tax receipt email + admin notification',
+    handler: 'sendDonationReceiptEmailFromRecord + sendDonationAdminNotification',
+    trigger: 'src/app/donate/actions.ts → recordDonation; webhook backup',
+  },
+  donation_monthly_start: {
+    description: 'Monthly donation signup — thank-you + receipt + admin notification',
+    handler: 'sendDonationReceiptEmailFromRecord + sendDonationAdminNotification',
+    trigger: 'src/app/donate/actions.ts → recordDonation; invoice.payment_succeeded webhook',
+  },
+  donation_monthly_renewal: {
+    description: 'Recurring monthly donation charge — tax receipt',
+    handler: 'sendDonationReceiptEmailFromRecord',
+    trigger: 'src/app/api/webhooks/stripe/route.ts → invoice.payment_succeeded',
+  },
+  chai_partner: {
+    description: 'Chai Partner signup — welcome + access code + admin notification',
+    handler: 'sendChaiPartnerWelcomeEmail',
+    trigger:
+      'src/app/chai-partner/actions.ts → confirmChaiPartnerPayment; src/app/api/webhooks/zeffy → recordZeffyChaiPartnerPayment',
+  },
+  hebrew_adventure_registration: {
+    description: 'Hebrew Adventure registration submitted — pending review confirmation',
+    handler: 'sendRegistrationReceivedEmail',
+    trigger: 'src/app/hebrew-adventure/register/actions.ts → submitHebrewSchoolRegistration',
+  },
+  achim_registration: {
+    description: 'Achim registration submitted — pending review confirmation',
+    handler: 'sendRegistrationReceivedEmail',
+    trigger: 'src/app/achim/register/actions.ts → submitAchimRegistration',
+  },
+  bloom_registration: {
+    description: 'Bloom registration submitted — pending review confirmation',
+    handler: 'sendRegistrationReceivedEmail',
+    trigger: 'src/app/bloom/register/actions.ts → submitBloomRegistration',
+  },
+  hebrew_adventure_accepted: {
+    description: 'Hebrew Adventure accepted — charge confirmation + schedule',
+    handler: 'sendRegistrationAcceptedEmail',
+    trigger: 'src/app/admin/registrations/actions.ts → acceptRegistration',
+  },
+} as const;
+
+export type SubmissionEmailType = keyof typeof SUBMISSION_EMAILS;

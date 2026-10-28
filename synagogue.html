@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Synagogue – Shabbat at HaBayit</title>
+<meta name="description" content="Join HaBayit for Shabbat — Friday evening L'chaim and Kabbalat Shabbat, Saturday morning Shacharit, children's program, and Kiddush lunch." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .hero{min-height:62vh;}
+
+  .schedule{background:var(--white);}
+  .schedule-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:44px;}
+  .schedule-card{background:var(--cream);border:1px solid var(--line);padding:36px;border-radius:var(--radius);min-height:300px;}
+  .schedule-card h3{font-size:1.9rem;color:var(--navy);margin-bottom:22px;font-weight:700;}
+  .flow{display:grid;gap:16px;}
+  .flow-item{border-left:3px solid var(--gold);padding-left:18px;}
+  .flow-item strong{display:block;color:var(--navy);font-size:1.02rem;margin-bottom:3px;}
+  .flow-item span{color:var(--muted);font-size:.9rem;}
+
+  .expect{background:var(--cream);}
+  .expect-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;margin-top:46px;}
+  .expect-item{padding-top:20px;border-top:2px solid var(--gold);}
+  .expect-item h3{font-size:1.55rem;color:var(--navy);margin-bottom:8px;font-weight:700;}
+  .expect-item p{color:var(--muted);font-size:.92rem;}
+
+  .this-week{background:var(--navy);color:var(--white);}
+  .this-week h2{color:var(--white);}
+  .this-week .eyebrow{color:#d9b85f;}
+  .week-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:36px;}
+  .week-card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:28px;border-radius:var(--radius);}
+  .week-card h3{font-size:1.65rem;margin-bottom:8px;color:var(--white);font-weight:700;}
+  .week-card p{color:rgba(255,255,255,.7);}
+
+  .visit{background:var(--white);text-align:center;}
+  .contact-row{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:32px;}
+  .contact-pill{background:var(--white);border:1px solid var(--line);padding:15px 22px;color:var(--navy);font-weight:600;border-radius:999px;transition:all .2s;}
+  .contact-pill:hover{border-color:var(--gold);color:var(--gold);}
+
+  @media(max-width:900px){
+    .schedule-grid,.week-grid{grid-template-columns:1fr;}
+    .expect-grid{grid-template-columns:1fr 1fr;}
+  }
+  @media(max-width:600px){
+    .expect-grid{grid-template-columns:1fr;}
+    .schedule-card{padding:26px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words"><div class="heb">הבית</div><div class="jc">Jewish Center</div></div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item">
+      <a href="donate.html" class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="kicker">Synagogue</div>
+      <h1>Shabbat &amp; Community</h1>
+      <p>A welcoming place to pray, connect, celebrate, and grow together.</p>
+    </div>
+    <div class="photo-note">Photo coming soon</div>
+  </section>
+
+  <section class="narrow" style="padding-top:88px;padding-bottom:0;">
+    <div class="eyebrow" style="justify-content:center;display:flex;">Welcome Home</div>
+    <h2 style="font-size:clamp(2.1rem,3.6vw,3rem);color:var(--navy);font-weight:700;margin-bottom:20px;">Come as you are.</h2>
+    <p class="lead">Whether you're joining us for the first time or looking for a place to pray each week, you'll find a warm, welcoming community where everyone feels at home.</p>
+  </section>
+
+  <section class="schedule">
+    <div class="wrap">
+      <div class="eyebrow">Weekly Rhythm</div>
+      <h2 style="font-size:clamp(2.1rem,3.6vw,3rem);color:var(--navy);font-weight:700;">Shabbat at HaBayit</h2>
+      <div class="schedule-grid">
+        <article class="schedule-card">
+          <h3>Friday Evenings</h3>
+          <div class="flow">
+            <div class="flow-item">
+              <strong>L'chaim &amp; Refreshments</strong>
+              <span>A chance to unwind, connect, and welcome Shabbat together.</span>
+            </div>
+            <div class="flow-item">
+              <strong>Kabbalat Shabbat</strong>
+              <span>6:30 PM — a warm and uplifting Friday night service, with a children's program.</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="schedule-card">
+          <h3>Shabbat Morning</h3>
+          <div class="flow">
+            <div class="flow-item">
+              <strong>Shacharit</strong>
+              <span>9:30 AM — traditional Shabbat morning prayer in a welcoming atmosphere, with a children's program.</span>
+            </div>
+            <div class="flow-item">
+              <strong>Kiddush Lunch</strong>
+              <span>Stay after services for food, friendship, and community.</span>
+            </div>
+            <div class="flow-item">
+              <strong>Mincha &amp; Pirkei Avot</strong>
+              <span>7:30 PM — afternoon service together with a study session in timeless ethical teachings.</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="expect">
+    <div class="wrap">
+      <div class="eyebrow">What to Expect</div>
+      <h2 style="font-size:clamp(2.1rem,3.6vw,3rem);color:var(--navy);font-weight:700;">Warm, meaningful, and easy to join.</h2>
+      <div class="expect-grid">
+        <div class="expect-item"><h3>Warm Community</h3><p>Everyone is welcomed with care, respect, and genuine friendship.</p></div>
+        <div class="expect-item"><h3>Meaningful Prayer</h3><p>Traditional services in an atmosphere that feels comfortable and personal.</p></div>
+        <div class="expect-item"><h3>Families</h3><p>Children and families are a natural part of the HaBayit experience.</p></div>
+        <div class="expect-item"><h3>Shared Meals</h3><p>Refreshments, Kiddush, and time together are part of what makes it feel like home.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="this-week">
+    <div class="wrap">
+      <div class="eyebrow">This Week</div>
+      <h2 style="font-weight:700;">Join us this Shabbat.</h2>
+      <div class="week-grid">
+        <div class="week-card"><h3>Friday Evening</h3><p>L'chaim &amp; refreshments at 6:30 PM, followed by Kabbalat Shabbat.</p></div>
+        <div class="week-card"><h3>Shabbat Morning</h3><p>Shacharit at 9:30 AM, children's program, and Kiddush lunch.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="visit">
+    <div class="narrow">
+      <div class="eyebrow" style="justify-content:center;display:flex;">Visit HaBayit</div>
+      <h2 style="font-size:clamp(2.1rem,3.6vw,3rem);color:var(--navy);font-weight:700;">We'd love to welcome you.</h2>
+      <p class="lead">Have a question before you come? Reach out anytime.</p>
+      <div class="contact-row">
+        <a class="contact-pill" href="tel:6464621138">Call</a>
+        <a class="contact-pill" href="mailto:info@habayitcc.org">Email</a>
+        <a class="contact-pill" href="contact.html">Address</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

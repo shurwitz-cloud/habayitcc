@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HaBayit Jewish Center – Cooper City, FL</title>
+<meta name="description" content="A warm Jewish home with an Israeli spirit. HaBayit Hebrew Adventure, Bar & Bat Mitzvah programs, Shabbat services, and a community where everyone belongs." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Page-specific styles */
+  .hero{min-height:78vh;}
+  .hero h1{font-weight:600;}
+
+  .explore{background:var(--white);}
+  .tile{display:grid;grid-template-columns:1.2fr .9fr;min-height:380px;background:var(--soft);margin-bottom:24px;overflow:hidden;border-radius:var(--radius);position:relative;transition:transform .25s ease, box-shadow .25s ease;}
+  .tile:hover{transform:translateY(-3px);box-shadow:0 20px 50px rgba(23,38,67,.11);}
+  .tile.reverse{grid-template-columns:.9fr 1.2fr;}
+  .tile.reverse .tile-img{order:2;}
+  .tile-img{border-radius:0;min-height:100%;}
+  .tile-body{padding:50px;display:flex;flex-direction:column;justify-content:center;}
+  .tile-kicker{font-size:.74rem;text-transform:uppercase;letter-spacing:.16em;color:var(--gold);font-weight:700;margin-bottom:14px;}
+  .tile h3{font-size:clamp(1.9rem,3vw,2.7rem);line-height:1.08;color:var(--navy);font-weight:700;margin-bottom:16px;}
+  .tile p{color:var(--muted);font-size:1rem;max-width:420px;}
+  .tile .arrow{font-size:1.6rem;color:var(--gold);margin-top:22px;transition:transform .2s;}
+  .tile:hover .arrow{transform:translateX(8px);}
+
+  .split{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;margin-bottom:24px;}
+  .small-tile{
+    min-height:300px;display:flex;align-items:flex-end;padding:36px;color:var(--white);
+    position:relative;overflow:hidden;border-radius:var(--radius);transition:transform .25s ease;
+    background:linear-gradient(rgba(23,38,67,.4),rgba(23,38,67,.55)),linear-gradient(135deg,#b6bfc6,#d8c59a);
+  }
+  .small-tile.chai-tile{
+    background:linear-gradient(135deg, var(--navy) 0%, #2a3d6b 100%);
+  }
+  .small-tile:hover{transform:translateY(-3px);}
+  .small-tile h3{font-size:2.3rem;line-height:1.05;font-weight:700;}
+  .small-tile p{margin-top:8px;color:rgba(255,255,255,.85);font-size:.92rem;}
+
+  .statement{background:var(--cream);text-align:center;}
+  .statement h2{font-size:clamp(2.3rem,4.5vw,4rem);color:var(--navy);font-weight:700;line-height:1.06;}
+  .statement h2 span{display:block;color:var(--gold);font-style:italic;}
+  .statement .text-link{margin-top:28px;display:inline-block;}
+
+  .events{background:var(--white);}
+  .events-row{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .event{padding:32px 30px;border-right:1px solid var(--line);transition:background .2s;}
+  .event:last-child{border-right:0;}
+  .event:hover{background:var(--soft);}
+  .event .date{font-size:.74rem;text-transform:uppercase;letter-spacing:.14em;color:var(--gold);font-weight:700;margin-bottom:16px;}
+  .event h3{font-size:1.65rem;color:var(--navy);font-weight:700;}
+  .event p{margin-top:10px;color:var(--muted);font-size:.92rem;}
+  .view-all{text-align:center;margin-top:30px;}
+
+  .welcome-strip{background:var(--navy);color:var(--white);text-align:center;}
+  .welcome-strip h2{font-size:clamp(2rem,3.6vw,3.2rem);font-weight:700;}
+  .welcome-strip p{margin-top:10px;color:rgba(255,255,255,.7);}
+  .contact-line{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-top:26px;font-size:.92rem;}
+  .contact-line a{border-bottom:1px solid rgba(184,144,42,.8);padding-bottom:3px;}
+
+  @media(max-width:900px){
+    .tile,.tile.reverse{grid-template-columns:1fr;}
+    .tile.reverse .tile-img{order:0;}
+    .tile-img{min-height:220px;}
+    .tile-body{padding:32px;}
+    .split{grid-template-columns:1fr;}
+  .events-row{grid-template-columns:1fr;}
+    .event{border-right:0;border-bottom:1px solid var(--line);}
+    .event:last-child{border-bottom:0;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/logos/habayit-logo-blue.png" alt="HaBayit logo">
+    <div class="brand-words">
+      <div class="heb">הבית</div>
+      <div class="jc">Jewish Center</div>
+    </div>
+  </a>
+  <nav class="main-nav">
+    <div class="nav-item"><a href="index.html">Home</a></div>
+    <div class="nav-item"><a href="about.html">About</a></div>
+    <div class="nav-item">
+      <button class="nav-trigger">Programs <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div class="dropdown">
+        <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+        <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+      </div>
+    </div>
+    <div class="nav-item"><a href="synagogue.html">Synagogue</a></div>
+    <div class="nav-item"><a href="events.html">Events</a></div>
+    <div class="nav-item"><a href="contact.html">Contact</a></div>
+    <div class="nav-item">
+      <a href="donate.html" class="nav-trigger">Donate <svg viewBox="0 0 12 8" fill="none"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <div class="dropdown">
+        <a href="donate.html">Make a Donation</a>
+        <a href="chai-partner.html">Become a Chai Partner</a>
+      </div>
+    </div>
+  </nav>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="index.html">Home</a>
+  <a href="about.html">About</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSub')">Programs ▾</button>
+  <div class="mobile-sub" id="mobileSub">
+    <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+    <a href="bar-bat-mitzvah.html">Bar &amp; Bat Mitzvah</a>
+  </div>
+  <a href="synagogue.html">Synagogue</a>
+  <a href="events.html">Events</a>
+  <a href="contact.html">Contact</a>
+  <button class="m-trigger" onclick="toggleMobileSub('mobileSubDonate')">Donate ▾</button>
+  <div class="mobile-sub" id="mobileSubDonate">
+    <a href="donate.html">Make a Donation</a>
+    <a href="chai-partner.html">Become a Chai Partner</a>
+  </div>
+</div>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <h1>Welcome to HaBayit</h1>
+      <p>A warm Jewish home with an Israeli spirit</p>
+    </div>
+    <div class="photo-note">Hero photo coming soon</div>
+  </section>
+
+  <section class="explore">
+    <div class="wrap">
+      <div class="section-title">
+        <h2>Explore HaBayit</h2>
+        <p>Whether you're looking for HaBayit Hebrew Adventure, preparing for a Bar or Bat Mitzvah, joining us for Shabbat, or simply searching for community, there's a place for you here.</p>
+      </div>
+
+      <a class="tile" href="hebrew-adventure.html">
+        <div class="photo-box tile-img"></div>
+        <div class="tile-body">
+          <div class="tile-kicker">For Children &amp; Families</div>
+          <h3>HaBayit Hebrew Adventure</h3>
+          <p>Joyful Jewish learning where children build skills, confidence, identity, and a love for being Jewish.</p>
+          <div class="arrow">→</div>
+        </div>
+      </a>
+
+      <div class="split">
+        <a class="small-tile" href="bar-mitzvah.html"><div><h3>Bar Mitzvah</h3><p>Meaningful preparation for boys entering Jewish adulthood.</p></div></a>
+        <a class="small-tile" href="bat-mitzvah.html"><div><h3>Bat Mitzvah</h3><p>A warm and inspiring experience for girls celebrating this milestone.</p></div></a>
+        <a class="small-tile chai-tile" href="chai-partner.html"><div><h3>Chai Partner</h3><p>Help sustain HaBayit through monthly partnership and become part of building our community.</p></div></a>
+      </div>
+
+      <a class="tile reverse" href="synagogue.html">
+        <div class="photo-box tile-img"></div>
+        <div class="tile-body">
+          <div class="tile-kicker">Shabbat • Holidays • Events</div>
+          <h3>Synagogue &amp; Community</h3>
+          <p>Join us for meaningful Jewish life, family programs, holiday celebrations, learning, and community connection.</p>
+          <div class="arrow">→</div>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <section class="statement">
+    <div class="wrap">
+      <h2>More than a community.<span>A home.</span></h2>
+      <a href="about.html" class="text-link">Learn About HaBayit</a>
+    </div>
+  </section>
+
+  <section class="events">
+    <div class="wrap">
+      <div class="section-title">
+        <h2>Upcoming at HaBayit</h2>
+      </div>
+      <div class="events-row">
+        <a class="event" href="events.html"><div class="date">Coming Soon</div><h3>HaBayit Hebrew Adventure Meet & Greet</h3><p>Meet the team and learn about the year ahead.</p></a>
+        <a class="event" href="synagogue.html"><div class="date">Weekly</div><h3>Shabbat at HaBayit</h3><p>Join us for tefillah, kiddush, learning, and community.</p></a>
+        <a class="event" href="events.html"><div class="date">Community</div><h3>Holiday Programs</h3><p>Warm, family-friendly celebrations throughout the year.</p></a>
+      </div>
+      <div class="view-all"><a href="events.html" class="text-link">View All Events</a></div>
+    </div>
+  </section>
+
+  <section class="welcome-strip">
+    <div class="wrap">
+      <h2>We'd love to welcome you.</h2>
+      <p>Have a question, want to visit, or looking for the right program for your family?</p>
+      <div class="contact-line">
+        <a href="contact.html">Visit</a>
+        <a href="tel:6464621138">Call</a>
+        <a href="mailto:info@habayitcc.org">Email</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <img src="assets/logos/habayit-logo-white.png" alt="HaBayit">
+      <p>A warm Jewish home in Cooper City with an Israeli spirit.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="about.html">About</a>
+      <a href="synagogue.html">Synagogue</a>
+      <a href="events.html">Events</a>
+      <a href="gallery.html">Gallery</a>
+    </div>
+    <div class="footer-col">
+      <h4>Programs</h4>
+      <a href="hebrew-adventure.html">HaBayit Hebrew Adventure</a>
+      <a href="bar-mitzvah.html">Bar Mitzvah</a>
+      <a href="bat-mitzvah.html">Bat Mitzvah</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a href="tel:6464621138">(646) 462-1138</a>
+      <a href="mailto:info@habayitcc.org">info@habayitcc.org</a>
+      <a href="contact.html">Cooper City, FL</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 HaBayit Jewish Center</span>
+    <span>501(c)(3) Nonprofit Organization</span>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

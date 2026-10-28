@@ -1,0 +1,13 @@
+name: privacy-gate
+on:
+  push:
+  pull_request:
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan all commits this push publishes
+        run: bash scripts/prepush-privacy-gate.sh HEAD origin

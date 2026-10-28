@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ContactSuggestInput } from '@/components/admin/ContactSuggestInput';
+import type { CrmPersonSuggestion } from '@/lib/admin/crm/person-suggestions';
 
 const METHODS = [
   'Zelle',
@@ -36,10 +38,27 @@ const empty = {
   spousePhone: '',
 };
 
+export type ManualEntryPrefill = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string | null;
+  kind?: EntryKind;
+};
+
 export function ManualEntryForm({
   defaultKind = 'one_time',
+  people = [],
+  prefill = null,
+  prefillKey = null,
+  onPrefillConsumed,
 }: {
   defaultKind?: EntryKind;
+  people?: CrmPersonSuggestion[];
+  prefill?: ManualEntryPrefill | null;
+  /** Changing this opens the form and applies `prefill` (e.g. from a contact). */
+  prefillKey?: number | null;
+  onPrefillConsumed?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -54,6 +73,7 @@ export function ManualEntryForm({
   const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [linkedContactLabel, setLinkedContactLabel] = useState<string | null>(null);
 
   const amountNumber = Number(form.amount);
   const effectiveMonths = paidUpfront ? 12 : coverageMonths;
@@ -65,8 +85,45 @@ export function ManualEntryForm({
       ? Math.round((amountNumber / effectiveMonths) * 100) / 100
       : null;
 
+  useEffect(() => {
+    if (prefillKey == null) return;
+    setOpen(true);
+    if (prefill) {
+      setKind(prefill.kind ?? defaultKind);
+      setForm((prev) => ({
+        ...prev,
+        firstName: prefill.firstName?.trim() || prev.firstName,
+        lastName: prefill.lastName?.trim() || prev.lastName,
+        email: prefill.email?.trim() || prev.email,
+        phone: (prefill.phone ?? prev.phone)?.toString() || prev.phone,
+      }));
+      const name = [prefill.firstName, prefill.lastName].filter(Boolean).join(' ');
+      setLinkedContactLabel(name || prefill.email || 'Selected contact');
+    }
+    setStatus('idle');
+    setMessage('');
+    setReceiptUrl(null);
+    onPrefillConsumed?.();
+    // Parent bumps prefillKey for each "add from contact" action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey]);
+
   function setField(key: keyof typeof empty, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (key === 'firstName' || key === 'lastName' || key === 'email' || key === 'phone') {
+      setLinkedContactLabel(null);
+    }
+  }
+
+  function applyPerson(person: CrmPersonSuggestion) {
+    setForm((prev) => ({
+      ...prev,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: person.email,
+      phone: person.phone || prev.phone,
+    }));
+    setLinkedContactLabel(`${person.firstName} ${person.lastName}`);
   }
 
   function onMethodChange(m: PaymentMethod) {
@@ -188,6 +245,7 @@ export function ManualEntryForm({
       setIncludeSpouse(false);
       setPaidUpfront(false);
       setCoverageMonths(1);
+      setLinkedContactLabel(null);
       router.refresh();
     } catch {
       setStatus('error');
@@ -202,6 +260,7 @@ export function ManualEntryForm({
           <p className="text-sm font-semibold text-[#172643]">Manual entry</p>
           <p className="text-sm text-[#6f6a60] mt-0.5">
             Record a gift that came in outside the website (Zelle, Zeffy, cash, check, etc.).
+            Start typing a name to pick an existing contact.
           </p>
         </div>
         <button
@@ -220,6 +279,15 @@ export function ManualEntryForm({
 
       {open && (
         <form onSubmit={submit} className="mt-4 space-y-4 border-t border-[#e4ded2] pt-4">
+          {linkedContactLabel ? (
+            <p className="rounded border border-[#e4ded2] bg-[#faf8f4] px-3 py-2 text-sm text-[#172643]">
+              Using contact: <strong>{linkedContactLabel}</strong>
+              {form.email ? (
+                <span className="text-[#6f6a60]"> · {form.email}</span>
+              ) : null}
+            </p>
+          ) : null}
+
           <div>
             <p className="mb-2 text-sm font-medium text-[#172643]">Type</p>
             <div className="flex flex-wrap gap-4 text-sm">
@@ -319,13 +387,32 @@ export function ManualEntryForm({
               <div className="hidden sm:block" />
             )}
 
-            <Field label="First name" value={form.firstName} onChange={(v) => setField('firstName', v)} required />
-            <Field label="Last name" value={form.lastName} onChange={(v) => setField('lastName', v)} required />
-            <Field
+            <ContactSuggestInput
+              label="First name"
+              people={people}
+              value={form.firstName}
+              onChange={(v) => setField('firstName', v)}
+              onSelect={applyPerson}
+              matchContext={`${form.lastName} ${form.email}`}
+              required
+            />
+            <ContactSuggestInput
+              label="Last name"
+              people={people}
+              value={form.lastName}
+              onChange={(v) => setField('lastName', v)}
+              onSelect={applyPerson}
+              matchContext={`${form.firstName} ${form.email}`}
+              required
+            />
+            <ContactSuggestInput
               label="Email"
               type="email"
+              people={people}
               value={form.email}
               onChange={(v) => setField('email', v)}
+              onSelect={applyPerson}
+              matchContext={`${form.firstName} ${form.lastName}`}
               required
               className="sm:col-span-2"
             />
@@ -428,10 +515,22 @@ export function ManualEntryForm({
 
             {includeSpouse ? (
               <div className="grid gap-3 sm:grid-cols-2 border-t border-[#e4ded2] pt-3">
-                <Field
+                <ContactSuggestInput
                   label="Spouse first name"
+                  people={people}
                   value={form.spouseFirstName}
                   onChange={(v) => setField('spouseFirstName', v)}
+                  onSelect={(person) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      spouseFirstName: person.firstName,
+                      spouseLastName:
+                        person.lastName !== prev.lastName ? person.lastName : prev.spouseLastName,
+                      spouseEmail: person.email,
+                      spousePhone: person.phone || prev.spousePhone,
+                    }));
+                  }}
+                  matchContext={`${form.spouseLastName} ${form.spouseEmail}`}
                   required
                 />
                 <Field
@@ -440,11 +539,23 @@ export function ManualEntryForm({
                   onChange={(v) => setField('spouseLastName', v)}
                   placeholder="Leave blank if same last name"
                 />
-                <Field
+                <ContactSuggestInput
                   label="Spouse email"
                   type="email"
+                  people={people}
                   value={form.spouseEmail}
                   onChange={(v) => setField('spouseEmail', v)}
+                  onSelect={(person) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      spouseFirstName: person.firstName || prev.spouseFirstName,
+                      spouseLastName:
+                        person.lastName !== prev.lastName ? person.lastName : prev.spouseLastName,
+                      spouseEmail: person.email,
+                      spousePhone: person.phone || prev.spousePhone,
+                    }));
+                  }}
+                  matchContext={`${form.spouseFirstName} ${form.spouseLastName}`}
                 />
                 <Field
                   label="Spouse phone"

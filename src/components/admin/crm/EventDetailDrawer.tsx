@@ -1,11 +1,16 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { CrmEventRecord, CrmRsvpRecord } from '@/lib/admin/crm/types';
 import {
   parseEventMoney,
   parseEventPeople,
 } from '@/lib/admin/crm/event-registration-stats';
 import { formatDateTime, formatUsd } from '@/lib/admin/crm/utils';
+import { getPaidEvent } from '@/lib/events/paid-events';
+import { addOfflineEventRegistration } from '@/app/admin/crm/actions';
+import type { OfflineEventPaymentMethod } from '@/lib/events/record-offline-registration';
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -56,6 +61,9 @@ function peopleLine(r: CrmRsvpRecord, peopleMode: CrmEventRecord['peopleMode']):
     const kids = people.kids ?? people.guests;
     return `${kids} kid${kids === 1 ? '' : 's'}`;
   }
+  if (peopleMode === 'couples') {
+    return `${people.guests} couple${people.guests === 1 ? '' : 's'}`;
+  }
   return `${people.guests} ${people.guests === 1 ? 'person' : 'people'}`;
 }
 
@@ -72,13 +80,24 @@ function moneyLine(r: CrmRsvpRecord): string | null {
 export function EventDetailDrawer({
   event,
   onClose,
+  canManageMoney = false,
 }: {
   event: CrmEventRecord;
   onClose: () => void;
+  canManageMoney?: boolean;
 }) {
   const peopleMode = event.peopleMode ?? 'people';
   const showAdults = peopleMode === 'adults_kids';
   const showKids = peopleMode === 'adults_kids' || peopleMode === 'kids';
+  const paidEvent = event.slug ? getPaidEvent(event.slug) : undefined;
+  const defaultAmount =
+    paidEvent?.type === 'womens'
+      ? '36'
+      : paidEvent?.type === 'dinner' || paidEvent?.type === 'couples'
+        ? '55'
+        : paidEvent?.type === 'celebration'
+          ? '0'
+          : '12';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -168,6 +187,13 @@ export function EventDetailDrawer({
           </SectionCard>
 
           <SectionCard title={`Submissions (${event.rsvpCount}) · newest first`}>
+            {canManageMoney && paidEvent && event.slug ? (
+              <AddOfflineAttendeeForm
+                slug={event.slug}
+                peopleMode={peopleMode}
+                defaultAmount={defaultAmount}
+              />
+            ) : null}
             {!event.rsvps.length ? (
               <p className="text-sm text-muted">No submissions yet.</p>
             ) : (
@@ -207,6 +233,157 @@ export function EventDetailDrawer({
           </SectionCard>
         </div>
       </aside>
+    </div>
+  );
+}
+
+const METHODS: OfflineEventPaymentMethod[] = ['Zelle', 'Cash', 'Check', 'Cash App', 'Other'];
+
+function AddOfflineAttendeeForm({
+  slug,
+  peopleMode,
+  defaultAmount,
+}: {
+  slug: string;
+  peopleMode: CrmEventRecord['peopleMode'];
+  defaultAmount: string;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [guestCount, setGuestCount] = useState('1');
+  const [amount, setAmount] = useState(defaultAmount);
+  const [paymentMethod, setPaymentMethod] = useState<OfflineEventPaymentMethod>('Zelle');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const peopleLabel =
+    peopleMode === 'kids'
+      ? 'Children'
+      : peopleMode === 'adults_kids'
+        ? 'Adults'
+        : peopleMode === 'couples'
+          ? 'Couples'
+          : 'People';
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('saving');
+    setMessage('');
+    const result = await addOfflineEventRegistration({
+      slug,
+      firstName,
+      lastName,
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      amount: Number(amount),
+      paymentMethod,
+      guestCount: Number(guestCount) || 1,
+    });
+    if (!result.success) {
+      setStatus('error');
+      setMessage(result.error || 'Could not add attendee.');
+      return;
+    }
+    setStatus('done');
+    setMessage(result.alreadyExisted ? 'Already on the list.' : 'Added to the list.');
+    setFirstName('');
+    setLastName('');
+    setEmail('');
+    setPhone('');
+    router.refresh();
+  }
+
+  return (
+    <div className="mb-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-sm font-semibold text-gold hover:text-navy"
+      >
+        {open ? 'Cancel' : '+ Add attendee (Zelle / cash / check)'}
+      </button>
+      {open && (
+        <form onSubmit={onSubmit} className="mt-3 grid grid-cols-2 gap-2 text-sm">
+          <input
+            required
+            placeholder="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="border border-line rounded-lg px-3 py-2"
+          />
+          <input
+            required
+            placeholder="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="border border-line rounded-lg px-3 py-2"
+          />
+          <input
+            type="email"
+            placeholder="Email (optional)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="border border-line rounded-lg px-3 py-2"
+          />
+          <input
+            placeholder="Phone (optional)"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="border border-line rounded-lg px-3 py-2"
+          />
+          <label className="col-span-1 text-[0.62rem] uppercase tracking-wider text-muted font-bold">
+            {peopleLabel}
+            <input
+              type="number"
+              min={1}
+              value={guestCount}
+              onChange={(e) => setGuestCount(e.target.value)}
+              className="mt-1 w-full border border-line rounded-lg px-3 py-2 text-sm font-normal text-navy normal-case tracking-normal"
+            />
+          </label>
+          <label className="col-span-1 text-[0.62rem] uppercase tracking-wider text-muted font-bold">
+            Amount
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="mt-1 w-full border border-line rounded-lg px-3 py-2 text-sm font-normal text-navy normal-case tracking-normal"
+            />
+          </label>
+          <label className="col-span-2 text-[0.62rem] uppercase tracking-wider text-muted font-bold">
+            Payment
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as OfflineEventPaymentMethod)}
+              className="mt-1 w-full border border-line rounded-lg px-3 py-2 text-sm font-normal text-navy normal-case tracking-normal"
+            >
+              {METHODS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={status === 'saving'}
+            className="col-span-2 bg-navy text-white rounded-lg py-2 font-semibold disabled:opacity-60"
+          >
+            {status === 'saving' ? 'Adding…' : 'Add to list'}
+          </button>
+          {message ? (
+            <p className={`col-span-2 text-xs ${status === 'error' ? 'text-red-700' : 'text-navy'}`}>
+              {message}
+            </p>
+          ) : null}
+        </form>
+      )}
     </div>
   );
 }

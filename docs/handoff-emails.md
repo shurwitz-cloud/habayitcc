@@ -26,6 +26,8 @@ Repo: `C:\GitHub\habayitcc` · Production: **https://www.habayitcc.org** (Vercel
 | `RESEND_FROM_EMAIL` | Verified sender, e.g. `info@habayitcc.org` |
 | `ADMIN_NOTIFICATION_EMAIL` | Where admin copies go (contact, RSVP, registrations, Chai Partner). Defaults to `RESEND_FROM_EMAIL` if unset |
 | `NEXT_PUBLIC_SITE_URL` | Links in emails (receipts, buttons). Should be `https://www.habayitcc.org` |
+| `OPENAI_API_KEY` | Optional — powers **Draft with AI** on admin compose (`POST /api/admin/email/draft`). Without it, compose still works; draft shows a setup error. |
+| `OPENAI_EMAIL_MODEL` | Optional — defaults to `gpt-4o-mini` |
 
 Set via Vercel dashboard or `npx vercel env ls`.
 
@@ -39,6 +41,7 @@ If `RESEND_API_KEY` is missing, `sendEmail()` logs a warning and returns `false`
 src/lib/email/
 ├── client.ts              ← Resend client, sendEmail(), buildEmailHtml(), shared header/footer shell
 ├── submissions.ts         ← Registry of all submission emails (SUBMISSION_EMAILS map)
+├── draft-with-ai.ts       ← OpenAI draft helper for admin compose (optional OPENAI_API_KEY)
 ├── contact.ts
 ├── rsvp-confirmation.ts
 ├── donation-receipt.ts

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition, type CSSProperties } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
+import type { AdminRole } from '@/lib/admin/roles';
 import { FocalImageLayer } from '@/components/site-images/FocalImageLayer';
 import type { SiteImage, SiteImageSlot, SiteImageSlotId, SiteImagesConfig } from '@/lib/site-images/types';
 import { IMAGE_SLOT_META } from '@/lib/site-images/slots';
@@ -44,7 +45,7 @@ export function PhotoAdminPanel({
 }: {
   initialConfig: SiteImagesConfig;
   defaults: SiteImagesConfig;
-  role?: 'admin' | 'volunteer';
+  role?: AdminRole;
 }) {
   const [selectedId, setSelectedId] = useState<SiteImageSlotId>('home.hero');
   const [config, setConfig] = useState(initialConfig);

@@ -52,7 +52,7 @@ export async function sendLulavOrderEmails(input: LulavOrderEmailInput): Promise
     </p>`
       : `
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
-      Thank you — your card payment was received and your Lulav &amp; Etrog order is confirmed.
+      Thank you — your payment was received and your Lulav &amp; Etrog order is confirmed.
     </p>`;
 
   const userHtml = buildEmailHtml(`
@@ -74,7 +74,7 @@ export async function sendLulavOrderEmails(input: LulavOrderEmailInput): Promise
       Phone: ${escapeHtml(input.phone)}<br>
       Quantity: ${input.pricing.quantity}<br>
       Payment: ${input.payMethod === 'card' ? 'Credit card' : 'Zelle'}<br>
-      Status: ${input.status === 'paid' ? 'Paid' : 'Pending Zelle'}<br>
+      Status: ${input.status === 'paid' ? 'Paid' : 'Not paid'}<br>
       Total: $${input.pricing.total.toFixed(2)}
     </p>
   `);

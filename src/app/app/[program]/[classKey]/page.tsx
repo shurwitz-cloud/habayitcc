@@ -21,7 +21,7 @@ export default async function ClassSessionPage({
   const classDef = program ? getAttendanceClass(program, classKey) : null;
   if (!program || !classDef) notFound();
 
-  const sessionDate = parseSessionDate(date);
+  const sessionDate = parseSessionDate(date, program.meetingWeekday);
   const snapshot = await getAttendanceSnapshot(program.slug);
   const prev = `/app/${program.slug}/${classDef.key}?date=${addDays(sessionDate, -7)}`;
   const next = `/app/${program.slug}/${classDef.key}?date=${addDays(sessionDate, 7)}`;
@@ -60,7 +60,7 @@ export default async function ClassSessionPage({
         backHref={`/app/${program.slug}`}
         backLabel={program.name}
         title={classDef.label}
-        subtitle={sessionDateLabel(sessionDate)}
+        subtitle={sessionDateLabel(sessionDate, program.meetingWeekday)}
       />
       <div className="px-4 pt-3 flex items-center justify-between gap-3">
         <Link href={prev} className="text-sm font-bold text-navy px-3 py-2 rounded-full bg-white border border-line">

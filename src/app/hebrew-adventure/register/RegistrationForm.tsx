@@ -18,7 +18,6 @@ import {
   HEBREW_ADVENTURE_MONTHLY_TUITION,
   HEBREW_ADVENTURE_SESSION_MONTHS,
   HEBREW_ADVENTURE_CARD_PROCESSING_RATE,
-  HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT,
   HEBREW_ADVENTURE_EARLY_BIRD_DISCOUNT,
   getHebrewAdventureBaseSessionTuition,
   getHebrewAdventureEarlyBirdDiscount,
@@ -57,7 +56,7 @@ const PAYMENT_PLAN_OPTIONS: {
   {
     value: 'full',
     title: 'Pay in full',
-    description: `Upon acceptance — $${HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT} off.`,
+    description: 'Charged upon acceptance.',
   },
   {
     value: 'two_installments',
@@ -576,7 +575,7 @@ export function RegistrationForm() {
               ${HEBREW_ADVENTURE_EARLY_BIRD_DISCOUNT} off when you register by August 7
             </p>
             <p className="text-muted text-[0.85rem] mt-1">
-              Applied automatically to each child — stacks with pay-in-full and sibling discounts.
+              Applied automatically to each child — stacks with sibling discounts.
             </p>
           </div>
         )}

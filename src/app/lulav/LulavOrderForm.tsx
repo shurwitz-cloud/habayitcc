@@ -28,15 +28,15 @@ const CARD_STYLE: StripeCardElementOptions = {
   hidePostalCode: true,
 };
 
-export function LulavOrderForm() {
+export function LulavOrderForm({ initialRemaining }: { initialRemaining: number }) {
   return (
     <Elements stripe={stripePromise}>
-      <LulavOrderFormInner />
+      <LulavOrderFormInner initialRemaining={initialRemaining} />
     </Elements>
   );
 }
 
-function LulavOrderFormInner() {
+function LulavOrderFormInner({ initialRemaining }: { initialRemaining: number }) {
   const stripe = useStripe();
   const elements = useElements();
 
@@ -45,14 +45,30 @@ function LulavOrderFormInner() {
   const [phone, setPhone] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [payMethod, setPayMethod] = useState<LulavPayMethod>('card');
+  const [coverFee, setCoverFee] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<'paid' | 'pending_zelle' | null>(null);
 
   const pricing = useMemo(
-    () => computeLulavPricing(quantity, payMethod, payMethod === 'card'),
-    [quantity, payMethod]
+    () => computeLulavPricing(quantity, payMethod, coverFee),
+    [quantity, payMethod, coverFee]
   );
+
+  if (initialRemaining <= 0) {
+    return (
+      <div className="rounded-2xl border border-line bg-soft px-5 py-5 text-center">
+        <p className="font-display text-[1.45rem] font-semibold text-navy">Currently sold out</p>
+        <p className="mt-2 text-[0.95rem] leading-relaxed text-muted">
+          Please contact Rabbi Shmuly at{' '}
+          <a href="tel:+16464621138" className="font-semibold text-navy underline">
+            646-462-1138
+          </a>
+          .
+        </p>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,7 +109,7 @@ function LulavOrderFormInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           quantity,
-          coverFee: true,
+          coverFee,
           fullName: fullName.trim(),
           email: email.trim(),
           phone: phone.trim(),
@@ -139,7 +155,7 @@ function LulavOrderFormInner() {
         phone,
         quantity,
         payMethod: 'card',
-        coverFee: true,
+        coverFee,
         paymentIntentId: paymentIntent.id,
       });
       if (!result.success) {
@@ -159,14 +175,14 @@ function LulavOrderFormInner() {
       <div className="text-center py-2">
         <h3 className="font-display text-[1.8rem] text-navy">Order confirmed</h3>
         <p className="mt-3 text-[1rem] leading-relaxed text-muted">
-          Thank you, {fullName.trim().split(/\s+/)[0]}! Your payment for{' '}
+          Thank you, {fullName.trim().split(/\s+/)[0]}. Your order for{' '}
           <strong className="text-navy">
             {quantity} Lulav &amp; Etrog set{quantity === 1 ? '' : 's'}
           </strong>{' '}
-          (${pricing.total.toFixed(2)}) was received.
+          is confirmed.
         </p>
         <p className="mt-4 text-[0.95rem] text-navy/80">
-          A confirmation was sent to <strong>{email.trim()}</strong>.
+          A receipt was sent to <strong>{email.trim()}</strong>.
         </p>
       </div>
     );
@@ -175,13 +191,9 @@ function LulavOrderFormInner() {
   if (done === 'pending_zelle') {
     return (
       <div className="text-center py-2">
-        <h3 className="font-display text-[1.8rem] text-navy">Almost there</h3>
+        <h3 className="font-display text-[1.8rem] text-navy">Order received</h3>
         <p className="mt-3 text-[1rem] leading-relaxed text-muted">
-          We received your order for{' '}
-          <strong className="text-navy">
-            {quantity} set{quantity === 1 ? '' : 's'}
-          </strong>
-          . Please complete payment by Zelle:
+          Complete your order by sending payment through Zelle:
         </p>
         <div className="mt-5 rounded-2xl border border-line bg-soft px-5 py-4 text-left text-[0.95rem] text-navy space-y-2">
           <p>
@@ -197,8 +209,8 @@ function LulavOrderFormInner() {
           </p>
         </div>
         <p className="mt-4 text-[0.92rem] text-muted">
-          Your order is confirmed after we receive the Zelle. We’ll email{' '}
-          <strong className="text-navy">{email.trim()}</strong> when it’s complete.
+          We’ll email <strong className="text-navy">{email.trim()}</strong> when your payment is
+          received.
         </p>
       </div>
     );
@@ -206,7 +218,7 @@ function LulavOrderFormInner() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <Field label="Full Name" required>
+      <Field label="Name" required>
         <input
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
@@ -239,7 +251,7 @@ function LulavOrderFormInner() {
         </Field>
       </div>
 
-      <Field label="Number of Lulav & Etrog sets" required>
+      <Field label="Quantity" required>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -252,20 +264,24 @@ function LulavOrderFormInner() {
           <input
             type="number"
             min={1}
-            max={50}
+            max={initialRemaining}
             value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+            onChange={(e) =>
+              setQuantity(
+                Math.max(1, Math.min(initialRemaining, Number(e.target.value) || 1))
+              )
+            }
             className="w-20 text-center"
           />
           <button
             type="button"
-            onClick={() => setQuantity((q) => Math.min(50, q + 1))}
+            onClick={() => setQuantity((q) => Math.min(initialRemaining, q + 1))}
             className="h-10 w-10 rounded-full border border-line text-navy font-bold"
             aria-label="Increase quantity"
           >
             +
           </button>
-          <span className="text-muted text-[0.9rem]">${LULAV_SET_PRICE} each</span>
+          <span className="text-muted text-[0.9rem]">${LULAV_SET_PRICE} per set</span>
         </div>
       </Field>
 
@@ -278,17 +294,27 @@ function LulavOrderFormInner() {
             Credit card
           </PayTab>
           <PayTab active={payMethod === 'zelle'} onClick={() => setPayMethod('zelle')}>
-            Zelle (no fee)
+            Zelle
           </PayTab>
         </div>
       </div>
 
       {payMethod === 'card' ? (
         <>
-          <p className="text-[0.88rem] text-muted">
-            Card orders include a 3% processing fee (${pricing.cardFee.toFixed(2)} on this order).
-            Choose Zelle for no fee.
-          </p>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={coverFee}
+              onChange={(e) => setCoverFee(e.target.checked)}
+              className="mt-1 h-4 w-4"
+            />
+            <span className="text-[0.9rem] text-navy">
+              Add 3% to help cover card fees
+              {coverFee && pricing.cardFee > 0 ? (
+                <span className="text-gold font-semibold"> (+${pricing.cardFee.toFixed(2)})</span>
+              ) : null}
+            </span>
+          </label>
           <Field label="Card details" required>
             <div className="border border-line rounded-xl px-4 py-3.5 bg-white">
               <CardElement options={CARD_STYLE} />
@@ -297,14 +323,13 @@ function LulavOrderFormInner() {
         </>
       ) : (
         <div className="rounded-2xl border border-line bg-soft/80 px-5 py-4 text-[0.92rem] text-navy space-y-2">
-          <p className="font-semibold">Pay by Zelle — no processing fee</p>
           <p>
-            After you submit, send <strong>${pricing.total.toFixed(2)}</strong> to{' '}
+            Send <strong>${pricing.total.toFixed(2)}</strong> to{' '}
             <strong>{LULAV_ZELLE_PHONE}</strong> ({LULAV_ZELLE_NAME}).
           </p>
           <p>
-            Put <strong>{LULAV_ZELLE_MEMO}</strong> in the memo. Your order is confirmed after we
-            receive the Zelle.
+            Memo: <strong>{LULAV_ZELLE_MEMO}</strong>. We’ll confirm your order when payment is
+            received.
           </p>
         </div>
       )}
@@ -318,7 +343,7 @@ function LulavOrderFormInner() {
         </div>
         {pricing.cardFee > 0 ? (
           <div className="mt-1.5 flex justify-between text-[0.9rem] text-muted">
-            <span>Card fee (3%)</span>
+            <span>Processing fee (3%)</span>
             <span>${pricing.cardFee.toFixed(2)}</span>
           </div>
         ) : null}
@@ -344,7 +369,7 @@ function LulavOrderFormInner() {
         {processing
           ? 'Processing…'
           : payMethod === 'zelle'
-            ? 'Submit Zelle Order'
+            ? 'Place Order'
             : `Pay $${pricing.total.toFixed(2)}`}
       </button>
     </form>

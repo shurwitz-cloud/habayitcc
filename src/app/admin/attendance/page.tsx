@@ -35,7 +35,7 @@ export default async function AdminAttendancePage({
           {!authed || !role ? (
             <AdminLoginForm
               title="Admin sign in"
-              description="Sign in to view Hebrew Adventure attendance."
+              description="Sign in to view class attendance."
               alternateLink={{ href: '/app', label: 'Open the attendance app' }}
             />
           ) : !roleHasCapability(role, 'attendance') ? (

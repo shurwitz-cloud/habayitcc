@@ -11,7 +11,6 @@ import {
   BMX_EARLY_BIRD_DEADLINE_LABEL,
   BMX_EARLY_BIRD_DISCOUNT,
   BMX_MONTHLY_TUITION,
-  BMX_PAY_IN_FULL_DISCOUNT,
   BMX_SESSION_MONTHS,
   isBmxEarlyBirdActive,
 } from '@/lib/programs/bmx-tuition';
@@ -157,8 +156,8 @@ export default function BarMitzvahPage() {
                 {BMX_EARLY_BIRD_DISCOUNT}.{' '}
               </>
             )}
-            Pay in full and save ${BMX_PAY_IN_FULL_DISCOUNT}. Or choose two payments (upon
-            acceptance and by November 1).
+            Pay in full upon acceptance, or choose two payments (upon acceptance and by November
+            1).
           </div>
         </Section>
 

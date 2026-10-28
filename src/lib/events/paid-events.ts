@@ -1,9 +1,16 @@
 export type PaidEventSlug =
   | 'rosh-hashana-dinner'
   | 'rosh-hashana-family-fair'
-  | 'pre-rosh-hashana-womens';
+  | 'pre-rosh-hashana-womens'
+  | 'simchat-torah'
+  | 'erev-zugot';
 
-export type PaidEventType = 'dinner' | 'family-fair' | 'womens';
+export type PaidEventType = 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples';
+
+export type PaidEventSponsorOption = {
+  amount: number;
+  label: string;
+};
 
 /**
  * CRM headcount display for this event (kept with the event definition so
@@ -11,8 +18,9 @@ export type PaidEventType = 'dinner' | 'family-fair' | 'womens';
  * - people: attendees only
  * - adults_kids: adults + kids + total
  * - kids: children + total
+ * - couples: couple tickets
  */
-export type PaidEventPeopleMode = 'people' | 'adults_kids' | 'kids';
+export type PaidEventPeopleMode = 'people' | 'adults_kids' | 'kids' | 'couples';
 
 export interface PaidEventConfig {
   slug: PaidEventSlug;
@@ -31,12 +39,22 @@ export interface PaidEventConfig {
   peopleMode: PaidEventPeopleMode;
   /** When true, HaBayit Hebrew Adventure kids can enter free with a unique HA- code (once per event). */
   hebrewKidsFreeWithCode?: boolean;
+  /** When true, HaBayit members can use a unique Chai Partner code once for a discounted first ticket. */
+  memberPriceWithCode?: boolean;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
+  /** Optional labels for donation/sponsor presets. */
+  sponsorOptions?: PaidEventSponsorOption[];
   /** Extra line under Become a Sponsor — dinner only. */
   sponsorNote?: string;
-  /** Env var name for this event's Google Sheet ID. */
-  sheetEnvVar: string;
+  /** Guest must pick a donation amount or “None at this time.” */
+  requireDonationChoice?: boolean;
+  /** Tab name in the shared events spreadsheet. */
+  sheetTab: string;
+  /** When true, public registration is closed. */
+  soldOut?: boolean;
+  /** Max public units (couples for couples events). Do not display remaining on the form. */
+  capacity?: number;
 }
 
 export const CARD_PROCESSING_RATE = 0.03;
@@ -58,7 +76,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     type: 'womens',
     peopleMode: 'people',
     sponsorPresets: [54, 72, 180, 360],
-    sheetEnvVar: 'GOOGLE_SHEETS_PRE_RH_WOMENS_ID',
+    sheetTab: 'Kintsugi - For Women',
   },
   {
     slug: 'rosh-hashana-family-fair',
@@ -77,7 +95,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     peopleMode: 'kids',
     hebrewKidsFreeWithCode: true,
     sponsorPresets: [54, 72, 180, 360],
-    sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_FAIR_ID',
+    sheetTab: 'Rosh Hashana Family Fair',
   },
   {
     slug: 'rosh-hashana-dinner',
@@ -95,9 +113,62 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     peopleMode: 'adults_kids',
     sponsorPresets: [54, 72, 180, 360, 1000],
     sponsorNote: 'Sponsorship makes this meal possible.',
-    sheetEnvVar: 'GOOGLE_SHEETS_ROSH_HASHANA_DINNER_ID',
+    sheetTab: 'Rosh Hashana Dinner',
+    soldOut: true,
+  },
+  {
+    slug: 'simchat-torah',
+    title: 'Simchat Torah Celebration',
+    program: 'Community',
+    month: 'Oct',
+    day: '3',
+    dateLabel: 'Shabbos, October 3rd',
+    time: '5:45 PM',
+    startsAt: '2026-10-03T17:45:00-04:00',
+    description:
+      'Kids activities at 5:45 PM, then hakafot and a family celebration at 6:30 PM — dinner, dancing, and a special hakafah in memory of those we lost on Simchat Torah 2023. Embassy Lakes Clubhouse.',
+    location: 'Embassy Lakes Clubhouse',
+    flyer: '/flyers/simchat-torah.jpg',
+    type: 'celebration',
+    peopleMode: 'adults_kids',
+    sponsorPresets: [54, 72, 100, 180, 360, 770, 1800],
+    sponsorOptions: [
+      { amount: 54, label: 'Contribution' },
+      { amount: 72, label: 'Family suggested donation' },
+      { amount: 100, label: 'Family suggested donation' },
+      { amount: 180, label: 'HaBayit Friend' },
+      { amount: 360, label: 'Flags & Swag Sponsor' },
+      { amount: 770, label: 'Co-sponsor' },
+      { amount: 1800, label: 'Event Co-sponsor' },
+    ],
+    sponsorNote: 'A donation helps cover dinner, kids activities, an open bar for adults, and hakafot.',
+    requireDonationChoice: true,
+    sheetTab: 'Simchat Torah',
+  },
+  {
+    slug: 'erev-zugot',
+    title: 'Erev Zugot',
+    program: 'Community',
+    month: 'Nov',
+    day: '19',
+    dateLabel: 'Thursday, November 19th',
+    time: '8:00 PM',
+    startsAt: '2026-11-19T20:00:00-05:00',
+    description:
+      'Two worlds, one conversation — Rabbi Daniel Shahino of Kehillat Rashbi and Eti Lissani, a couples and family therapist. An open evening on marriage, parenting, and family, with practical tools.',
+    location: 'Embassy Lakes Clubhouse',
+    flyer: '/flyers/erev-zugot.jpg',
+    type: 'couples',
+    peopleMode: 'couples',
+    memberPriceWithCode: true,
+    sponsorPresets: [54, 72, 180, 360],
+    sheetTab: 'Erev Zugot',
+    capacity: 22,
   },
 ];
+
+/** Shared events workbook — one tab per event. */
+const DEFAULT_EVENTS_SHEET_ID = '1U-bUkAuoGllTTlmZxMPK4ZE2FTyJI4FBaeqpkrgVqPI';
 
 export function getPaidEvent(slug: string): PaidEventConfig | undefined {
   return PAID_EVENTS.find((e) => e.slug === slug);
@@ -107,6 +178,28 @@ export function paidEventRegisterPath(slug: PaidEventSlug): string {
   return `/events/register/${slug}`;
 }
 
-export function getPaidEventSheetId(config: PaidEventConfig): string | undefined {
-  return process.env[config.sheetEnvVar];
+export function paidEventSharePath(event: PaidEventConfig): string {
+  if (event.slug === 'simchat-torah') return '/st';
+  if (event.slug === 'erev-zugot') return '/zugot';
+  return paidEventRegisterPath(event.slug);
+}
+
+export function getPaidEventSheetId(_config?: PaidEventConfig): string | undefined {
+  return process.env.GOOGLE_SHEETS_EVENTS_ID?.trim() || DEFAULT_EVENTS_SHEET_ID;
+}
+
+export function getPaidEventSheetTab(config: PaidEventConfig): string {
+  return config.sheetTab;
+}
+
+export function isPaidEventSoldOut(event: PaidEventConfig): boolean {
+  return event.soldOut === true;
+}
+
+export function eventUsesAdultsKids(event: PaidEventConfig): boolean {
+  return event.type === 'dinner' || event.type === 'celebration';
+}
+
+export function upcomingPaidEvents(now = new Date()): PaidEventConfig[] {
+  return PAID_EVENTS.filter((event) => new Date(event.startsAt).getTime() >= now.getTime());
 }

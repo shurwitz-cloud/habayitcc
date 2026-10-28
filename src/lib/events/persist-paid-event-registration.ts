@@ -2,19 +2,19 @@ import { logFormSubmission } from '@/lib/admin/form-log';
 import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
-import { appendPaidEventRow } from '@/lib/google/sheets';
 import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
 import {
   computePaidEventTotal,
+  type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import {
   getPaidEvent,
-  getPaidEventSheetId,
   type PaidEventConfig,
 } from '@/lib/events/paid-events';
+import { appendPaidEventToSheet } from '@/lib/events/paid-event-sheet';
 import { buildReceiptUrl } from '@/lib/donations/receipt-url';
 import { createAdminClient } from '@/lib/supabase/server';
 import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
@@ -32,6 +32,7 @@ export type PaidEventPersistInput = {
   dinner?: DinnerRegistrationData;
   fair?: FairRegistrationData;
   womens?: WomensRegistrationData;
+  couples?: CouplesRegistrationData;
   /** Skip confirmation email (e.g. when recovering duplicates). */
   skipEmail?: boolean;
   /** Skip Google Sheet append. */
@@ -52,10 +53,12 @@ function buildDetailsSummary(
   dinner?: DinnerRegistrationData,
   fair?: FairRegistrationData,
   womens?: WomensRegistrationData,
+  couples?: CouplesRegistrationData,
   fairLines?: ReturnType<typeof computePaidEventTotal>['fairChildLines'],
+  coupleLines?: ReturnType<typeof computePaidEventTotal>['coupleLines'],
 ): string {
-  if (event.type === 'dinner' && dinner) {
-    return `Adults: ${dinner.adults}\nChildren (12 & under): ${dinner.kids}`;
+  if ((event.type === 'dinner' || event.type === 'celebration') && dinner) {
+    return `Adults: ${dinner.adults}\nChildren: ${dinner.kids}`;
   }
   if (event.type === 'family-fair' && fair) {
     const lines =
@@ -67,6 +70,21 @@ function buildDetailsSummary(
   }
   if (event.type === 'womens' && womens) {
     return `Women attending: ${womens.women}`;
+  }
+  if (event.type === 'couples' && couples) {
+    const lines =
+      coupleLines?.map(
+        (l) =>
+          `Couple ${l.index}: $${l.price}${l.member ? ' — HaBayit member' : ''}`,
+      ) ?? [];
+    const code = couples.memberCode?.trim();
+    return [
+      `Couples: ${couples.couples}`,
+      ...lines,
+      code ? `Member code: ${code.toUpperCase()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
   return '';
 }
@@ -98,6 +116,7 @@ export async function persistPaidEventRegistration(
     dinner: input.dinner,
     fair: input.fair,
     womens: input.womens,
+    couples: input.couples,
     sponsorAmount: input.sponsorAmount,
     coverFee: input.coverFee,
   });
@@ -170,24 +189,38 @@ export async function persistPaidEventRegistration(
     input.dinner,
     input.fair,
     input.womens,
+    input.couples,
     pricing.fairChildLines,
+    pricing.coupleLines,
   );
 
   const guestCount =
-    event.type === 'dinner'
+    event.type === 'dinner' || event.type === 'celebration'
       ? (input.dinner?.adults ?? 0) + (input.dinner?.kids ?? 0)
       : event.type === 'family-fair'
         ? (input.fair?.children.length ?? 0)
-        : (input.womens?.women ?? 1);
+        : event.type === 'couples'
+          ? (input.couples?.couples ?? 1)
+          : (input.womens?.women ?? 1);
 
   const familyId = await findFamilyIdByEmail(email);
 
+  const dinnerDetails =
+    event.type === 'dinner' || event.type === 'celebration'
+      ? {
+          adults: Math.max(0, Number(input.dinner?.adults) || 0),
+          kids: Math.max(0, Number(input.dinner?.kids) || 0),
+        }
+      : input.dinner;
+
   const registrationDetails = {
     type: event.type,
-    dinner: input.dinner,
+    dinner: dinnerDetails,
     fair: input.fair,
     womens: input.womens,
+    couples: input.couples,
     fairChildLines: pricing.fairChildLines,
+    coupleLines: pricing.coupleLines,
     ticketSubtotal: pricing.ticketSubtotal,
     coverFee: input.coverFee,
   };
@@ -262,6 +295,7 @@ export async function persistPaidEventRegistration(
       dinner: input.dinner,
       fair: input.fair,
       womens: input.womens,
+      couples: input.couples,
       pricing,
       recovered: false,
     },
@@ -301,77 +335,30 @@ export async function persistPaidEventRegistration(
   }
 
   if (!input.skipSheet) {
-    const sheetId = getPaidEventSheetId(event);
-    if (sheetId) {
-      const timestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'America/New_York',
-        month: 'numeric',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
+    try {
+      await appendPaidEventToSheet({
+        event,
+        firstName,
+        lastName,
+        email,
+        phone,
+        dinner: input.dinner,
+        fair: input.fair,
+        womens: input.womens,
+        couples: input.couples,
+        fairChildLines: pricing.fairChildLines,
+        coupleLines: pricing.coupleLines,
+        ticketSubtotal: pricing.ticketSubtotal,
+        sponsorAmount: pricing.sponsorAmount,
+        cardFee: pricing.cardFee,
+        total: pricing.total,
+        coverFee: input.coverFee,
+        paymentMethod: paymentIntentId ? 'Card' : undefined,
+        paymentId: paymentIntentId,
+        notes: detailsSummary,
       });
-
-      let sheetValues: (string | number)[];
-      if (event.type === 'dinner') {
-        sheetValues = [
-          timestamp,
-          lastName,
-          firstName,
-          email,
-          phone,
-          input.dinner?.adults ?? 0,
-          input.dinner?.kids ?? 0,
-          `$${pricing.ticketSubtotal.toFixed(2)}`,
-          pricing.sponsorAmount > 0 ? `$${pricing.sponsorAmount.toFixed(2)}` : '',
-          pricing.cardFee > 0 ? `$${pricing.cardFee.toFixed(2)}` : '',
-          `$${pricing.total.toFixed(2)}`,
-          paymentIntentId ?? '',
-        ];
-      } else if (event.type === 'family-fair') {
-        const childDetails =
-          pricing.fairChildLines
-            ?.map(
-              (l) =>
-                `#${l.index}: ${l.free ? 'HaBayit Hebrew (free)' : `$${l.price}`}${l.codeUsed ? ` [${l.codeUsed}]` : ''}`,
-            )
-            .join('; ') ?? '';
-        sheetValues = [
-          timestamp,
-          lastName,
-          firstName,
-          email,
-          phone,
-          input.fair?.children.length ?? 0,
-          childDetails,
-          `$${pricing.ticketSubtotal.toFixed(2)}`,
-          pricing.sponsorAmount > 0 ? `$${pricing.sponsorAmount.toFixed(2)}` : '',
-          pricing.cardFee > 0 ? `$${pricing.cardFee.toFixed(2)}` : '',
-          `$${pricing.total.toFixed(2)}`,
-          paymentIntentId ?? '',
-        ];
-      } else {
-        sheetValues = [
-          timestamp,
-          lastName,
-          firstName,
-          email,
-          phone,
-          input.womens?.women ?? 0,
-          `$${pricing.ticketSubtotal.toFixed(2)}`,
-          pricing.sponsorAmount > 0 ? `$${pricing.sponsorAmount.toFixed(2)}` : '',
-          pricing.cardFee > 0 ? `$${pricing.cardFee.toFixed(2)}` : '',
-          `$${pricing.total.toFixed(2)}`,
-          paymentIntentId ?? '',
-        ];
-      }
-
-      try {
-        await appendPaidEventRow(sheetId, event.type, sheetValues, event.title);
-      } catch (sheetErr) {
-        console.error('[paid event] Sheets append failed:', sheetErr);
-      }
+    } catch (sheetErr) {
+      console.error('[paid event] Sheets append failed:', sheetErr);
     }
   }
 
@@ -424,6 +411,7 @@ export function paidEventInputFromPaymentIntentMetadata(
   const adults = Number(meta.adults || 0);
   const kids = Number(meta.kids || 0);
   const fairChildren = Number(meta.fair_children || 0);
+  const couples = Number(meta.couples || 0);
 
   const event = getPaidEvent(slug);
   if (!event) return null;
@@ -438,7 +426,7 @@ export function paidEventInputFromPaymentIntentMetadata(
     sponsorAmount: Number(meta.sponsor_amount || 0) || 0,
     paymentIntentId,
     dinner:
-      event.type === 'dinner'
+      event.type === 'dinner' || event.type === 'celebration'
         ? { adults: Math.max(0, adults), kids: Math.max(0, kids) }
         : undefined,
     fair:
@@ -450,5 +438,13 @@ export function paidEventInputFromPaymentIntentMetadata(
           }
         : undefined,
     womens: event.type === 'womens' ? { women: Math.max(1, women) } : undefined,
+    couples:
+      event.type === 'couples'
+        ? {
+            couples: Math.max(1, couples),
+            memberCode: meta.member_code?.trim() || undefined,
+            memberDiscount: meta.member_discount === '1' || meta.member_discount === 'true',
+          }
+        : undefined,
   };
 }

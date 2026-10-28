@@ -1,8 +1,8 @@
 import { logFormSubmission } from '@/lib/admin/form-log';
 import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
-import { appendPaidEventRow } from '@/lib/google/sheets';
-import { getPaidEvent, getPaidEventSheetId } from '@/lib/events/paid-events';
+import { appendPaidEventToSheet } from '@/lib/events/paid-event-sheet';
+import { getPaidEvent } from '@/lib/events/paid-events';
 import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 import { createAdminClient } from '@/lib/supabase/server';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
@@ -107,17 +107,23 @@ export async function recordOfflinePaidEventRegistration(
   const detailsSummary =
     event.type === 'womens'
       ? `Women attending: ${guestCount}\n${paidNote}`
-      : event.type === 'dinner'
+      : event.type === 'dinner' || event.type === 'celebration'
         ? `Guests: ${guestCount}\n${paidNote}`
-        : `Children: ${guestCount}\n${paidNote}`;
+        : event.type === 'couples'
+          ? `Couples: ${guestCount}\n${paidNote}`
+          : `Children: ${guestCount}\n${paidNote}`;
   const extraNotes = (input.notes || '').trim();
   const notes = extraNotes ? `${detailsSummary}\n${extraNotes}` : detailsSummary;
 
   const registrationDetails = {
     type: event.type,
     womens: event.type === 'womens' ? { women: guestCount } : undefined,
-    dinner: event.type === 'dinner' ? { adults: guestCount, kids: 0 } : undefined,
+    dinner:
+      event.type === 'dinner' || event.type === 'celebration'
+        ? { adults: guestCount, kids: 0 }
+        : undefined,
     fair: event.type === 'family-fair' ? { children: Array.from({ length: guestCount }, () => ({})) } : undefined,
+    couples: event.type === 'couples' ? { couples: guestCount } : undefined,
     ticketSubtotal: amount,
     coverFee: false,
     paymentMethod,
@@ -187,66 +193,33 @@ export async function recordOfflinePaidEventRegistration(
     });
   }
 
-  const sheetId = getPaidEventSheetId(event);
-  if (sheetId) {
-    const timestamp = new Date().toLocaleString('en-US', {
-      timeZone: 'America/New_York',
-      month: 'numeric',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
+  try {
+    await appendPaidEventToSheet({
+      event,
+      firstName,
+      lastName,
+      email,
+      phone,
+      dinner:
+        event.type === 'dinner' || event.type === 'celebration'
+          ? { adults: guestCount, kids: 0 }
+          : undefined,
+      fair:
+        event.type === 'family-fair'
+          ? { children: Array.from({ length: guestCount }, () => ({})) }
+          : undefined,
+      womens: event.type === 'womens' ? { women: guestCount } : undefined,
+      couples: event.type === 'couples' ? { couples: guestCount } : undefined,
+      ticketSubtotal: amount,
+      sponsorAmount: 0,
+      cardFee: 0,
+      total: amount,
+      coverFee: false,
+      paymentMethod,
+      notes,
     });
-    try {
-      if (event.type === 'womens') {
-        await appendPaidEventRow(sheetId, 'womens', [
-          timestamp,
-          lastName,
-          firstName,
-          email ?? '',
-          phone ?? '',
-          guestCount,
-          `$${amount.toFixed(2)}`,
-          '',
-          '',
-          `$${amount.toFixed(2)}`,
-          paymentMethod,
-        ], event.title);
-      } else if (event.type === 'dinner') {
-        await appendPaidEventRow(sheetId, 'dinner', [
-          timestamp,
-          lastName,
-          firstName,
-          email ?? '',
-          phone ?? '',
-          guestCount,
-          0,
-          `$${amount.toFixed(2)}`,
-          '',
-          '',
-          `$${amount.toFixed(2)}`,
-          paymentMethod,
-        ], event.title);
-      } else {
-        await appendPaidEventRow(sheetId, 'family-fair', [
-          timestamp,
-          lastName,
-          firstName,
-          email ?? '',
-          phone ?? '',
-          guestCount,
-          paymentMethod,
-          `$${amount.toFixed(2)}`,
-          '',
-          '',
-          `$${amount.toFixed(2)}`,
-          paymentMethod,
-        ], event.title);
-      }
-    } catch (sheetErr) {
-      console.error('[offline event] Sheets append failed:', sheetErr);
-    }
+  } catch (sheetErr) {
+    console.error('[offline event] Sheets append failed:', sheetErr);
   }
 
   return { success: true, id };

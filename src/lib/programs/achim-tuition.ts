@@ -10,8 +10,8 @@ export const ACHIM_CHAI_DISCOUNT = ACHIM_MONTHLY_TUITION;
 
 export const ACHIM_CHAI_SESSION_TUITION = ACHIM_SESSION_TUITION - ACHIM_CHAI_DISCOUNT;
 
-/** Discount when paying the full year in one payment. */
-export const ACHIM_PAY_IN_FULL_DISCOUNT = 15;
+/** Pay-in-full no longer has a discount. */
+export const ACHIM_PAY_IN_FULL_DISCOUNT = 0;
 
 /** Signup by end of July (Eastern) — early registration discount. */
 export const ACHIM_EARLY_BIRD_DISCOUNT = 50;
@@ -41,13 +41,12 @@ export function isAchimEarlyBirdActive(now: Date = new Date()): boolean {
 
 export function getAchimSessionTuition(
   isChaiPartner: boolean,
-  paymentPlan: AchimPaymentPlan = 'two_installments',
+  _paymentPlan: AchimPaymentPlan = 'two_installments',
   options?: { now?: Date; earlyBird?: boolean }
 ): number {
   let total = isChaiPartner ? ACHIM_CHAI_SESSION_TUITION : ACHIM_SESSION_TUITION;
   const earlyBird = options?.earlyBird ?? isAchimEarlyBirdActive(options?.now);
   if (earlyBird) total -= ACHIM_EARLY_BIRD_DISCOUNT;
-  if (paymentPlan === 'full') total -= ACHIM_PAY_IN_FULL_DISCOUNT;
   return total;
 }
 

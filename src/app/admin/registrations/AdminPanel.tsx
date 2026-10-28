@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
+import type { AdminRole } from '@/lib/admin/roles';
 import type {
   PendingFamilyRegistration,
   ScheduledInstallment,
@@ -47,8 +48,8 @@ export function StripeCheatSheet() {
           payment method → confirm.
         </li>
         <li>
-          For installment plans, charge the amount shown on Accept (tuition already reflects any
-          pay-in-full / two-payment discount saved at registration). Card adds 3%.
+          For installment plans, charge the amount shown on Accept (tuition saved at
+          registration). Card adds 3%.
         </li>
         <li>
           Enable ACH once:{' '}
@@ -119,6 +120,74 @@ function OfflineMethodFields({
   );
 }
 
+type OfflineRecordExtras = {
+  waiveCardFee: boolean;
+  paidAtLocal: string;
+  notes: string;
+};
+
+function OfflineExtrasFields({
+  showWaiveFee,
+  withFeeAmount,
+  noFeeAmount,
+  extras,
+  onChange,
+}: {
+  showWaiveFee: boolean;
+  withFeeAmount: number;
+  noFeeAmount: number;
+  extras: OfflineRecordExtras;
+  onChange: (patch: Partial<OfflineRecordExtras>) => void;
+}) {
+  const amount = extras.waiveCardFee ? noFeeAmount : withFeeAmount;
+  return (
+    <div className="space-y-2">
+      {showWaiveFee ? (
+        <label className="flex items-start gap-2 text-sm text-navy cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={extras.waiveCardFee}
+            onChange={(e) => onChange({ waiveCardFee: e.target.checked })}
+          />
+          <span>
+            <span className="font-semibold">Remove credit card fee (3%)</span>
+            <span className="block text-xs text-muted mt-0.5">
+              Record ${noFeeAmount.toFixed(2)} tuition only instead of ${withFeeAmount.toFixed(2)}.
+            </span>
+          </span>
+        </label>
+      ) : null}
+      <p className="text-xs text-muted">
+        Amount to record: <strong className="text-navy">${amount.toFixed(2)}</strong>
+      </p>
+      <label className="block text-sm text-navy">
+        <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">
+          Paid date (optional — if not today)
+        </span>
+        <input
+          type="datetime-local"
+          value={extras.paidAtLocal}
+          onChange={(e) => onChange({ paidAtLocal: e.target.value })}
+          className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
+        />
+      </label>
+      <label className="block text-sm text-navy">
+        <span className="mb-1 block text-[0.65rem] font-bold uppercase tracking-wide text-muted">
+          Notes (optional)
+        </span>
+        <input
+          type="text"
+          value={extras.notes}
+          onChange={(e) => onChange({ notes: e.target.value })}
+          placeholder="e.g. paid via Zelle screenshot"
+          className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
+        />
+      </label>
+    </div>
+  );
+}
+
 function OfflineAcceptControls({
   row,
   disabled,
@@ -128,11 +197,23 @@ function OfflineAcceptControls({
   row: PendingFamilyRegistration;
   disabled: boolean;
   onAcceptOnly: () => void;
-  onAcceptAndRecord: (method: OfflineTuitionMethod, detail?: string) => void;
+  onAcceptAndRecord: (
+    method: OfflineTuitionMethod,
+    detail: string | undefined,
+    extras: { waiveCardFee: boolean; paidAt?: string; notes?: string; amountPaid: number },
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState<OfflineTuitionMethod>('Check');
   const [detail, setDetail] = useState('');
+  const [extras, setExtras] = useState<OfflineRecordExtras>({
+    waiveCardFee: row.paymentMethod === 'card',
+    paidAtLocal: '',
+    notes: '',
+  });
+
+  const showWaive = row.paymentMethod === 'card' && row.firstInstallmentNoFee < row.firstInstallment - 0.005;
+  const amount = extras.waiveCardFee && showWaive ? row.firstInstallmentNoFee : row.firstInstallment;
 
   if (!open) {
     return (
@@ -150,7 +231,8 @@ function OfflineAcceptControls({
   return (
     <div className="w-full rounded-xl border border-line bg-soft/40 p-3 space-y-3">
       <p className="text-xs text-muted">
-        No Stripe charge. Payment 1 is ${row.firstInstallment.toFixed(2)}.
+        No Stripe charge. Payment 1 defaults to ${row.firstInstallment.toFixed(2)}
+        {showWaive ? ` (or $${row.firstInstallmentNoFee.toFixed(2)} without card fee)` : ''}.
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -184,15 +266,27 @@ function OfflineAcceptControls({
           onMethod={setMethod}
           onDetail={setDetail}
         />
+        <OfflineExtrasFields
+          showWaiveFee={showWaive}
+          withFeeAmount={row.firstInstallment}
+          noFeeAmount={row.firstInstallmentNoFee}
+          extras={extras}
+          onChange={(patch) => setExtras((prev) => ({ ...prev, ...patch }))}
+        />
         <button
           type="button"
           disabled={disabled}
           onClick={() => {
             const ok = window.confirm(
-              `Accept ${row.parentName} and record payment 1 ($${row.firstInstallment.toFixed(2)}) as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}?`,
+              `Accept ${row.parentName} and record payment 1 ($${amount.toFixed(2)}) as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}${extras.waiveCardFee && showWaive ? ' — card fee waived' : ''}?`,
             );
             if (!ok) return;
-            onAcceptAndRecord(method, detail.trim() || undefined);
+            onAcceptAndRecord(method, detail.trim() || undefined, {
+              waiveCardFee: showWaive && extras.waiveCardFee,
+              paidAt: extras.paidAtLocal.trim() || undefined,
+              notes: extras.notes.trim() || undefined,
+              amountPaid: amount,
+            });
           }}
           className="border border-navy text-navy rounded-full px-5 py-2.5 font-bold text-sm uppercase tracking-wide disabled:opacity-50"
         >
@@ -210,11 +304,23 @@ function RecordOfflinePaymentControls({
 }: {
   row: ScheduledInstallment;
   disabled: boolean;
-  onRecord: (method: OfflineTuitionMethod, detail?: string) => void;
+  onRecord: (
+    method: OfflineTuitionMethod,
+    detail: string | undefined,
+    extras: { waiveCardFee: boolean; paidAt?: string; notes?: string; amountPaid: number },
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState<OfflineTuitionMethod>('Check');
   const [detail, setDetail] = useState('');
+  const amountNoFee = Math.round((row.amount / 1.03) * 100) / 100;
+  const showWaive = amountNoFee < row.amount - 0.005;
+  const [extras, setExtras] = useState<OfflineRecordExtras>({
+    waiveCardFee: false,
+    paidAtLocal: '',
+    notes: '',
+  });
+  const amount = extras.waiveCardFee && showWaive ? amountNoFee : row.amount;
 
   if (!open) {
     return (
@@ -230,12 +336,19 @@ function RecordOfflinePaymentControls({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-soft/40 p-3 space-y-2 w-full sm:w-auto">
+    <div className="rounded-xl border border-line bg-soft/40 p-3 space-y-2 w-full sm:w-auto min-w-[16rem]">
       <OfflineMethodFields
         method={method}
         detail={detail}
         onMethod={setMethod}
         onDetail={setDetail}
+      />
+      <OfflineExtrasFields
+        showWaiveFee={showWaive}
+        withFeeAmount={row.amount}
+        noFeeAmount={amountNoFee}
+        extras={extras}
+        onChange={(patch) => setExtras((prev) => ({ ...prev, ...patch }))}
       />
       <div className="flex flex-wrap gap-2">
         <button
@@ -243,10 +356,15 @@ function RecordOfflinePaymentControls({
           disabled={disabled}
           onClick={() => {
             const ok = window.confirm(
-              `Record payment ${row.installmentNumber} ($${row.amount.toFixed(2)}) for ${row.familyName} as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}?`,
+              `Record payment ${row.installmentNumber} ($${amount.toFixed(2)}) for ${row.familyName} as ${method}${detail.trim() ? ` (${detail.trim()})` : ''}${extras.waiveCardFee && showWaive ? ' — card fee waived' : ''}?`,
             );
             if (!ok) return;
-            onRecord(method, detail.trim() || undefined);
+            onRecord(method, detail.trim() || undefined, {
+              waiveCardFee: showWaive && extras.waiveCardFee,
+              paidAt: extras.paidAtLocal.trim() || undefined,
+              notes: extras.notes.trim() || undefined,
+              amountPaid: amount,
+            });
           }}
           className="bg-navy text-white rounded-full px-4 py-2 text-sm font-bold disabled:opacity-50"
         >
@@ -272,7 +390,7 @@ export function AdminRegistrationsPanel({
 }: {
   pending: PendingFamilyRegistration[];
   scheduled: ScheduledInstallment[];
-  role?: 'admin' | 'volunteer';
+  role?: AdminRole;
 }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -387,11 +505,15 @@ export function AdminRegistrationsPanel({
                   onAcceptOnly={() =>
                     runAction(() => acceptFamilyOnly(row.familyId, row.programSlug))
                   }
-                  onAcceptAndRecord={(method, paymentDetail) =>
+                  onAcceptAndRecord={(method, paymentDetail, extras) =>
                     runAction(() =>
                       acceptFamilyOffline(row.familyId, row.programSlug, {
                         paymentMethod: method,
                         paymentDetail,
+                        waiveCardFee: extras.waiveCardFee,
+                        paidAt: extras.paidAt,
+                        notes: extras.notes,
+                        amountPaid: extras.amountPaid,
                       }),
                     )
                   }
@@ -454,11 +576,15 @@ export function AdminRegistrationsPanel({
                 <RecordOfflinePaymentControls
                   row={row}
                   disabled={isPending || row.status === 'processing'}
-                  onRecord={(method, paymentDetail) =>
+                  onRecord={(method, paymentDetail, extras) =>
                     runAction(() =>
                       recordOfflineInstallmentPayment(row.id, {
                         paymentMethod: method,
                         paymentDetail,
+                        waiveCardFee: extras.waiveCardFee,
+                        paidAt: extras.paidAt,
+                        notes: extras.notes,
+                        amountPaid: extras.amountPaid,
                       }),
                     )
                   }

@@ -5,6 +5,7 @@ import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 import { computeLulavPricing, type LulavPayMethod } from '@/lib/lulav/pricing';
 import { persistLulavOrder } from '@/lib/lulav/persist-order';
+import { validateLulavInventory } from '@/lib/lulav/inventory';
 
 export interface LulavOrderInput {
   fullName: string;
@@ -41,10 +42,15 @@ export async function submitLulavOrder(
     return { success: false, error: 'Please choose a payment method.' };
   }
 
-  const coverFee = payMethod === 'card';
+  const coverFee = payMethod === 'card' ? Boolean(input.coverFee) : false;
   const pricing = computeLulavPricing(quantity, payMethod, coverFee);
 
   if (payMethod === 'zelle') {
+    const inventory = await validateLulavInventory(quantity);
+    if (!inventory.ok) {
+      return { success: false, error: inventory.error };
+    }
+
     const result = await persistLulavOrder({
       fullName,
       email,

@@ -10,8 +10,8 @@ export const BMX_CHAI_DISCOUNT = BMX_MONTHLY_TUITION;
 
 export const BMX_CHAI_SESSION_TUITION = BMX_SESSION_TUITION - BMX_CHAI_DISCOUNT;
 
-/** Discount when paying the full year in one payment. */
-export const BMX_PAY_IN_FULL_DISCOUNT = 15;
+/** Pay-in-full no longer has a discount. */
+export const BMX_PAY_IN_FULL_DISCOUNT = 0;
 
 /** Early registration discount. */
 export const BMX_EARLY_BIRD_DISCOUNT = 40;
@@ -41,13 +41,12 @@ export function isBmxEarlyBirdActive(now: Date = new Date()): boolean {
 
 export function getBmxSessionTuition(
   isChaiPartner: boolean,
-  paymentPlan: BmxPaymentPlan = 'two_installments',
+  _paymentPlan: BmxPaymentPlan = 'two_installments',
   options?: { now?: Date; earlyBird?: boolean }
 ): number {
   let total = isChaiPartner ? BMX_CHAI_SESSION_TUITION : BMX_SESSION_TUITION;
   const earlyBird = options?.earlyBird ?? isBmxEarlyBirdActive(options?.now);
   if (earlyBird) total -= BMX_EARLY_BIRD_DISCOUNT;
-  if (paymentPlan === 'full') total -= BMX_PAY_IN_FULL_DISCOUNT;
   return total;
 }
 

@@ -88,6 +88,7 @@ export const DEFAULT_SORT_KEY: Record<string, string> = {
   payments: 'date',
   dates: 'yearOrder',
   submissions: 'date',
+  lulav: 'date',
 };
 
 /** Default direction when first clicking a column */

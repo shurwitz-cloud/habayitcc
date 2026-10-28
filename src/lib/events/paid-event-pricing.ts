@@ -4,6 +4,8 @@ export const DINNER_ADULT_PRICE = 55;
 export const DINNER_CHILD_PRICE = 35;
 export const FAIR_CHILD_PRICE = 12;
 export const WOMENS_TICKET_PRICE = 36;
+export const COUPLES_TICKET_PRICE = 55;
+export const COUPLES_MEMBER_TICKET_PRICE = 45;
 
 export interface DinnerRegistrationData {
   adults: number;
@@ -22,6 +24,13 @@ export interface WomensRegistrationData {
   women: number;
 }
 
+export interface CouplesRegistrationData {
+  couples: number;
+  memberCode?: string;
+  /** First couple at member price. Extra couples on this reservation stay full price. */
+  memberDiscount?: boolean;
+}
+
 export interface PricingBreakdown {
   ticketSubtotal: number;
   sponsorAmount: number;
@@ -29,6 +38,7 @@ export interface PricingBreakdown {
   total: number;
   /** Per-child fair pricing detail for sheets. */
   fairChildLines?: Array<{ index: number; price: number; codeUsed: string | null; free: boolean }>;
+  coupleLines?: Array<{ index: number; price: number; member: boolean }>;
 }
 
 function roundMoney(n: number): number {
@@ -71,17 +81,36 @@ export function computeWomensTickets(data: WomensRegistrationData): number {
   return roundMoney(women * WOMENS_TICKET_PRICE);
 }
 
+export function computeCouplesTickets(
+  data: CouplesRegistrationData,
+): { subtotal: number; lines: NonNullable<PricingBreakdown['coupleLines']> } {
+  const couples = Math.max(0, Math.round(data.couples) || 0);
+  const lines: NonNullable<PricingBreakdown['coupleLines']> = [];
+  let subtotal = 0;
+
+  for (let i = 0; i < couples; i++) {
+    const member = i === 0 && data.memberDiscount === true;
+    const price = member ? COUPLES_MEMBER_TICKET_PRICE : COUPLES_TICKET_PRICE;
+    subtotal += price;
+    lines.push({ index: i + 1, price, member });
+  }
+
+  return { subtotal: roundMoney(subtotal), lines };
+}
+
 export function computePaidEventTotal(input: {
   event: PaidEventConfig;
   dinner?: DinnerRegistrationData;
   fair?: FairRegistrationData;
   fairFreeChildIndices?: Set<number>;
   womens?: WomensRegistrationData;
+  couples?: CouplesRegistrationData;
   sponsorAmount: number;
   coverFee: boolean;
 }): PricingBreakdown {
   let ticketSubtotal = 0;
   let fairChildLines: PricingBreakdown['fairChildLines'];
+  let coupleLines: PricingBreakdown['coupleLines'];
 
   switch (input.event.type) {
     case 'dinner':
@@ -99,6 +128,15 @@ export function computePaidEventTotal(input: {
     case 'womens':
       ticketSubtotal = computeWomensTickets(input.womens ?? { women: 0 });
       break;
+    case 'celebration':
+      ticketSubtotal = 0;
+      break;
+    case 'couples': {
+      const result = computeCouplesTickets(input.couples ?? { couples: 0 });
+      ticketSubtotal = result.subtotal;
+      coupleLines = result.lines;
+      break;
+    }
   }
 
   const sponsorAmount = roundMoney(Math.max(0, input.sponsorAmount));
@@ -106,7 +144,7 @@ export function computePaidEventTotal(input: {
   const cardFee = computeCardFee(preFeeSubtotal, input.coverFee);
   const total = roundMoney(preFeeSubtotal + cardFee);
 
-  return { ticketSubtotal, sponsorAmount, cardFee, total, fairChildLines };
+  return { ticketSubtotal, sponsorAmount, cardFee, total, fairChildLines, coupleLines };
 }
 
 export function totalToCents(total: number): number {

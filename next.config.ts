@@ -10,9 +10,20 @@ const nextConfig: NextConfig = {
     return [
       {
         // Keep HTML fresh after admin photo saves (phones were seeing stale heroes).
-        source: '/((?!_next/static|_next/image|photos/|favicon|api/).*)',
+        source: '/((?!_next/static|_next/image|photos/|flyers/|favicon|api/).*)',
         headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0, must-revalidate' }],
       },
+    ];
+  },
+  async rewrites() {
+    return [
+      { source: '/st', destination: '/events/register/simchat-torah' },
+      { source: '/ST', destination: '/events/register/simchat-torah' },
+      { source: '/simchattorah', destination: '/events/register/simchat-torah' },
+      { source: '/simchat-torah', destination: '/events/register/simchat-torah' },
+      { source: '/zugot', destination: '/events/register/erev-zugot' },
+      { source: '/erev-zugot', destination: '/events/register/erev-zugot' },
+      { source: '/erevzugot', destination: '/events/register/erev-zugot' },
     ];
   },
   async redirects() {

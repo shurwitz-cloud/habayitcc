@@ -22,7 +22,7 @@ export default async function AdminCrmPage() {
           {!authed ? (
             <AdminLoginForm
               title="Admin sign in"
-              description="Full admins see all CRM data. Volunteers use their own email — CRM without donations or Chai."
+              description="Full admins see all CRM data. Office and volunteer accounts use their own email with limited access."
               alternateLink={{ href: '/admin/registrations', label: 'Go to registrations admin' }}
             />
           ) : (

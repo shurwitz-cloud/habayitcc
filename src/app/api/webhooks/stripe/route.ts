@@ -128,7 +128,8 @@ async function handleLulavOrderPayment(pi: Stripe.PaymentIntent) {
     return;
   }
 
-  const pricing = computeLulavPricing(quantity, 'card', true);
+  const coverFee = meta.cover_fee === 'true';
+  const pricing = computeLulavPricing(quantity, 'card', coverFee);
   if (pi.amount !== pricing.totalCents) {
     console.error('[stripe webhook] lulav_order amount mismatch', pi.id, pi.amount, pricing.totalCents);
     return;
@@ -140,7 +141,7 @@ async function handleLulavOrderPayment(pi: Stripe.PaymentIntent) {
     email,
     phone,
     payMethod: 'card',
-    coverFee: true,
+    coverFee,
     pricing,
     status: 'paid',
     paymentId: pi.id,

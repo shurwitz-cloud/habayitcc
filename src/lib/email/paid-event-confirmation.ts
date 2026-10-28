@@ -18,15 +18,13 @@ export async function sendPaidEventConfirmationEmail(
 ): Promise<boolean> {
   const { event, firstName, email, pricing, detailsSummary } = input;
 
-  const paymentBlock =
-    pricing.total > 0
-      ? `<table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.6;margin:16px 0;">
-          <tr><td style="padding:4px 0;color:#6f6a60;">Tickets</td><td style="padding:4px 0;text-align:right;">$${pricing.ticketSubtotal.toFixed(2)}</td></tr>
-          ${pricing.sponsorAmount > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">Sponsorship</td><td style="padding:4px 0;text-align:right;">$${pricing.sponsorAmount.toFixed(2)}</td></tr>` : ''}
+  const addOnLabel = event.requireDonationChoice ? 'Donation' : 'Sponsorship';
+  const paymentBlock = `<table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.6;margin:16px 0;">
+          ${pricing.ticketSubtotal > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">Tickets</td><td style="padding:4px 0;text-align:right;">$${pricing.ticketSubtotal.toFixed(2)}</td></tr>` : ''}
+          ${pricing.sponsorAmount > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">${addOnLabel}</td><td style="padding:4px 0;text-align:right;">$${pricing.sponsorAmount.toFixed(2)}</td></tr>` : ''}
           ${pricing.cardFee > 0 ? `<tr><td style="padding:4px 0;color:#6f6a60;">Card processing</td><td style="padding:4px 0;text-align:right;">$${pricing.cardFee.toFixed(2)}</td></tr>` : ''}
           <tr><td style="padding:8px 0;font-weight:bold;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;">$${pricing.total.toFixed(2)}</td></tr>
-        </table>`
-      : '<p style="margin:0;font-size:14px;color:#6f6a60;">No payment was required for this registration.</p>';
+        </table>`;
 
   const receiptLink = input.receiptUrl
     ? `<p style="margin:16px 0 0;"><a href="${input.receiptUrl}" style="color:#b8892a;font-weight:bold;">View your receipt</a></p>`

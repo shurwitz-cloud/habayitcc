@@ -18,7 +18,6 @@ import {
   ACHIM_MONTHLY_TUITION,
   ACHIM_SESSION_MONTHS,
   ACHIM_CARD_PROCESSING_RATE,
-  ACHIM_PAY_IN_FULL_DISCOUNT,
   ACHIM_EARLY_BIRD_DEADLINE_LABEL,
   ACHIM_EARLY_BIRD_DISCOUNT,
   type AchimPaymentPlan,
@@ -51,7 +50,7 @@ const PAYMENT_PLAN_OPTIONS: {
   {
     value: 'full',
     title: 'Pay in full',
-    description: `Charged upon acceptance — $${ACHIM_PAY_IN_FULL_DISCOUNT} off.`,
+    description: 'Charged upon acceptance.',
   },
   {
     value: 'two_installments',
@@ -626,12 +625,6 @@ export function RegistrationForm() {
             <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
               <span>Early registration (by {ACHIM_EARLY_BIRD_DEADLINE_LABEL})</span>
               <strong className="tabular-nums">-${ACHIM_EARLY_BIRD_DISCOUNT}</strong>
-            </div>
-          )}
-          {paymentPlan === 'full' && (
-            <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
-              <span>Pay-in-full discount</span>
-              <strong className="tabular-nums">-${ACHIM_PAY_IN_FULL_DISCOUNT}</strong>
             </div>
           )}
           {paymentMethod === 'card' && (

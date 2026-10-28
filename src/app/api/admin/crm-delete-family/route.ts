@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * Body: { confirm: true, familyId: string }
  */
 export async function POST(req: NextRequest) {
-  const denied = await requireCapabilityApi('crm');
+  const denied = await requireCapabilityApi('crm_finance');
   if (denied) return denied;
 
   let body: { confirm?: boolean; familyId?: string };

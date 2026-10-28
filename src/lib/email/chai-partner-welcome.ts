@@ -21,6 +21,15 @@ export interface ChaiPartnerWelcomeEmailInput {
   paidUpfront?: boolean;
   /** Total charged when paidUpfront — defaults to monthlyAmount. */
   paidAmount?: number;
+  /** Override the “What happens next?” body (HTML allowed for <strong>). */
+  nextStepsLine?: string | null;
+  /**
+   * Legal / business name on the tax receipt link only.
+   * Greeting still uses the personal couple/person name unless greetingName is set.
+   */
+  receiptLegalName?: string | null;
+  /** Override “Dear …” greeting (e.g. personal name when receipt is a business). */
+  greetingName?: string | null;
 }
 
 function formatUsd(amount: number): string {
@@ -40,6 +49,7 @@ export async function sendChaiPartnerWelcomeEmail(
     spouseFirstName: input.spouseFirstName,
     spouseLastName: input.spouseLastName,
   });
+  const greeting = (input.greetingName ?? '').trim() || names.greeting;
   const paidUpfront = input.paidUpfront === true;
   const paidAmount = Number.isFinite(input.paidAmount)
     ? Number(input.paidAmount)
@@ -49,9 +59,11 @@ export async function sendChaiPartnerWelcomeEmail(
   const partnershipLine = paidUpfront
     ? `Your Chai Partner gift of <strong>${paid}</strong> (equivalent to ${monthly})`
     : `Your monthly partnership of <strong>${monthly}</strong>`;
-  const nextStepsLine = paidUpfront
-    ? `Your annual Chai Partner gift of <strong>${paid}</strong> is recorded. Your partnership is active, and your support helps keep HaBayit vibrant, welcoming, and alive with Torah, community, and joy.`
-    : `Your monthly gift of ${monthly} is now set up. Each month, your support helps keep HaBayit vibrant, welcoming, and alive with Torah, community, and joy.`;
+  const nextStepsLine =
+    (input.nextStepsLine ?? '').trim() ||
+    (paidUpfront
+      ? `Your annual Chai Partner gift of <strong>${paid}</strong> is recorded. Your partnership is active, and your support helps keep HaBayit vibrant, welcoming, and alive with Torah, community, and joy.`
+      : `Your monthly gift of ${monthly} is now set up. Each month, your support helps keep HaBayit vibrant, welcoming, and alive with Torah, community, and joy.`);
   const receiptCaption = paidUpfront
     ? 'Your tax receipt for this gift:'
     : 'Your tax receipt for this month&apos;s gift:';
@@ -68,7 +80,7 @@ export async function sendChaiPartnerWelcomeEmail(
       Thank you for becoming a HaBayit Chai Partner
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
-      Dear ${names.greeting},
+      Dear ${greeting},
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
       We are grateful — <strong>thank you</strong>. ${partnershipLine}

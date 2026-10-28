@@ -22,7 +22,8 @@ export type CrmView =
   | 'chai'
   | 'payments'
   | 'dates'
-  | 'submissions';
+  | 'submissions'
+  | 'lulav';
 
 export type DateFilter = 'all' | '7d' | '30d' | '90d' | 'year';
 
@@ -99,8 +100,9 @@ export type CrmEventRecord = {
    * - people: attendees only
    * - adults_kids: adults + kids + total
    * - kids: children + total
+   * - couples: couple tickets
    */
-  peopleMode: 'people' | 'adults_kids' | 'kids';
+  peopleMode: 'people' | 'adults_kids' | 'kids' | 'couples';
   /** Ticket revenue (excludes sponsorship + card fee). */
   ticketTotal: number;
   /** Sponsorship / donation add-ons. */

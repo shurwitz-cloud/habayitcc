@@ -18,7 +18,7 @@ export interface PersistLulavOrderInput {
 
 export async function persistLulavOrder(
   input: PersistLulavOrderInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; submissionId?: string }> {
   const email = input.email.trim().toLowerCase();
   const fullName = input.fullName.trim().replace(/\s+/g, ' ');
   const phone = input.phone.trim();
@@ -43,16 +43,11 @@ export async function persistLulavOrder(
     payload,
   });
 
-  if (!logged.ok) {
+  if (!logged.ok || !logged.id) {
     return { success: false, error: 'Could not save your order. Please try again.' };
   }
 
-  void logFormSubmission({
-    formType: 'lulav_order',
-    email,
-    sourceId: logged.id,
-    payload,
-  });
+  const submissionId = logged.id;
 
   if (!input.skipSheet) {
     try {
@@ -66,8 +61,9 @@ export async function persistLulavOrder(
         cardFee: input.pricing.cardFee,
         total: input.pricing.total,
         payMethod: input.payMethod === 'card' ? 'Card' : 'Zelle',
-        status: input.status === 'paid' ? 'Paid' : 'Pending Zelle',
+        status: input.status === 'paid' ? 'Paid' : 'Not paid',
         paymentId: input.paymentId ?? '',
+        submissionId,
       });
     } catch (err) {
       console.error('[lulav] sheet append failed:', err);
@@ -85,5 +81,5 @@ export async function persistLulavOrder(
     });
   }
 
-  return { success: true };
+  return { success: true, submissionId };
 }

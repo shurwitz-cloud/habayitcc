@@ -148,13 +148,16 @@ export async function POST(req: NextRequest) {
     : Number.isFinite(coverageMonthsRaw) && coverageMonthsRaw >= 1
       ? Math.min(36, Math.floor(coverageMonthsRaw))
       : 1;
+  // Prefer explicit monthlyAmount (e.g. renewals keep the partner's current rate).
   const monthlyAmount = paidUpfront
     ? Number.isFinite(body.monthlyAmount) && Number(body.monthlyAmount) > 0
       ? Number(body.monthlyAmount)
       : chaiMonthlyFromUpfront(amount)
-    : coverageMonths > 1
-      ? Math.round((amount / coverageMonths) * 100) / 100
-      : amount;
+    : Number.isFinite(body.monthlyAmount) && Number(body.monthlyAmount) > 0
+      ? Number(body.monthlyAmount)
+      : coverageMonths > 1
+        ? Math.round((amount / coverageMonths) * 100) / 100
+        : amount;
 
   if (kind === 'chai_partner') {
     if (monthlyAmount < 150) {
@@ -190,9 +193,10 @@ export async function POST(req: NextRequest) {
   const receiptDisplayName =
     (body.receiptName ?? '').trim() || coupleNames.receiptName;
 
+  // Always uniquify generated keys so repeat Zelle/cash amounts aren't treated as duplicates.
   const keyBase =
     (body.paymentKey ?? '').trim() ||
-    `manual-${kind}-${methodLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}`;
+    `manual-${kind}-${methodLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}-${Date.now()}`;
 
   if (kind === 'chai_partner') {
     const paymentId = keyBase.startsWith('manual-') ? keyBase : `manual-${keyBase}`;

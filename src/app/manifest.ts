@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'HaBayit',
     short_name: 'HaBayit',
-    description: 'Hebrew Adventure attendance',
+    description: 'HaBayit class attendance',
     start_url: '/app',
     scope: '/',
     display: 'standalone',

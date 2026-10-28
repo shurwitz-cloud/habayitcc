@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { computeLulavPricing } from '@/lib/lulav/pricing';
+import { validateLulavInventory } from '@/lib/lulav/inventory';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +32,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pricing = computeLulavPricing(quantity, 'card', true);
+    const inventory = await validateLulavInventory(quantity);
+    if (!inventory.ok) {
+      return NextResponse.json({ error: inventory.error }, { status: 409 });
+    }
+
+    const coverFee = Boolean(body.coverFee);
+    const pricing = computeLulavPricing(quantity, 'card', coverFee);
     if (pricing.totalCents < 100) {
       return NextResponse.json({ error: 'Invalid amount.' }, { status: 400 });
     }
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         type: 'lulav_order',
         quantity: String(quantity),
-        cover_fee: 'true',
+        cover_fee: coverFee ? 'true' : 'false',
         subtotal: pricing.subtotal.toFixed(2),
         card_fee: pricing.cardFee.toFixed(2),
         total: pricing.total.toFixed(2),

@@ -251,6 +251,7 @@ export const SHEET_CONFIGS = {
       'Payment Method',
       'Status',
       'Payment ID',
+      'Submission ID',
     ],
   },
 } as const;
@@ -419,6 +420,16 @@ const PAID_EVENT_HEADERS: Record<string, string[]> = {
     'Women Attending', 'Ticket Subtotal', 'Sponsor Amount',
     'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
   ],
+  celebration: [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Adults', 'Children', 'Ticket Subtotal', 'Donation',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
+  ],
+  couples: [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Couples', 'Member Code', 'Couple Details', 'Ticket Subtotal', 'Sponsor Amount',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
+  ],
 };
 
 function quoteSheetTab(tabName: string): string {
@@ -490,7 +501,7 @@ async function ensureTabWithHeaders(
  */
 export async function appendPaidEventRow(
   spreadsheetId: string,
-  eventType: 'dinner' | 'family-fair' | 'womens',
+  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples',
   values: (string | number)[],
   tabName: string,
 ): Promise<void> {
@@ -516,7 +527,7 @@ export async function appendPaidEventRow(
 
 export async function ensurePaidEventTabs(
   spreadsheetId: string,
-  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' }>,
+  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' }>,
 ): Promise<void> {
   for (const tab of tabs) {
     const headers = PAID_EVENT_HEADERS[tab.eventType];
@@ -528,7 +539,7 @@ export async function ensurePaidEventTabs(
 /** Replace a tab's header + data rows (used for backfill). */
 export async function replacePaidEventTab(
   spreadsheetId: string,
-  eventType: 'dinner' | 'family-fair' | 'womens',
+  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples',
   tabName: string,
   rows: (string | number)[][],
 ): Promise<void> {
@@ -562,6 +573,7 @@ const LULAV_HEADERS = [
   'Payment Method',
   'Status',
   'Payment ID',
+  'Submission ID',
 ];
 
 export async function appendLulavOrderRow(data: {
@@ -576,6 +588,7 @@ export async function appendLulavOrderRow(data: {
   payMethod: string;
   status: string;
   paymentId?: string;
+  submissionId?: string;
 }): Promise<void> {
   if (!IDS.lulav) {
     console.warn('[Sheets] GOOGLE_SHEETS_LULAV_ID not set — skipping Lulav row');
@@ -604,10 +617,86 @@ export async function appendLulavOrderRow(data: {
           data.payMethod,
           data.status,
           data.paymentId ?? '',
+          data.submissionId ?? '',
         ].map(String),
       ],
     },
   });
+}
+
+/** Mark a Lulav sheet row Paid (by Submission ID, else email + Not paid). */
+export async function markLulavOrderPaidInSheet(input: {
+  submissionId: string;
+  email: string;
+  paymentMethod: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!IDS.lulav) {
+    return { ok: false, error: 'Lulav sheet not configured.' };
+  }
+
+  try {
+    await ensureTabWithHeaders(IDS.lulav, LULAV_TAB, LULAV_HEADERS);
+    const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+    const range = `${quoteSheetTab(LULAV_TAB)}!A:M`;
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: IDS.lulav,
+      range,
+    });
+    const rows = existing.data.values ?? [];
+    if (rows.length < 2) {
+      return { ok: false, error: 'No Lulav orders found in the sheet.' };
+    }
+
+    const email = input.email.trim().toLowerCase();
+    const submissionId = input.submissionId.trim();
+    let rowIndex = -1; // 0-based in values array
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] ?? [];
+      const rowEmail = String(row[2] ?? '').trim().toLowerCase();
+      const rowStatus = String(row[10] ?? '').trim().toLowerCase();
+      const rowSubmissionId = String(row[12] ?? '').trim();
+      const unpaid =
+        rowStatus === 'not paid' ||
+        rowStatus === 'pending zelle' ||
+        rowStatus === 'pending';
+
+      if (submissionId && rowSubmissionId === submissionId) {
+        rowIndex = i;
+        break;
+      }
+      if (!submissionId && unpaid && rowEmail === email) {
+        rowIndex = i;
+        break;
+      }
+      if (submissionId && unpaid && rowEmail === email && !rowSubmissionId) {
+        rowIndex = i;
+        // keep scanning in case a later row has the id
+      }
+    }
+
+    if (rowIndex < 0) {
+      return { ok: false, error: 'Could not find this order on the sheet.' };
+    }
+
+    const sheetRow = rowIndex + 1; // 1-based for A1 notation
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: IDS.lulav,
+      range: `${quoteSheetTab(LULAV_TAB)}!J${sheetRow}:M${sheetRow}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[input.paymentMethod, 'Paid', rows[rowIndex]?.[11] ?? '', submissionId]],
+      },
+    });
+
+    return { ok: true };
+  } catch (err) {
+    console.error('[Sheets] mark Lulav paid failed:', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Sheet update failed.',
+    };
+  }
 }
 
 export function hebrewAdventureRow(data: {

@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 import { contactRow } from '@/lib/google/sheets';
 import { sendContactEmails } from '@/lib/email/contact';
+import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 
 export interface ContactInput {
   firstName: string;
@@ -18,6 +19,9 @@ export interface ContactInput {
 export async function submitContactForm(
   input: ContactInput
 ): Promise<{ success: boolean; error?: string }> {
+  const limited = await enforceActionRateLimit('contact', 10, 15 * 60 * 1000);
+  if (!limited.ok) return { success: false, error: limited.error };
+
   const ready = assertSupabaseWriteReady();
   if (!ready.ok) return { success: false, error: ready.error };
 

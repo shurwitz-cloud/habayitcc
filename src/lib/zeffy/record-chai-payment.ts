@@ -284,7 +284,7 @@ export async function recordZeffyChaiPartnerPayment(
   });
 
   if (isNewPartner && accessCode) {
-    void chaiPartnerRow({
+    await chaiPartnerRow({
       firstName: parsed.firstName,
       lastName: parsed.lastName,
       email: parsed.email,
@@ -330,19 +330,27 @@ export async function recordZeffyChaiPartnerPayment(
     }
   } else if (sendEmails) {
     try {
+      // Payment amount on the receipt; monthly rate for copy (never "$600/month"
+      // when they prepaid several months at $150/mo).
+      const rateForEmail =
+        monthlyAmount > 0
+          ? monthlyAmount
+          : Number(existingPartner?.monthly_amount) || paidAmount;
       await sendDonationReceiptEmailFromRecord({
         email: parsed.email,
         firstName: parsed.firstName || existingPartner?.first_name || '',
         lastName: parsed.lastName || existingPartner?.last_name || '',
         amountDollars: paidAmount,
         campaign: 'chai-partner',
-        donationType: paidUpfront ? 'One-Time' : 'Monthly',
+        donationType: paidUpfront || coverageMonths > 1 ? 'One-Time' : 'Monthly',
         method: paymentMethodLabel,
         paidAt,
         includeReceiptLink,
         spouseFirstName,
         spouseLastName,
         spouseEmail,
+        monthlyAmount: rateForEmail,
+        coverageMonths,
       });
     } catch (err) {
       console.error('[zeffy] renewal receipt failed:', err);

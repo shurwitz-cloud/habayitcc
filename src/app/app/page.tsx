@@ -15,7 +15,9 @@ export default function AttendanceHomePage() {
           >
             <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-gold">Program</p>
             <h2 className="font-display text-[2rem] leading-none text-navy font-bold mt-1">{program.name}</h2>
-            <p className="text-sm text-muted mt-2">{program.classes.length} classes</p>
+            <p className="text-sm text-muted mt-2">
+              {program.classes.length} {program.classes.length === 1 ? 'class' : 'classes'}
+            </p>
           </Link>
         ))}
         <p className="text-xs text-muted leading-relaxed pt-4">

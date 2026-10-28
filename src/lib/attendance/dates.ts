@@ -1,5 +1,7 @@
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
 export function todayIso(now = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
@@ -27,20 +29,34 @@ export function addDays(iso: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Sunday of the week containing this date (the Sunday on or before it). */
-export function sundayOnOrBefore(iso: string): string {
+/** Meeting weekday on or before this date (0 = Sunday … 6 = Saturday). */
+export function meetingDayOnOrBefore(iso: string, meetingWeekday: number): string {
   const [year, month, day] = iso.split('-').map(Number);
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return addDays(iso, -weekday);
+  const delta = (weekday - meetingWeekday + 7) % 7;
+  return addDays(iso, -delta);
+}
+
+/** @deprecated Prefer meetingDayOnOrBefore(iso, 0). */
+export function sundayOnOrBefore(iso: string): string {
+  return meetingDayOnOrBefore(iso, 0);
+}
+
+export function recentMeetingDay(meetingWeekday: number, now = new Date()): string {
+  return meetingDayOnOrBefore(todayIso(now), meetingWeekday);
 }
 
 export function recentSunday(now = new Date()): string {
-  return sundayOnOrBefore(todayIso(now));
+  return recentMeetingDay(0, now);
 }
 
-export function parseSessionDate(value: string | undefined, fallback = recentSunday()): string {
+export function parseSessionDate(
+  value: string | undefined,
+  meetingWeekday = 0,
+  fallback = recentMeetingDay(meetingWeekday),
+): string {
   if (!value || !isIsoDate(value)) return fallback;
-  return sundayOnOrBefore(value);
+  return meetingDayOnOrBefore(value, meetingWeekday);
 }
 
 export function formatSessionDate(iso: string): string {
@@ -54,10 +70,16 @@ export function formatSessionDate(iso: string): string {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
-export function sessionDateLabel(iso: string, today = todayIso()): string {
+export function weekdayName(weekday: number): string {
+  return WEEKDAY_NAMES[weekday] ?? 'day';
+}
+
+export function sessionDateLabel(iso: string, meetingWeekday = 0, today = todayIso()): string {
   const formatted = formatSessionDate(iso);
   if (iso === today) return `${formatted} · today`;
-  if (iso === recentSunday()) return `${formatted} · last Sunday`;
+  if (iso === recentMeetingDay(meetingWeekday)) {
+    return `${formatted} · last ${weekdayName(meetingWeekday)}`;
+  }
   return formatted;
 }
 

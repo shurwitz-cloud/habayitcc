@@ -3,13 +3,19 @@ import { stripe } from '@/lib/stripe/server';
 import { normalizeDonorEmail } from '@/lib/donations/normalize-donor';
 import { getPaidEvent } from '@/lib/events/paid-events';
 import {
+  assertPaidEventHasRoom,
+  paidEventUnitsFromInput,
+} from '@/lib/events/paid-event-capacity';
+import {
   computePaidEventTotal,
   totalToCents,
+  type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { verifyHebrewFairCode } from '@/lib/events/hebrew-fair-codes';
+import { verifyHaBayitMemberCode } from '@/lib/events/chai-member-event-codes';
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,11 +31,24 @@ export async function POST(req: NextRequest) {
       dinner?: DinnerRegistrationData;
       fair?: FairRegistrationData;
       womens?: WomensRegistrationData;
+      couples?: CouplesRegistrationData;
     };
 
     const event = getPaidEvent(body.slug);
     if (!event) {
       return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
+    }
+    const room = await assertPaidEventHasRoom(
+      event,
+      paidEventUnitsFromInput(event, {
+        couples: body.couples,
+        dinner: body.dinner,
+        fair: body.fair,
+        womens: body.womens,
+      }),
+    );
+    if (!room.ok) {
+      return NextResponse.json({ error: room.error }, { status: 400 });
     }
 
     const email = normalizeDonorEmail(body.email ?? '');
@@ -58,12 +77,41 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let couplesData = body.couples;
+    if (event.type === 'couples') {
+      const coupleCount = Math.max(0, Math.round(body.couples?.couples || 0));
+      if (coupleCount < 1) {
+        return NextResponse.json({ error: 'Please add at least one couple.' }, { status: 400 });
+      }
+      const rawCode = body.couples?.memberCode?.trim() || '';
+      if (rawCode) {
+        const lookup = await verifyHaBayitMemberCode(rawCode, { eventSlug: event.slug });
+        if (!lookup.valid || !lookup.code) {
+          const reasonMsg =
+            lookup.reason === 'already_used'
+              ? 'This HaBayit member code was already used for this event.'
+              : lookup.reason === 'not_eligible'
+                ? 'This HaBayit member code is not active.'
+                : 'This HaBayit member code is not valid.';
+          return NextResponse.json({ error: reasonMsg }, { status: 400 });
+        }
+        couplesData = {
+          couples: coupleCount,
+          memberCode: lookup.code,
+          memberDiscount: true,
+        };
+      } else {
+        couplesData = { couples: coupleCount, memberDiscount: false };
+      }
+    }
+
     const pricing = computePaidEventTotal({
       event,
       dinner: body.dinner,
       fair: body.fair,
       fairFreeChildIndices,
       womens: body.womens,
+      couples: couplesData,
       sponsorAmount: body.sponsorAmount ?? 0,
       coverFee: !!body.coverFee,
     });
@@ -98,10 +146,23 @@ export async function POST(req: NextRequest) {
         card_fee: String(pricing.cardFee),
         cover_fee: body.coverFee ? '1' : '0',
         women: event.type === 'womens' ? String(body.womens?.women ?? 1) : '',
-        adults: event.type === 'dinner' ? String(body.dinner?.adults ?? 0) : '',
-        kids: event.type === 'dinner' ? String(body.dinner?.kids ?? 0) : '',
+        adults:
+          event.type === 'dinner' || event.type === 'celebration'
+            ? String(body.dinner?.adults ?? 0)
+            : '',
+        kids:
+          event.type === 'dinner' || event.type === 'celebration'
+            ? String(body.dinner?.kids ?? 0)
+            : '',
         fair_children:
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
+        couples: event.type === 'couples' ? String(couplesData?.couples ?? 0) : '',
+        member_code:
+          event.type === 'couples' && couplesData?.memberDiscount
+            ? String(couplesData.memberCode ?? '').slice(0, 40)
+            : '',
+        member_discount:
+          event.type === 'couples' && couplesData?.memberDiscount ? '1' : '0',
       },
     });
 

@@ -96,9 +96,9 @@ export default async function ChildAttendancePage({
         />
 
         <section className="bg-white border border-line rounded-2xl p-4">
-          <h2 className="font-display text-2xl text-navy font-bold">Sundays</h2>
+          <h2 className="font-display text-2xl text-navy font-bold">Sessions</h2>
           {history.length === 0 ? (
-            <p className="text-sm text-muted mt-2">No class Sundays recorded for this child yet.</p>
+            <p className="text-sm text-muted mt-2">No class sessions recorded for this child yet.</p>
           ) : (
             <ul className="mt-3 divide-y divide-line">
               {history.map((session) => {

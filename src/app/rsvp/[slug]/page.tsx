@@ -47,7 +47,7 @@ export default async function RsvpPage({ params }: { params: Promise<{ slug: str
               </>
             )}
           </div>
-          <p className="text-white/80 text-[1rem] max-w-[520px] mx-auto leading-relaxed">
+          <p className="text-white/80 text-[1rem] max-w-[520px] mx-auto leading-relaxed whitespace-pre-line">
             {event.description}
           </p>
         </div>

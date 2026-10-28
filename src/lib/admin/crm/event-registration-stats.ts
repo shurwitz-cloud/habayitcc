@@ -9,6 +9,7 @@ export type EventRegistrationDetails = {
   dinner?: { adults?: number; kids?: number };
   fair?: { children?: unknown[] };
   womens?: { women?: number };
+  couples?: { couples?: number; memberCode?: string; memberDiscount?: boolean };
   /** Generic adults/kids for future event types */
   adults?: number;
   kids?: number;
@@ -42,6 +43,26 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Parse "Adults: 2" / "Children: 6" (or Kids) from registration notes.
+ * Used when registration_details.dinner is missing (e.g. older inserts / schema fallback).
+ */
+export function parseAdultsKidsFromNotes(
+  notes: string | null | undefined,
+): { adults: number; kids: number } | null {
+  const text = String(notes || '');
+  if (!text.trim()) return null;
+
+  const adultsMatch = text.match(/\bAdults?\s*:\s*(\d+)/i);
+  const kidsMatch = text.match(/\b(?:Children|Kids|Child)\s*:\s*(\d+)/i);
+  if (!adultsMatch && !kidsMatch) return null;
+
+  return {
+    adults: adultsMatch ? Math.max(0, Number(adultsMatch[1]) || 0) : 0,
+    kids: kidsMatch ? Math.max(0, Number(kidsMatch[1]) || 0) : 0,
+  };
+}
+
 /** Extract adults / kids / guest count from a registration row. */
 export function parseEventPeople(row: {
   guest_count?: number | null;
@@ -50,10 +71,19 @@ export function parseEventPeople(row: {
 }): EventPeopleBreakdown {
   const details = asDetails(row.registration_details);
   const guestFallback = Math.max(0, num(row.guest_count));
+  const fromNotes = parseAdultsKidsFromNotes(row.notes);
 
   if (details?.dinner) {
     const adults = Math.max(0, num(details.dinner.adults));
     const kids = Math.max(0, num(details.dinner.kids));
+    // Prefer notes when dinner breakdown is empty but notes have Adults/Children.
+    if (adults === 0 && kids === 0 && fromNotes && (fromNotes.adults > 0 || fromNotes.kids > 0)) {
+      return {
+        adults: fromNotes.adults,
+        kids: fromNotes.kids,
+        guests: fromNotes.adults + fromNotes.kids || guestFallback,
+      };
+    }
     return { adults, kids, guests: adults + kids || guestFallback };
   }
 
@@ -68,13 +98,43 @@ export function parseEventPeople(row: {
     return { adults: null, kids: null, guests: women || guestFallback };
   }
 
+  const couples =
+    details?.couples && typeof details.couples === 'object'
+      ? num((details.couples as { couples?: unknown }).couples)
+      : details && details.type === 'couples'
+        ? guestFallback
+        : 0;
+  if (couples > 0 || details?.type === 'couples') {
+    return { adults: null, kids: null, guests: couples || guestFallback };
+  }
+
   // Generic future shape: { adults, kids } at top level of details
   if (details && (details.adults != null || details.kids != null)) {
     const adults = details.adults != null ? Math.max(0, num(details.adults)) : null;
     const kids = details.kids != null ? Math.max(0, num(details.kids)) : null;
+    if (
+      (adults ?? 0) === 0 &&
+      (kids ?? 0) === 0 &&
+      fromNotes &&
+      (fromNotes.adults > 0 || fromNotes.kids > 0)
+    ) {
+      return {
+        adults: fromNotes.adults,
+        kids: fromNotes.kids,
+        guests: fromNotes.adults + fromNotes.kids || guestFallback,
+      };
+    }
     const guests =
       (adults ?? 0) + (kids ?? 0) > 0 ? (adults ?? 0) + (kids ?? 0) : guestFallback;
     return { adults, kids, guests };
+  }
+
+  if (fromNotes && (fromNotes.adults > 0 || fromNotes.kids > 0)) {
+    return {
+      adults: fromNotes.adults,
+      kids: fromNotes.kids,
+      guests: fromNotes.adults + fromNotes.kids || guestFallback,
+    };
   }
 
   return { adults: null, kids: null, guests: guestFallback };
@@ -116,6 +176,7 @@ export type EventAggregateStats = {
 export function aggregateEventRegistrations(
   rows: Array<{
     guest_count?: number | null;
+    notes?: string | null;
     amount?: number | null;
     sponsor_amount?: number | null;
     card_fee?: number | null;

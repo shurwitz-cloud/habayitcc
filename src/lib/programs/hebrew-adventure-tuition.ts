@@ -10,8 +10,8 @@ export const HEBREW_ADVENTURE_CHAI_DISCOUNT = 100;
 export const HEBREW_ADVENTURE_CHAI_SESSION_TUITION =
   HEBREW_ADVENTURE_SESSION_TUITION - HEBREW_ADVENTURE_CHAI_DISCOUNT;
 
-/** Discount when paying the full year in one payment. */
-export const HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT = 25;
+/** Pay-in-full no longer has a discount. */
+export const HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT = 0;
 
 /** Limited-time early registration discount (through August 7, America/New_York). */
 export const HEBREW_ADVENTURE_EARLY_BIRD_DISCOUNT = 50;
@@ -41,9 +41,8 @@ export function getHebrewAdventureEarlyBirdDiscount(now = new Date()): number {
 }
 
 export function getHebrewAdventurePaymentPlanDiscount(
-  paymentPlan: HebrewAdventurePaymentPlan
+  _paymentPlan: HebrewAdventurePaymentPlan
 ): number {
-  if (paymentPlan === 'full') return HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT;
   return 0;
 }
 

@@ -8,7 +8,7 @@ import type {
 function hebrewAdventurePaymentPlanLabel(plan: HebrewAdventurePaymentPlan): string {
   switch (plan) {
     case 'full':
-      return 'Pay in full upon acceptance ($25 off)';
+      return 'Pay in full upon acceptance';
     case 'two_installments':
       return 'Two payments (acceptance + by November 1)';
     case 'three_installments':

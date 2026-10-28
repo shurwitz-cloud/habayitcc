@@ -15,7 +15,8 @@ export interface ReceiptDocumentProps {
 }
 
 export function formatReceiptAmount(amount: number): string {
-  if (Number.isNaN(amount) || amount < 0) return '$0.00';
+  if (Number.isNaN(amount)) return '________';
+  if (amount < 0) return '$0.00';
   return `$${amount.toFixed(2)}`;
 }
 

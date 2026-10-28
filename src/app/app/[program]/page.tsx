@@ -46,7 +46,7 @@ export default async function ProgramClassesPage({ params }: { params: Promise<{
           <section className="bg-white border border-line rounded-2xl p-4 mt-4">
             <h2 className="font-display text-2xl text-navy font-bold">Not in a class yet</h2>
             <p className="text-sm text-muted mt-1 mb-3">
-              Their grade is outside K through 5th, so pick the class they should join.
+              Their grade did not match a class automatically — pick the class they should join.
             </p>
             <ul className="space-y-3">
               {snapshot.data.unplaced.map((child) => (

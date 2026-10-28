@@ -12,7 +12,7 @@ export type AttendanceRate = {
 };
 
 /**
- * Percentage is present Sundays divided by Sundays the class met
+ * Percentage is present sessions divided by sessions the class met
  * while this child was on the roster and someone marked them here or absent.
  * A note with no here/absent mark does not count yet.
  */
@@ -47,7 +47,7 @@ export function formatPercent(percent: number | null): string {
 }
 
 export function formatRate(rate: AttendanceRate): string {
-  if (rate.counted === 0) return 'No Sundays marked yet';
-  const sunday = rate.counted === 1 ? 'Sunday' : 'Sundays';
-  return `${rate.present} of ${rate.counted} ${sunday} · ${rate.percent}%`;
+  if (rate.counted === 0) return 'No sessions marked yet';
+  const session = rate.counted === 1 ? 'session' : 'sessions';
+  return `${rate.present} of ${rate.counted} ${session} · ${rate.percent}%`;
 }

@@ -5,9 +5,11 @@ import { Elements, useStripe, useElements, CardElement } from '@stripe/react-str
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
 import { WalletPayButtons } from '@/components/stripe/WalletPayButtons';
-import type { PaidEventConfig } from '@/lib/events/paid-events';
+import { eventUsesAdultsKids, type PaidEventConfig } from '@/lib/events/paid-events';
 import {
   computePaidEventTotal,
+  COUPLES_MEMBER_TICKET_PRICE,
+  COUPLES_TICKET_PRICE,
   DINNER_ADULT_PRICE,
   DINNER_CHILD_PRICE,
   FAIR_CHILD_PRICE,
@@ -15,7 +17,11 @@ import {
   totalToCents,
   type FairChildEntry,
 } from '@/lib/events/paid-event-pricing';
-import { submitPaidEventRegistration, verifyHebrewFairCodeAction } from './actions';
+import {
+  submitPaidEventRegistration,
+  verifyHaBayitMemberCodeAction,
+  verifyHebrewFairCodeAction,
+} from './actions';
 
 const CARD_STYLE: StripeCardElementOptions = {
   style: {
@@ -68,12 +74,18 @@ function PaidEventFormInner({
   const [adults, setAdults] = useState(1);
   const [kids, setKids] = useState(0);
   const [women, setWomen] = useState(1);
+  const [couples, setCouples] = useState(1);
+  const [habayitMember, setHabayitMember] = useState(false);
+  const [memberCode, setMemberCode] = useState('');
+  const [memberCodeStatus, setMemberCodeStatus] = useState<'valid' | 'invalid' | 'checking' | null>(
+    null,
+  );
   const [fairChildCount, setFairChildCount] = useState(1);
   const [hebrewStudent, setHebrewStudent] = useState(false);
   const [hebrewCodes, setHebrewCodes] = useState<string[]>(['']);
   const [fairCodeStatus, setFairCodeStatus] = useState<Record<number, 'valid' | 'invalid' | 'checking'>>({});
 
-  const [sponsorPreset, setSponsorPreset] = useState<number | 'other' | null>(null);
+  const [sponsorPreset, setSponsorPreset] = useState<number | 'other' | 'none' | null>(null);
   const [sponsorOther, setSponsorOther] = useState('');
   const [coverFee, setCoverFee] = useState(false);
 
@@ -85,8 +97,9 @@ function PaidEventFormInner({
   const [paidIntentId, setPaidIntentId] = useState<string | null>(null);
 
   const sponsorAmount = useMemo(() => {
+    if (sponsorPreset === 'none' || sponsorPreset == null) return 0;
     if (sponsorPreset === 'other') return parseFloat(sponsorOther) || 0;
-    return sponsorPreset ?? 0;
+    return sponsorPreset;
   }, [sponsorPreset, sponsorOther]);
 
   const fairChildren: FairChildEntry[] = useMemo(
@@ -106,18 +119,41 @@ function PaidEventFormInner({
     return set;
   }, [hebrewStudent, fairChildren, fairCodeStatus]);
 
+  const couplesData = useMemo(
+    () =>
+      event.type === 'couples'
+        ? {
+            couples,
+            memberCode: habayitMember ? memberCode : '',
+            memberDiscount: habayitMember && memberCodeStatus === 'valid',
+          }
+        : undefined,
+    [event.type, couples, habayitMember, memberCode, memberCodeStatus],
+  );
+
   const pricing = useMemo(
     () =>
       computePaidEventTotal({
         event,
-        dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+        dinner: eventUsesAdultsKids(event) ? { adults, kids } : undefined,
         fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
         fairFreeChildIndices,
         womens: event.type === 'womens' ? { women } : undefined,
+        couples: couplesData,
         sponsorAmount,
         coverFee,
       }),
-    [event, adults, kids, women, fairChildren, fairFreeChildIndices, sponsorAmount, coverFee]
+    [
+      event,
+      adults,
+      kids,
+      women,
+      fairChildren,
+      fairFreeChildIndices,
+      couplesData,
+      sponsorAmount,
+      coverFee,
+    ]
   );
 
   useEffect(() => {
@@ -156,6 +192,16 @@ function PaidEventFormInner({
     void verifyFairCode(index, code);
   }
 
+  async function verifyMemberCode(code: string) {
+    if (!code.trim()) {
+      setMemberCodeStatus(null);
+      return;
+    }
+    setMemberCodeStatus('checking');
+    const result = await verifyHaBayitMemberCodeAction(code, event.slug);
+    setMemberCodeStatus(result.valid ? 'valid' : 'invalid');
+  }
+
   function addHebrewCodeField() {
     setHebrewCodes((prev) => {
       if (prev.length >= fairChildCount) return prev;
@@ -179,14 +225,33 @@ function PaidEventFormInner({
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
       return 'Please fill in all required fields.';
     }
-    if (event.type === 'dinner' && adults + kids < 1) {
+    if (eventUsesAdultsKids(event) && adults + kids < 1) {
       return 'Please enter at least one adult or child.';
+    }
+    if (event.requireDonationChoice) {
+      if (sponsorPreset == null) {
+        return 'Please choose a donation amount or None at this time.';
+      }
+      if (sponsorPreset === 'other' && sponsorAmount < 1) {
+        return 'Please enter a donation amount greater than $0, or choose None at this time.';
+      }
     }
     if (event.type === 'family-fair' && fairChildCount < 1) {
       return 'Please add at least one child.';
     }
     if (event.type === 'womens' && women < 1) {
       return 'Please enter how many women are attending.';
+    }
+    if (event.type === 'couples' && couples < 1) {
+      return 'Please add at least one couple.';
+    }
+    if (event.type === 'couples' && habayitMember) {
+      if (!memberCode.trim()) {
+        return 'Please enter your Chai Partner code.';
+      }
+      if (memberCodeStatus !== 'valid') {
+        return 'Please enter a valid Chai Partner code.';
+      }
     }
     if (event.type === 'family-fair' && hebrewStudent) {
       if (!hebrewCodes[0]?.trim()) {
@@ -226,10 +291,16 @@ function PaidEventFormInner({
     kids,
     fairChildCount,
     women,
+    couples,
+    habayitMember,
+    memberCode,
+    memberCodeStatus,
     hebrewStudent,
     hebrewCodes,
     fairCodeStatus,
     pricing.total,
+    sponsorPreset,
+    sponsorAmount,
   ]);
 
   const handleWalletCreateSecret = useCallback(async () => {
@@ -254,9 +325,12 @@ function PaidEventFormInner({
         phone: phone.trim(),
         coverFee,
         sponsorAmount,
-        dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+        donationChoice:
+          sponsorPreset === 'none' ? 'none' : sponsorPreset != null ? 'amount' : undefined,
+        dinner: eventUsesAdultsKids(event) ? { adults, kids } : undefined,
         fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
         womens: event.type === 'womens' ? { women } : undefined,
+        couples: couplesData,
       }),
     });
 
@@ -279,10 +353,12 @@ function PaidEventFormInner({
     phone,
     coverFee,
     sponsorAmount,
+    sponsorPreset,
     adults,
     kids,
     fairChildren,
     women,
+    couplesData,
     fairChildCount,
     hebrewStudent,
     hebrewCodes,
@@ -302,10 +378,13 @@ function PaidEventFormInner({
           phone: phone.trim(),
           coverFee,
           sponsorAmount,
+          donationChoice:
+            sponsorPreset === 'none' ? 'none' : sponsorPreset != null ? 'amount' : undefined,
           paymentIntentId,
-          dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+          dinner: eventUsesAdultsKids(event) ? { adults, kids } : undefined,
           fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
           womens: event.type === 'womens' ? { women } : undefined,
+          couples: couplesData,
         });
 
         if (!result.success) {
@@ -326,10 +405,12 @@ function PaidEventFormInner({
       phone,
       coverFee,
       sponsorAmount,
+      sponsorPreset,
       adults,
       kids,
       fairChildren,
       women,
+      couplesData,
     ]
   );
 
@@ -379,9 +460,10 @@ function PaidEventFormInner({
               phone: phone.trim(),
               coverFee,
               sponsorAmount,
-              dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+              dinner: eventUsesAdultsKids(event) ? { adults, kids } : undefined,
               fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
               womens: event.type === 'womens' ? { women } : undefined,
+              couples: couplesData,
             }),
           });
 
@@ -431,10 +513,13 @@ function PaidEventFormInner({
         phone: phone.trim(),
         coverFee,
         sponsorAmount,
+        donationChoice:
+          sponsorPreset === 'none' ? 'none' : sponsorPreset != null ? 'amount' : undefined,
         paymentIntentId,
-        dinner: event.type === 'dinner' ? { adults, kids } : undefined,
+        dinner: eventUsesAdultsKids(event) ? { adults, kids } : undefined,
         fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
         womens: event.type === 'womens' ? { women } : undefined,
+        couples: couplesData,
       });
 
       if (!result.success) {
@@ -508,6 +593,14 @@ function PaidEventFormInner({
             min={0}
             required
           />
+        </div>
+      )}
+
+      {event.type === 'celebration' && (
+        <div className="space-y-4 border-t border-line pt-5">
+          <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Who’s coming</p>
+          <StepperField label="Adults" value={adults} onChange={setAdults} min={0} required />
+          <StepperField label="Children" value={kids} onChange={setKids} min={0} required />
         </div>
       )}
 
@@ -597,20 +690,84 @@ function PaidEventFormInner({
         </div>
       )}
 
+      {event.type === 'couples' && (
+        <div className="space-y-4 border-t border-line pt-5">
+          <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Tickets</p>
+          <StepperField
+            label={`$${COUPLES_TICKET_PRICE} Per Couple`}
+            value={couples}
+            onChange={setCouples}
+            min={1}
+            required
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const next = !habayitMember;
+              setHabayitMember(next);
+              if (!next) {
+                setMemberCode('');
+                setMemberCodeStatus(null);
+              }
+            }}
+            className={`w-full text-left px-4 py-3.5 rounded-xl border font-extrabold text-[1.02rem] transition-colors ${
+              habayitMember
+                ? 'bg-gold text-white border-gold'
+                : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
+            }`}
+          >
+            ${COUPLES_MEMBER_TICKET_PRICE} for HaBayit Chai Partners
+          </button>
+          {habayitMember && (
+            <div className="space-y-1.5">
+              <Field label="Chai Partner code">
+                <input
+                  value={memberCode}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setMemberCode(value);
+                    void verifyMemberCode(value);
+                  }}
+                  placeholder="HABAYIT-XXXXXX"
+                  className="uppercase"
+                />
+              </Field>
+              {memberCodeStatus === 'checking' && (
+                <p className="text-[0.8rem] text-muted">Checking code…</p>
+              )}
+              {memberCodeStatus === 'valid' && (
+                <p className="text-[0.8rem] text-green-700 font-semibold">Code confirmed</p>
+              )}
+              {memberCodeStatus === 'invalid' && (
+                <p className="text-[0.8rem] text-red-700">
+                  Code not recognized, not active, or already used for this event.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <SponsorSection
         presets={event.sponsorPresets}
+        options={event.sponsorOptions}
         note={event.sponsorNote}
         preset={sponsorPreset}
         onPresetChange={setSponsorPreset}
         otherAmount={sponsorOther}
         onOtherChange={setSponsorOther}
+        requireChoice={event.requireDonationChoice === true}
+        donationMode={event.requireDonationChoice === true}
       />
 
       <div className="border-t border-line pt-5 space-y-3">
         <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Order Summary</p>
-        <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />
+        {pricing.ticketSubtotal > 0 && <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />}
         {pricing.sponsorAmount > 0 && (
-          <SummaryLine label="Sponsorship" amount={pricing.sponsorAmount} />
+          <SummaryLine
+            label={event.requireDonationChoice ? 'Donation' : 'Sponsorship'}
+            amount={pricing.sponsorAmount}
+          />
         )}
         {pricing.cardFee > 0 && <SummaryLine label="Card processing (3%)" amount={pricing.cardFee} />}
         <div className="flex justify-between font-bold text-navy text-[1.1rem] pt-2 border-t border-line">
@@ -690,42 +847,84 @@ function PaidEventFormInner({
 
 function SponsorSection({
   presets,
+  options,
   note,
   preset,
   onPresetChange,
   otherAmount,
   onOtherChange,
+  requireChoice,
+  donationMode,
 }: {
   presets: number[];
+  options?: { amount: number; label: string }[];
   note?: string;
-  preset: number | 'other' | null;
-  onPresetChange: (v: number | 'other' | null) => void;
+  preset: number | 'other' | 'none' | null;
+  onPresetChange: (v: number | 'other' | 'none' | null) => void;
   otherAmount: string;
   onOtherChange: (v: string) => void;
+  requireChoice?: boolean;
+  donationMode?: boolean;
 }) {
+  const labels = new Map((options ?? []).map((option) => [option.amount, option.label]));
+
   return (
     <div className="border-t border-line pt-5 space-y-3">
-      <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Become a Sponsor</p>
+      <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">
+        {donationMode ? 'Help cover event costs' : 'Become a Sponsor'}
+      </p>
       {note && <p className="text-[0.92rem] text-muted leading-relaxed">{note}</p>}
-      <div className="flex flex-wrap gap-2">
-        {presets.map((amt) => (
-          <button
-            key={amt}
-            type="button"
-            onClick={() => onPresetChange(preset === amt ? null : amt)}
-            className={`px-4 py-2 rounded-full text-[0.8rem] font-bold border transition-colors ${
-              preset === amt
-                ? 'bg-gold text-white border-gold'
-                : 'bg-white text-navy border-line hover:border-gold'
-            }`}
-          >
-            ${amt}
-          </button>
-        ))}
+      {requireChoice && (
+        <p className="text-[0.82rem] text-muted">
+          Please choose an amount, or select None at this time.
+        </p>
+      )}
+      <div className={donationMode ? 'space-y-2' : 'flex flex-wrap gap-2'}>
+        {presets.map((amt) => {
+          const caption = labels.get(amt);
+          const selected = preset === amt;
+          return (
+            <button
+              key={amt}
+              type="button"
+              onClick={() => onPresetChange(selected ? (requireChoice ? amt : null) : amt)}
+              className={`${
+                donationMode ? 'w-full text-left px-4 py-3 rounded-xl' : 'px-4 py-2 rounded-full text-[0.8rem] font-bold'
+              } border transition-colors ${
+                selected
+                  ? 'bg-gold text-white border-gold'
+                  : 'bg-white text-navy border-line hover:border-gold'
+              }`}
+            >
+              {donationMode && caption ? (
+                <span className="flex items-baseline gap-2.5 flex-wrap">
+                  <span className="text-[1.05rem] font-extrabold tabular-nums">${amt.toLocaleString('en-US')}</span>
+                  <span
+                    className={`text-[0.82rem] font-medium tracking-wide ${
+                      /family suggested/i.test(caption)
+                        ? selected
+                          ? 'text-[#f7ebc8]'
+                          : 'text-gold'
+                        : selected
+                          ? 'text-white/80'
+                          : 'text-muted'
+                    }`}
+                  >
+                    {caption}
+                  </span>
+                </span>
+              ) : (
+                `$${amt}`
+              )}
+            </button>
+          );
+        })}
         <button
           type="button"
-          onClick={() => onPresetChange(preset === 'other' ? null : 'other')}
-          className={`px-4 py-2 rounded-full text-[0.8rem] font-bold border transition-colors ${
+          onClick={() => onPresetChange(preset === 'other' ? (requireChoice ? 'other' : null) : 'other')}
+          className={`${
+            donationMode ? 'w-full text-left px-4 py-3 rounded-xl text-[0.92rem]' : 'px-4 py-2 rounded-full text-[0.8rem]'
+          } font-bold border transition-colors ${
             preset === 'other'
               ? 'bg-gold text-white border-gold'
               : 'bg-white text-navy border-line hover:border-gold'
@@ -733,6 +932,21 @@ function SponsorSection({
         >
           Other
         </button>
+        {requireChoice && (
+          <button
+            type="button"
+            onClick={() => onPresetChange('none')}
+            className={`${
+              donationMode ? 'w-full text-left px-4 py-3 rounded-xl text-[0.92rem]' : 'px-4 py-2 rounded-full text-[0.8rem]'
+            } font-bold border transition-colors ${
+              preset === 'none'
+                ? 'bg-navy text-white border-navy'
+                : 'bg-white text-navy border-line hover:border-gold'
+            }`}
+          >
+            None at this time
+          </button>
+        )}
         {preset === 'other' && (
           <input
             type="number"
@@ -741,7 +955,7 @@ function SponsorSection({
             value={otherAmount}
             onChange={(e) => onOtherChange(e.target.value)}
             placeholder="Amount"
-            className="w-28 px-3 py-2 rounded-xl border border-line"
+            className={donationMode ? 'w-full px-4 py-3 rounded-xl border border-line' : 'w-28 px-3 py-2 rounded-xl border border-line'}
           />
         )}
       </div>

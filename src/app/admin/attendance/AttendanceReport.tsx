@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { SchemaBanner } from '@/components/attendance/SchemaBanner';
 import { addDays, formatSessionDate, parseSessionDate, rosterCoversDate, sessionDateLabel } from '@/lib/attendance/dates';
-import { getAttendanceProgram, type AttendanceProgram } from '@/lib/attendance/programs';
+import {
+  ATTENDANCE_PROGRAMS,
+  getAttendanceProgram,
+  weekdayLabel,
+  type AttendanceProgram,
+} from '@/lib/attendance/programs';
 import { formatChildDisplayName } from '@/lib/attendance/names';
 import { formatRatedNote } from '@/lib/attendance/notes';
 import { attendanceRate, formatPercent, formatRate } from '@/lib/attendance/stats';
@@ -41,9 +46,10 @@ export function AttendanceReport({
   classKey?: string;
   childId?: string;
 }) {
-  const sessionDate = parseSessionDate(date);
+  const sessionDate = parseSessionDate(date, program.meetingWeekday);
   const selectedClass = program.classes.find((entry) => entry.key === classKey) ?? program.classes[0];
   const base = `/admin/attendance?program=${program.slug}`;
+  const dayName = weekdayLabel(program.meetingWeekday);
 
   return (
     <div>
@@ -55,6 +61,20 @@ export function AttendanceReport({
         <Link href={`/app/${program.slug}`} className="text-sm font-bold text-white bg-navy rounded-full px-4 py-2">
           Take attendance
         </Link>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        {ATTENDANCE_PROGRAMS.map((entry) => (
+          <Link
+            key={entry.slug}
+            href={`/admin/attendance?program=${entry.slug}&view=${view}`}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+              entry.slug === program.slug ? 'bg-navy text-white' : 'bg-white text-navy border border-line'
+            }`}
+          >
+            {entry.name}
+          </Link>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-5">
@@ -96,8 +116,8 @@ export function AttendanceReport({
       )}
 
       <p className="text-xs text-muted mt-6 max-w-2xl">
-        A Sunday counts toward a percentage after the child is marked here or absent. Children who join later are
-        counted from the Sundays they were on the roster.
+        A {dayName} counts toward a percentage after the child is marked here or absent. Children who join later are
+        counted from the {dayName}s they were on the roster.
       </p>
     </div>
   );
@@ -114,22 +134,25 @@ function WeekView({
   sessionDate: string;
   base: string;
 }) {
+  const dayName = weekdayLabel(program.meetingWeekday);
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="text-xl font-bold text-navy">{sessionDateLabel(sessionDate)}</h2>
+        <h2 className="text-xl font-bold text-navy">
+          {sessionDateLabel(sessionDate, program.meetingWeekday)}
+        </h2>
         <div className="flex gap-2">
           <Link
             href={`${base}&view=week&date=${addDays(sessionDate, -7)}`}
             className="px-3 py-1.5 rounded-full border border-line bg-white text-sm font-semibold text-navy"
           >
-            Previous Sunday
+            Previous {dayName}
           </Link>
           <Link
             href={`${base}&view=week&date=${addDays(sessionDate, 7)}`}
             className="px-3 py-1.5 rounded-full border border-line bg-white text-sm font-semibold text-navy"
           >
-            Next Sunday
+            Next {dayName}
           </Link>
         </div>
       </div>
@@ -298,9 +321,9 @@ function ClassView({
       </section>
 
       <section className="mt-4 bg-white border border-line rounded-2xl p-4">
-        <h3 className="font-bold text-navy mb-2">Sundays</h3>
+        <h3 className="font-bold text-navy mb-2">Sessions</h3>
         {sessions.length === 0 ? (
-          <p className="text-sm text-muted">No Sundays recorded yet.</p>
+          <p className="text-sm text-muted">No sessions recorded yet.</p>
         ) : (
           <ul className="divide-y divide-line">
             {sessions.map((session) => {
@@ -382,7 +405,7 @@ function ChildView({
 
       {!childId && <p className="text-sm text-muted">Pick a child to see attendance, Torah study, and Hebrew reading.</p>}
       {childId && !child && (
-        <p className="text-sm text-muted">This child is not on a Hebrew Adventure class list yet.</p>
+        <p className="text-sm text-muted">This child is not on a {program.name} class list yet.</p>
       )}
 
       {child && (
@@ -423,7 +446,7 @@ function ChildView({
                 <p className="font-display text-3xl text-navy font-bold mt-1">{formatPercent(rate.percent)}</p>
                 <p className="text-sm text-muted">{formatRate(rate)}</p>
                 <ul className="mt-3 divide-y divide-line">
-                  {sessions.length === 0 && <li className="py-2 text-sm text-muted">No Sundays recorded.</li>}
+                  {sessions.length === 0 && <li className="py-2 text-sm text-muted">No sessions recorded.</li>}
                   {sessions.map((session) => {
                     const mark = snapshot.marks.find(
                       (entry) =>
@@ -509,7 +532,7 @@ export function reportView(value: string | undefined): ReportView {
 }
 
 export function defaultProgram(): AttendanceProgram {
-  const program = getAttendanceProgram('hebrew-adventure');
-  if (!program) throw new Error('Hebrew Adventure attendance is not configured.');
+  const program = getAttendanceProgram('hebrew-adventure') ?? ATTENDANCE_PROGRAMS[0];
+  if (!program) throw new Error('Attendance programs are not configured.');
   return program;
 }

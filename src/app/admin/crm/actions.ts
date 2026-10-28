@@ -1,14 +1,22 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getAdminRole, isAdminAuthenticated, requireCapability } from '@/lib/admin/auth';
+import {
+  getAdminRole,
+  isAdminAuthenticated,
+  requireCapability,
+  OFFICE_HIDDEN_PAYMENT_SOURCES,
+} from '@/lib/admin/auth';
 import {
   recordOfflinePaidEventRegistration,
   type OfflineEventPaymentMethod,
 } from '@/lib/events/record-offline-registration';
 import { OPEN_HOUSE_EVENTS } from '@/lib/events/config';
 import { PAID_EVENTS } from '@/lib/events/paid-events';
-import { aggregateEventRegistrations } from '@/lib/admin/crm/event-registration-stats';
+import {
+  aggregateEventRegistrations,
+  parseAdultsKidsFromNotes,
+} from '@/lib/admin/crm/event-registration-stats';
 import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
 import { collapseDuplicateEventRegistrations } from '@/lib/admin/crm/collapse-duplicate-event-registrations';
 import { enrichPaymentsForCrm } from '@/lib/admin/crm/enrich-payments';
@@ -24,6 +32,9 @@ import {
   resolveCrmProgramTracks,
 } from '@/lib/admin/crm/program-tracks';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isLulavOfflineMethod } from '@/lib/lulav/offline-methods';
+import { markLulavOrderPaidInSheet } from '@/lib/google/sheets';
+import { sendLulavOrderEmails } from '@/lib/email/lulav-order';
 import { ensureHebrewFairCodesForAll } from '@/lib/events/hebrew-fair-codes';
 import { syncImportantDateToSheet } from '@/lib/google/important-dates-sheet';
 import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
@@ -77,6 +88,38 @@ function redactCrmSnapshotForVolunteer(snapshot: CrmSnapshot): CrmSnapshot {
       chaiMonthlyTotal: 0,
       payments: 0,
       paymentsTotal: 0,
+      formSubmissions: formSubmissions.length,
+    },
+  };
+}
+
+/** Office: no donate-page gifts or Chai; keep event/program payments + RSVP amounts. */
+function redactCrmSnapshotForOffice(snapshot: CrmSnapshot): CrmSnapshot {
+  const hiddenFormTypes = new Set(['donation', 'chai_partner']);
+  const hiddenPaymentSources = new Set<string>(OFFICE_HIDDEN_PAYMENT_SOURCES);
+  const formSubmissions = snapshot.formSubmissions.filter(
+    (f) => !hiddenFormTypes.has(f.form_type)
+  );
+  const payments = snapshot.payments.filter(
+    (p) => !hiddenPaymentSources.has(String(p.source_type || ''))
+  );
+
+  return {
+    ...snapshot,
+    donations: [],
+    chaiPartners: [],
+    payments,
+    formSubmissions,
+    stats: {
+      ...snapshot.stats,
+      donations: 0,
+      donationsTotal: 0,
+      chaiPartners: 0,
+      chaiMonthlyTotal: 0,
+      payments: payments.length,
+      paymentsTotal: payments
+        .filter((p) => p.status === 'succeeded')
+        .reduce((sum, p) => sum + Number(p.amount), 0),
       formSubmissions: formSubmissions.length,
     },
   };
@@ -323,9 +366,48 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     rsvpRowsRaw,
     formSubmissions,
   );
+  // Older inserts often kept Adults/Children only in notes (registration_details
+  // column missing or dinner zeroed). Restore dinner breakdown in memory + DB.
+  const adultsKidsBackfill: Array<{
+    id: string;
+    registration_details: Record<string, unknown>;
+    guest_count: number;
+  }> = [];
+  const withAdultsKids = enrichedRsvps.map((r) => {
+    const parsed = parseAdultsKidsFromNotes(r.notes);
+    if (!parsed || (parsed.adults <= 0 && parsed.kids <= 0)) return r;
+
+    const existing =
+      r.registration_details && typeof r.registration_details === 'object'
+        ? ({ ...(r.registration_details as Record<string, unknown>) } as Record<string, unknown>)
+        : {};
+    const dinnerRaw =
+      existing.dinner && typeof existing.dinner === 'object'
+        ? (existing.dinner as Record<string, unknown>)
+        : {};
+    const existingAdults = Number(dinnerRaw.adults);
+    const existingKids = Number(dinnerRaw.kids);
+    const hasUsefulDinner =
+      (Number.isFinite(existingAdults) && existingAdults > 0) ||
+      (Number.isFinite(existingKids) && existingKids > 0);
+    if (hasUsefulDinner) return r;
+
+    const registration_details = {
+      ...existing,
+      type: existing.type || 'celebration',
+      dinner: { ...dinnerRaw, adults: parsed.adults, kids: parsed.kids },
+    };
+    const guest_count = Math.max(
+      1,
+      Number(r.guest_count) || 0,
+      parsed.adults + parsed.kids,
+    );
+    adultsKidsBackfill.push({ id: r.id, registration_details, guest_count });
+    return { ...r, registration_details, guest_count };
+  });
   // Form + webhook sometimes both inserted — collapse before CRM totals/lists.
   const { kept: rsvpRows, duplicateIds, idRemap } =
-    collapseDuplicateEventRegistrations(enrichedRsvps);
+    collapseDuplicateEventRegistrations(withAdultsKids);
 
   // Re-link payments that still point at a deleted duplicate RSVP id.
   const paymentsAfterDedupe = payments.map((p) => {
@@ -343,7 +425,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
   );
   const paymentsEnriched = enrichPaymentsForCrm(paymentsLinked, formSubmissions);
 
-  if (duplicateIds.length > 0 || orphanRemaps.length > 0) {
+  if (duplicateIds.length > 0 || orphanRemaps.length > 0 || adultsKidsBackfill.length > 0) {
     // Quiet cleanup: remapa payments first, then delete extras (no emails).
     void (async () => {
       try {
@@ -375,6 +457,22 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
         }
         if (orphanRemaps.length > 0) {
           console.info(`[CRM] re-linked ${orphanRemaps.length} orphaned event payment(s)`);
+        }
+        if (adultsKidsBackfill.length > 0) {
+          let fixed = 0;
+          for (const row of adultsKidsBackfill) {
+            const { error: upErr } = await supabase
+              .from('event_registrations')
+              .update({
+                registration_details: row.registration_details,
+                guest_count: row.guest_count,
+              })
+              .eq('id', row.id);
+            if (!upErr) fixed += 1;
+          }
+          console.info(
+            `[CRM] backfilled adults/kids on ${fixed}/${adultsKidsBackfill.length} event registration(s)`,
+          );
         }
       } catch (err) {
         console.error('[CRM] duplicate cleanup error:', err);
@@ -564,6 +662,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
 
   const role = await getAdminRole();
   if (role === 'volunteer') return redactCrmSnapshotForVolunteer(snapshot);
+  if (role === 'office') return redactCrmSnapshotForOffice(snapshot);
   return snapshot;
 }
 
@@ -654,4 +753,94 @@ export async function addOfflineEventRegistration(input: {
 
   revalidatePath('/admin/crm');
   return { success: true, alreadyExisted: result.alreadyExisted };
+}
+
+export async function markLulavOrderPaid(input: {
+  submissionId: string;
+  paymentMethod: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const canFinance = await requireCapability('crm_finance');
+  const canEvents = await requireCapability('crm_event_payments');
+  if (!canFinance && !canEvents) {
+    return { success: false, error: 'Unauthorized.' };
+  }
+
+  const submissionId = input.submissionId.trim();
+  if (!submissionId) {
+    return { success: false, error: 'Missing order id.' };
+  }
+  if (!isLulavOfflineMethod(input.paymentMethod)) {
+    return { success: false, error: 'Choose a payment method (Zelle, Cash, Zeffy, Check, or Other).' };
+  }
+
+  const supabase = createAdminClient();
+  const { data: row, error } = await supabase
+    .from('form_submissions')
+    .select('id, email, payload, form_type')
+    .eq('id', submissionId)
+    .eq('form_type', 'lulav_order')
+    .maybeSingle();
+
+  if (error || !row) {
+    return { success: false, error: 'Order not found.' };
+  }
+
+  const payload = (row.payload ?? {}) as Record<string, unknown>;
+  const status = String(payload.status ?? '');
+  if (status === 'paid') {
+    return { success: false, error: 'This order is already marked paid.' };
+  }
+
+  const email = String(row.email || payload.email || '')
+    .trim()
+    .toLowerCase();
+  const fullName = String(payload.fullName || '').trim();
+  const phone = String(payload.phone || '').trim();
+  const quantity = Number(payload.quantity) || 0;
+  const total = Number(payload.total) || 0;
+
+  const nextPayload = {
+    ...payload,
+    status: 'paid',
+    payMethod: input.paymentMethod.toLowerCase() === 'zelle' ? 'zelle' : payload.payMethod,
+    adminPaymentMethod: input.paymentMethod,
+    paidAt: new Date().toISOString(),
+  };
+
+  const { error: updateError } = await supabase
+    .from('form_submissions')
+    .update({ payload: nextPayload })
+    .eq('id', submissionId);
+
+  if (updateError) {
+    console.error('[lulav] mark paid update failed:', updateError);
+    return { success: false, error: 'Could not update order status.' };
+  }
+
+  const sheet = await markLulavOrderPaidInSheet({
+    submissionId,
+    email,
+    paymentMethod: input.paymentMethod,
+  });
+  if (!sheet.ok) {
+    console.error('[lulav] sheet mark paid failed:', sheet.error);
+  }
+
+  void sendLulavOrderEmails({
+    fullName: fullName || 'Customer',
+    email,
+    phone,
+    payMethod: input.paymentMethod.toLowerCase() === 'zelle' ? 'zelle' : 'card',
+    pricing: {
+      quantity,
+      subtotal: Number(payload.subtotal) || total,
+      cardFee: Number(payload.cardFee) || 0,
+      total,
+      totalCents: Math.round(total * 100),
+    },
+    status: 'paid',
+  });
+
+  revalidatePath('/admin/crm');
+  return { success: true };
 }

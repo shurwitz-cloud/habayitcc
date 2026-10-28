@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMemo, useState, useTransition, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
@@ -27,7 +27,10 @@ import type {
   DateFilter,
 } from '@/lib/admin/crm/types';
 import type { AdminRole } from '@/lib/admin/roles';
-import { roleHasCapability, VOLUNTEER_HIDDEN_CRM_VIEWS } from '@/lib/admin/roles';
+import {
+  crmViewsHiddenForRole,
+  roleHasCapability,
+} from '@/lib/admin/roles';
 import { activityTypeLabel, buildActivityFeed } from '@/lib/admin/crm/activity';
 import { resolvePaymentParty } from '@/lib/admin/crm/payment-party';
 import {
@@ -52,18 +55,27 @@ import {
   stripeCustomerUrl,
   stripePaymentUrl,
 } from '@/lib/admin/crm/utils';
-import { setContactResolved, addImportantDate } from './actions';
+import { setContactResolved, addImportantDate, markLulavOrderPaid } from './actions';
+import { LULAV_OFFLINE_METHODS } from '@/lib/lulav/offline-methods';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
 import { BackfillHebrewBirthdaysButton } from '@/components/admin/BackfillHebrewBirthdaysButton';
 import { SyncImportantDatesSheetButton } from '@/components/admin/SyncImportantDatesSheetButton';
-import { ManualEntryForm } from '@/components/admin/ManualEntryForm';
+import {
+  ManualEntryForm,
+  type ManualEntryPrefill,
+} from '@/components/admin/ManualEntryForm';
+import {
+  ChaiAddPaymentForm,
+  ChaiUpdateMonthlyForm,
+} from '@/components/admin/ChaiAddPaymentForm';
 import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
 import { RecoverPaidEventRegistrationsButton } from '@/components/admin/RecoverPaidEventRegistrationsButton';
 import {
   parseEventMoney,
   parseEventPeople,
 } from '@/lib/admin/crm/event-registration-stats';
+import { buildPersonSuggestions } from '@/lib/admin/crm/person-suggestions';
 import {
   coverageMonthsOf,
   paymentCoversThrough,
@@ -90,6 +102,7 @@ const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'donations', label: 'Donations' },
   { id: 'chai', label: 'Chai partners' },
   { id: 'payments', label: 'Payments' },
+  { id: 'lulav', label: 'Lulav orders' },
   { id: 'dates', label: 'Birthdays & yahrzeit' },
   { id: 'submissions', label: 'Form log' },
 ];
@@ -103,15 +116,13 @@ export function CrmPanel({
 }) {
   const router = useRouter();
   const canSeeFinance = roleHasCapability(role, 'crm_finance');
+  const canSeePayments = roleHasCapability(role, 'crm_event_payments');
   const views = useMemo(
-    () =>
-      canSeeFinance
-        ? VIEWS
-        : VIEWS.filter(
-            (v) =>
-              !(VOLUNTEER_HIDDEN_CRM_VIEWS as readonly string[]).includes(v.id)
-          ),
-    [canSeeFinance]
+    () => {
+      const hidden = new Set(crmViewsHiddenForRole(role));
+      return VIEWS.filter((v) => !hidden.has(v.id));
+    },
+    [role]
   );
   const [view, setView] = useState<CrmView>('activity');
   const [search, setSearch] = useState('');
@@ -126,6 +137,8 @@ export function CrmPanel({
   const [drawerFamily, setDrawerFamily] = useState<CrmFamilyRecord | null>(null);
   const [drawerEvent, setDrawerEvent] = useState<CrmEventRecord | null>(null);
   const [drawerLead, setDrawerLead] = useState<CrmLeadRecord | null>(null);
+  const [manualPrefill, setManualPrefill] = useState<ManualEntryPrefill | null>(null);
+  const [manualPrefillKey, setManualPrefillKey] = useState<number | null>(null);
   const [applicationProgramSlug, setApplicationProgramSlug] = useState(
     () => snapshot.programTracks[0]?.programSlug ?? 'hebrew-adventure',
   );
@@ -180,6 +193,7 @@ export function CrmPanel({
     if (view === 'applications') return ['all', 'open', 'resolved', 'pending', 'accepted', 'active', 'withdrawn'];
     if (view === 'dates') return ['all', 'birthday', 'yahrzeit', 'anniversary', 'other'];
     if (view === 'submissions') return ['all', 'contact', 'donation', 'chai_partner', 'hebrew_adventure_registration', 'achim_registration', 'rsvp'];
+    if (view === 'lulav') return ['all', 'pending', 'paid'];
     return ['all'];
   }, [view]);
 
@@ -253,6 +267,10 @@ export function CrmPanel({
   );
   const filteredSubmissions = useMemo(
     () => filterSubmissions(snapshot, search, dateRange, statusFilter),
+    [snapshot, search, dateRange, statusFilter],
+  );
+  const filteredLulavOrders = useMemo(
+    () => filterLulavOrders(snapshot, search, dateRange, statusFilter),
     [snapshot, search, dateRange, statusFilter],
   );
 
@@ -402,8 +420,41 @@ export function CrmPanel({
       }, sortDir),
     [filteredSubmissions, sortKey, sortDir],
   );
+  const sortedLulavOrders = useMemo(
+    () =>
+      sortRows(filteredLulavOrders, (o) => {
+        if (sortKey === 'name') return o.fullName;
+        if (sortKey === 'email') return o.email;
+        if (sortKey === 'amount') return o.total;
+        if (sortKey === 'status') return o.status;
+        return new Date(o.createdAt).getTime();
+      }, sortDir),
+    [filteredLulavOrders, sortKey, sortDir],
+  );
 
   const sortProps = { sortKey, sortDir, onSort: handleSort };
+
+  const personSuggestions = useMemo(
+    () => buildPersonSuggestions(snapshot),
+    [snapshot],
+  );
+
+  function startManualEntryFromContact(
+    contact: { first_name: string; last_name: string; email: string; phone?: string | null },
+    kind: ManualEntryPrefill['kind'] = 'one_time',
+  ) {
+    if (!canSeeFinance) return;
+    const targetView: CrmView = kind === 'chai_partner' ? 'chai' : 'donations';
+    switchView(targetView);
+    setManualPrefill({
+      firstName: contact.first_name,
+      lastName: contact.last_name,
+      email: contact.email,
+      phone: contact.phone ?? '',
+      kind,
+    });
+    setManualPrefillKey(Date.now());
+  }
 
   function handleResolve(contactId: string, resolved: boolean) {
     setMessage('');
@@ -469,15 +520,14 @@ export function CrmPanel({
     if (view === 'chai') {
       exportCsv(
         'habayit-chai-partners.csv',
-        ['Date', 'Name', 'Email', 'Monthly', 'Status', 'City', 'Access code'],
+        ['Last name', 'Name', 'Phone', 'Email', 'Address', 'Date joined'],
         filteredChai.map((c) => [
-          formatDate(c.created_at),
-          `${c.first_name} ${c.last_name}`,
+          c.last_name ?? '',
+          c.first_name ?? '',
+          c.phone ?? '',
           c.email,
-          String(c.monthly_amount),
-          c.status,
-          c.city ?? '',
-          c.access_code ?? '',
+          [c.street_address, c.city, c.state, c.zip].filter(Boolean).join(', '),
+          formatDate(c.created_at),
         ]),
       );
       return;
@@ -599,6 +649,23 @@ export function CrmPanel({
       );
       return;
     }
+    if (view === 'lulav') {
+      exportCsv(
+        'habayit-lulav-orders.csv',
+        ['Date', 'Name', 'Email', 'Phone', 'Qty', 'Total', 'Pay method', 'Status'],
+        filteredLulavOrders.map((o) => [
+          formatDateTime(o.createdAt),
+          o.fullName,
+          o.email,
+          o.phone,
+          String(o.quantity),
+          String(o.total),
+          o.payMethod,
+          o.status === 'paid' ? 'Paid' : 'Not paid',
+        ]),
+      );
+      return;
+    }
     exportCsv(
       'habayit-activity.csv',
       ['Date', 'Type', 'Name', 'Email', 'Amount', 'Status', 'Detail'],
@@ -637,7 +704,9 @@ export function CrmPanel({
                     ? filteredDates.length
                     : view === 'submissions'
                       ? filteredSubmissions.length
-                      : filteredPayments.length;
+                      : view === 'lulav'
+                        ? filteredLulavOrders.length
+                        : filteredPayments.length;
 
   return (
     <div>
@@ -649,7 +718,9 @@ export function CrmPanel({
         <p className="text-sm text-muted mt-1">
           {canSeeFinance
             ? 'All form data from Supabase — contacts, RSVPs, registrations, donations, payments, and more.'
-            : 'Volunteer CRM — contacts, events, RSVPs, applications, and form log. Donations and Chai are admin-only.'}
+            : canSeePayments
+              ? 'Office CRM — contacts, events, RSVPs, applications, form log, and event/program payments. Donations and Chai are admin-only.'
+              : 'Volunteer CRM — contacts, events, RSVPs, applications, and form log. Donations and Chai are admin-only.'}
         </p>
       </div>
 
@@ -663,8 +734,10 @@ export function CrmPanel({
           <>
             <StatCard label="Donated" value={formatUsd(snapshot.stats.donationsTotal)} />
             <StatCard label="Chai / mo" value={formatUsd(snapshot.stats.chaiMonthlyTotal)} />
-            <StatCard label="Payments" value={formatUsd(snapshot.stats.paymentsTotal)} />
           </>
+        )}
+        {(canSeeFinance || canSeePayments) && (
+          <StatCard label="Payments" value={formatUsd(snapshot.stats.paymentsTotal)} />
         )}
         <StatCard label="Important dates" value={snapshot.stats.importantDates} />
         <StatCard label="Form log" value={snapshot.stats.formSubmissions} />
@@ -755,6 +828,16 @@ export function CrmPanel({
               onToggle={setExpandedId}
               snapshot={snapshot}
               onResolve={handleResolve}
+              onAddDonation={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'one_time')
+                  : undefined
+              }
+              onAddChai={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'chai_partner')
+                  : undefined
+              }
               isPending={isPending}
               {...sortProps}
             />
@@ -765,6 +848,16 @@ export function CrmPanel({
               expandedId={expandedId}
               onToggle={setExpandedId}
               onResolve={handleResolve}
+              onAddDonation={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'one_time')
+                  : undefined
+              }
+              onAddChai={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'chai_partner')
+                  : undefined
+              }
               isPending={isPending}
               {...sortProps}
             />
@@ -772,13 +865,31 @@ export function CrmPanel({
           {view === 'donations' && canSeeFinance && (
             <>
               <ReconcileStripeButton />
-              <ManualEntryForm defaultKind="one_time" />
+              <ManualEntryForm
+                defaultKind="one_time"
+                people={personSuggestions}
+                prefill={manualPrefill}
+                prefillKey={manualPrefillKey}
+                onPrefillConsumed={() => {
+                  setManualPrefillKey(null);
+                  setManualPrefill(null);
+                }}
+              />
               <DonationsTable rows={sortedDonations} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
           )}
           {view === 'chai' && canSeeFinance && (
             <>
-              <ManualEntryForm defaultKind="chai_partner" />
+              <ManualEntryForm
+                defaultKind="chai_partner"
+                people={personSuggestions}
+                prefill={manualPrefill}
+                prefillKey={manualPrefillKey}
+                onPrefillConsumed={() => {
+                  setManualPrefillKey(null);
+                  setManualPrefill(null);
+                }}
+              />
               <ReconcileZeffyButton />
               <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard label="Chai partners" value={chaiSummary.count} />
@@ -843,12 +954,19 @@ export function CrmPanel({
               {...sortProps}
             />
           )}
-          {view === 'payments' && canSeeFinance && (
+          {view === 'payments' && canSeePayments && (
             <PaymentsTable
               rows={sortedPayments}
               snapshot={snapshot}
               expandedId={expandedId}
               onToggle={setExpandedId}
+              {...sortProps}
+            />
+          )}
+          {view === 'lulav' && (canSeeFinance || canSeePayments) && (
+            <LulavOrdersTable
+              rows={sortedLulavOrders}
+              onMarked={() => router.refresh()}
               {...sortProps}
             />
           )}
@@ -888,7 +1006,11 @@ export function CrmPanel({
         />
       )}
       {drawerEvent && (
-        <EventDetailDrawer event={drawerEvent} onClose={() => setDrawerEvent(null)} />
+        <EventDetailDrawer
+          event={drawerEvent}
+          onClose={() => setDrawerEvent(null)}
+          canManageMoney={canSeeFinance}
+        />
       )}
     </div>
   );
@@ -1124,6 +1246,64 @@ function filterSubmissions(
   });
 }
 
+type CrmLulavOrder = {
+  id: string;
+  createdAt: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  quantity: number;
+  total: number;
+  payMethod: string;
+  status: 'paid' | 'pending';
+};
+
+function parseLulavOrder(s: CrmSnapshot['formSubmissions'][number]): CrmLulavOrder | null {
+  if (s.form_type !== 'lulav_order') return null;
+  // Prefer primary rows; older flow also wrote a duplicate with source_id set.
+  if (s.source_id) return null;
+  const payload = (s.payload ?? {}) as Record<string, unknown>;
+  const statusRaw = String(payload.status ?? '').toLowerCase();
+  const status: 'paid' | 'pending' =
+    statusRaw === 'paid' ? 'paid' : 'pending';
+  return {
+    id: s.id,
+    createdAt: s.created_at,
+    fullName: String(payload.fullName ?? '').trim() || '—',
+    email: String(s.email || payload.email || '').trim().toLowerCase(),
+    phone: String(payload.phone ?? '').trim(),
+    quantity: Number(payload.quantity) || 0,
+    total: Number(payload.total) || 0,
+    payMethod: String(payload.payMethod ?? payload.adminPaymentMethod ?? '—'),
+    status,
+  };
+}
+
+function filterLulavOrders(
+  snapshot: CrmSnapshot,
+  search: string,
+  dateRange: DateRange,
+  statusFilter: string,
+): CrmLulavOrder[] {
+  return snapshot.formSubmissions
+    .map(parseLulavOrder)
+    .filter((o): o is CrmLulavOrder => {
+      if (!o) return false;
+      if (!matchesDateRange(o.createdAt, dateRange)) return false;
+      if (statusFilter === 'paid' && o.status !== 'paid') return false;
+      if (statusFilter === 'pending' && o.status !== 'pending') return false;
+      return matchesSearch(search, [
+        o.fullName,
+        o.email,
+        o.phone,
+        o.payMethod,
+        o.status,
+        String(o.quantity),
+        String(o.total),
+      ]);
+    });
+}
+
 type SortProps = {
   sortKey: string;
   sortDir: SortDir;
@@ -1181,6 +1361,8 @@ function ActivityTable({
   onToggle,
   snapshot,
   onResolve,
+  onAddDonation,
+  onAddChai,
   isPending,
   sortKey,
   sortDir,
@@ -1191,6 +1373,8 @@ function ActivityTable({
   onToggle: (id: string | null) => void;
   snapshot: CrmSnapshot;
   onResolve: (id: string, resolved: boolean) => void;
+  onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
+  onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
 } & SortProps) {
   if (!rows.length) return <EmptyState />;
@@ -1217,6 +1401,8 @@ function ActivityTable({
             onToggle={onToggle}
             snapshot={snapshot}
             onResolve={onResolve}
+            onAddDonation={onAddDonation}
+            onAddChai={onAddChai}
             isPending={isPending}
           />
         ))}
@@ -1231,6 +1417,8 @@ function ActivityRow({
   onToggle,
   snapshot,
   onResolve,
+  onAddDonation,
+  onAddChai,
   isPending,
 }: {
   row: ReturnType<typeof buildActivityFeed>[number];
@@ -1238,6 +1426,8 @@ function ActivityRow({
   onToggle: (id: string | null) => void;
   snapshot: CrmSnapshot;
   onResolve: (id: string, resolved: boolean) => void;
+  onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
+  onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
 }) {
   const open = expandedId === row.id;
@@ -1276,7 +1466,25 @@ function ActivityRow({
                     ['Message', contact.message],
                   ]}
                 />
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {onAddDonation ? (
+                    <button
+                      type="button"
+                      onClick={() => onAddDonation(contact)}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-[#b8902a] text-white"
+                    >
+                      Add donation
+                    </button>
+                  ) : null}
+                  {onAddChai ? (
+                    <button
+                      type="button"
+                      onClick={() => onAddChai(contact)}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#d4cfc4] bg-white text-navy"
+                    >
+                      Add Chai entry
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={isPending}
@@ -1307,6 +1515,8 @@ function ContactsTable({
   expandedId,
   onToggle,
   onResolve,
+  onAddDonation,
+  onAddChai,
   isPending,
   sortKey,
   sortDir,
@@ -1316,6 +1526,8 @@ function ContactsTable({
   expandedId: string | null;
   onToggle: (id: string | null) => void;
   onResolve: (id: string, resolved: boolean) => void;
+  onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
+  onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
 } & SortProps) {
   if (!rows.length) return <EmptyState />;
@@ -1362,7 +1574,25 @@ function ContactsTable({
                         ['Submitted', formatDateTime(c.created_at)],
                       ]}
                     />
-                    <div className="mt-3">
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {onAddDonation ? (
+                        <button
+                          type="button"
+                          onClick={() => onAddDonation(c)}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold bg-[#b8902a] text-white"
+                        >
+                          Add donation
+                        </button>
+                      ) : null}
+                      {onAddChai ? (
+                        <button
+                          type="button"
+                          onClick={() => onAddChai(c)}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#d4cfc4] bg-white text-navy"
+                        >
+                          Add Chai entry
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         disabled={isPending}
@@ -1624,6 +1854,9 @@ function ChaiDetailRow({
       ) : (
         <p className="mt-3 text-sm text-muted">No payments recorded yet.</p>
       )}
+
+      {!isRecurring ? <ChaiAddPaymentForm partner={c} /> : null}
+      <ChaiUpdateMonthlyForm partner={c} />
 
       {c.stripe_customer_id && (
         <a
@@ -2321,6 +2554,115 @@ function SubmissionsTable({
                 </tr>
               )}
             </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function LulavOrdersTable({
+  rows,
+  onMarked,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  rows: CrmLulavOrder[];
+  onMarked: () => void;
+} & SortProps) {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [methodById, setMethodById] = useState<Record<string, string>>({});
+  const [errorById, setErrorById] = useState<Record<string, string>>({});
+  const [isPending, startTransition] = useTransition();
+
+  if (!rows.length) return <EmptyState message="No Lulav orders yet." />;
+
+  function markPaid(order: CrmLulavOrder) {
+    const paymentMethod = methodById[order.id] || 'Zelle';
+    setErrorById((prev) => ({ ...prev, [order.id]: '' }));
+    setPendingId(order.id);
+    startTransition(async () => {
+      const result = await markLulavOrderPaid({
+        submissionId: order.id,
+        paymentMethod,
+      });
+      setPendingId(null);
+      if (!result.success) {
+        setErrorById((prev) => ({
+          ...prev,
+          [order.id]: result.error ?? 'Could not mark paid.',
+        }));
+        return;
+      }
+      onMarked();
+    });
+  }
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-line">
+          <SortableTh label="Date" sortKey="date" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Email" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-left font-semibold text-navy">Phone</th>
+          <th className="px-4 py-3 text-left font-semibold text-navy">Qty</th>
+          <SortableTh label="Total" sortKey="amount" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-left font-semibold text-navy">Method</th>
+          <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-left font-semibold text-navy">Mark paid</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((o) => {
+          const busy = isPending && pendingId === o.id;
+          return (
+            <tr key={o.id} className="border-b border-line hover:bg-soft/40 align-top">
+              <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
+              <td className="px-4 py-3 font-medium text-navy">{o.fullName}</td>
+              <td className="px-4 py-3">{o.email || '—'}</td>
+              <td className="px-4 py-3">{o.phone || '—'}</td>
+              <td className="px-4 py-3">{o.quantity || '—'}</td>
+              <td className="px-4 py-3 font-semibold">{formatUsd(o.total)}</td>
+              <td className="px-4 py-3 capitalize">{o.payMethod}</td>
+              <td className="px-4 py-3">
+                <StatusPill status={o.status === 'paid' ? 'Paid' : 'Not paid'} />
+              </td>
+              <td className="px-4 py-3">
+                {o.status === 'paid' ? (
+                  <span className="text-muted text-xs">—</span>
+                ) : (
+                  <div className="flex flex-col gap-1.5 min-w-[11rem]">
+                    <select
+                      value={methodById[o.id] ?? 'Zelle'}
+                      onChange={(e) =>
+                        setMethodById((prev) => ({ ...prev, [o.id]: e.target.value }))
+                      }
+                      className="border border-line rounded-lg px-2 py-1.5 text-sm bg-white"
+                      disabled={busy}
+                    >
+                      {LULAV_OFFLINE_METHODS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => markPaid(o)}
+                      disabled={busy}
+                      className="rounded-lg bg-navy text-white text-xs font-semibold px-3 py-1.5 disabled:opacity-60"
+                    >
+                      {busy ? 'Saving…' : 'Mark paid'}
+                    </button>
+                    {errorById[o.id] ? (
+                      <span className="text-xs text-danger">{errorById[o.id]}</span>
+                    ) : null}
+                  </div>
+                )}
+              </td>
+            </tr>
           );
         })}
       </tbody>

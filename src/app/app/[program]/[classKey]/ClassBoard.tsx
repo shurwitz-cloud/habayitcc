@@ -142,8 +142,7 @@ export function ClassBoard({
 
       {children.length === 0 ? (
         <p className="bg-white border border-line rounded-2xl px-4 py-5 text-sm text-muted">
-          No children in this class yet. Accepted Hebrew Adventure registrations land here from their grade. Add a
-          tryout below.
+          No children in this class yet. Accepted registrations land here from their grade. Add a tryout below.
         </p>
       ) : (
         <ul className="space-y-3">

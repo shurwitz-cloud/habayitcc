@@ -134,7 +134,12 @@ export function EventTabsSummary({
           {event.rsvpCount === 1 ? '' : 's'}
         </span>
         <span>
-          <strong className="text-navy">{event.guestTotal}</strong> people
+          <strong className="text-navy">{event.guestTotal}</strong>{' '}
+          {peopleMode === 'couples'
+            ? event.guestTotal === 1
+              ? 'couple'
+              : 'couples'
+            : 'people'}
         </span>
         {showAdults ? (
           <span>

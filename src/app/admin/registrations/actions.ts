@@ -65,7 +65,10 @@ export type PendingFamilyRegistration = {
   term: string | null;
   tuitionSubtotal: number;
   grandTotal: number;
+  /** First installment with card fee (if method on file is card). */
   firstInstallment: number;
+  /** First installment with no card surcharge (bank / Zelle / check). */
+  firstInstallmentNoFee: number;
   installmentCount: number;
   children: Array<{ name: string; grade: string | null; tuition: number }>;
   createdAt: string;
@@ -253,6 +256,13 @@ export async function getPendingRegistrations(): Promise<PendingFamilyRegistrati
       paymentMethod,
       term,
     });
+    const billingNoFee = familyTuitionBilling({
+      programSlug,
+      tuitionSubtotal,
+      paymentPlan,
+      paymentMethod: 'bank',
+      term,
+    });
 
     results.push({
       familyId: regs[0].family_id,
@@ -269,6 +279,7 @@ export async function getPendingRegistrations(): Promise<PendingFamilyRegistrati
       tuitionSubtotal,
       grandTotal: billing.grandTotal,
       firstInstallment: billing.installments[0]?.amount ?? 0,
+      firstInstallmentNoFee: billingNoFee.installments[0]?.amount ?? 0,
       installmentCount: billing.installments.length,
       children: regs.map((r) => {
         const childRaw = r.children as
@@ -700,6 +711,12 @@ export async function acceptFamilyOffline(
     paymentDetail?: string;
     /** Amount to record (defaults to installment 1). */
     amountPaid?: number;
+    /** Drop the 3% card surcharge when recording Zelle/check/etc. */
+    waiveCardFee?: boolean;
+    /** Real payment date when different from now (ISO or date string). */
+    paidAt?: string;
+    /** Optional admin note appended to registration notes. */
+    notes?: string;
   }
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   await requireAdmin();
@@ -754,7 +771,7 @@ export async function acceptFamilyOffline(
 
     const parentEmail = parent?.email ?? '';
     const paymentPlan = regs[0].payment_plan ?? 'full';
-    const paymentMethod =
+    const paymentMethodOnFile =
       programSlug === ACHIM_SLUG
         ? resolveAchimPaymentMethod(family.payment_method_preference, regs[0].notes)
         : programSlug === BMX_SLUG
@@ -762,12 +779,15 @@ export async function acceptFamilyOffline(
           : programSlug === BLOOM_SLUG
             ? resolveBloomPaymentMethod(family.payment_method_preference, regs[0].notes)
             : resolvePaymentMethod(family.payment_method_preference, regs[0].notes);
+    const waiveCardFee = options.waiveCardFee === true;
+    const billingMethod: 'card' | 'bank' =
+      waiveCardFee || paymentMethodOnFile !== 'card' ? 'bank' : 'card';
     const tuitionSubtotal = regs.reduce((sum, r) => sum + Number(r.tuition_total ?? 0), 0);
     const billing = familyTuitionBilling({
       programSlug,
       tuitionSubtotal,
       paymentPlan,
-      paymentMethod,
+      paymentMethod: billingMethod,
       term: regs[0].term,
     });
 
@@ -781,11 +801,23 @@ export async function acceptFamilyOffline(
         ? Math.round(options.amountPaid * 100) / 100
         : first.amount;
 
-    const paidAt = new Date().toISOString();
+    const paidAtRaw = (options.paidAt ?? '').trim();
+    const paidAtParsed = paidAtRaw ? new Date(paidAtRaw) : null;
+    const paidAt =
+      paidAtParsed && !Number.isNaN(paidAtParsed.getTime())
+        ? paidAtParsed.toISOString()
+        : new Date().toISOString();
+    const adminNote = (options.notes ?? '').trim();
     const paymentKey = `manual:tuition-${method.toLowerCase()}-${familyId.slice(0, 8)}-${Date.now()}`;
 
     for (const reg of regs) {
-      const noteLine = `Accepted offline via ${methodLabel} · payment 1 $${amountPaid.toFixed(2)}`;
+      const noteLine = [
+        `Accepted offline via ${methodLabel} · payment 1 $${amountPaid.toFixed(2)}`,
+        waiveCardFee ? 'card fee waived' : null,
+        adminNote ? `Note: ${adminNote}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
       const nextNotes = [reg.notes?.trim(), noteLine].filter(Boolean).join('\n');
       await supabase
         .from('program_registrations')
@@ -863,7 +895,7 @@ export async function acceptFamilyOffline(
 
     return {
       success: true,
-      message: `Accepted offline via ${methodLabel}. Recorded $${formatUsd(amountPaid)} (payment 1 of ${billing.installments.length}). No Stripe charge.`,
+      message: `Accepted offline via ${methodLabel}. Recorded $${formatUsd(amountPaid)} (payment 1 of ${billing.installments.length})${waiveCardFee ? ' — card fee waived' : ''}. No Stripe charge.`,
     };
   } catch (err) {
     console.error('acceptFamilyOffline error:', err);
@@ -881,6 +913,12 @@ export async function recordOfflineInstallmentPayment(
     paymentMethod: OfflineTuitionMethod;
     paymentDetail?: string;
     amountPaid?: number;
+    /** Drop ~3% card surcharge from the scheduled amount when paid offline. */
+    waiveCardFee?: boolean;
+    /** Real payment date when different from now. */
+    paidAt?: string;
+    /** Optional admin note (stored on payment key description via installment update path). */
+    notes?: string;
   }
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   await requireAdmin();
@@ -903,12 +941,23 @@ export async function recordOfflineInstallmentPayment(
       return { success: false, error: 'Installment not found or already paid.' };
     }
 
+    const scheduledAmount = Number(inst.amount);
+    const waiveCardFee = options.waiveCardFee === true;
+    const amountWithoutFee = Math.round((scheduledAmount / 1.03) * 100) / 100;
     const amountPaid =
       options.amountPaid != null && Number.isFinite(options.amountPaid) && options.amountPaid > 0
         ? Math.round(options.amountPaid * 100) / 100
-        : Number(inst.amount);
+        : waiveCardFee
+          ? amountWithoutFee
+          : scheduledAmount;
 
-    const paidAt = new Date().toISOString();
+    const paidAtRaw = (options.paidAt ?? '').trim();
+    const paidAtParsed = paidAtRaw ? new Date(paidAtRaw) : null;
+    const paidAt =
+      paidAtParsed && !Number.isNaN(paidAtParsed.getTime())
+        ? paidAtParsed.toISOString()
+        : new Date().toISOString();
+    const adminNote = (options.notes ?? '').trim();
     const paymentKey = `manual:tuition-${method.toLowerCase()}-inst${inst.installment_number}-${inst.family_id.slice(0, 8)}-${Date.now()}`;
 
     // Link payment to an accepted program_registration when possible.
@@ -922,7 +971,7 @@ export async function recordOfflineInstallmentPayment(
     if (programIds.length) {
       const { data: reg } = await supabase
         .from('program_registrations')
-        .select('id')
+        .select('id, notes')
         .eq('family_id', inst.family_id)
         .in('program_id', programIds)
         .in('status', ['accepted', 'active'])
@@ -930,12 +979,27 @@ export async function recordOfflineInstallmentPayment(
         .limit(1)
         .maybeSingle();
       sourceId = reg?.id ?? null;
+      if (reg?.id && (adminNote || waiveCardFee)) {
+        const noteLine = [
+          `Offline payment ${inst.installment_number} via ${methodLabel} · $${amountPaid.toFixed(2)}`,
+          waiveCardFee ? 'card fee waived' : null,
+          adminNote ? `Note: ${adminNote}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        const nextNotes = [reg.notes?.trim(), noteLine].filter(Boolean).join('\n');
+        await supabase
+          .from('program_registrations')
+          .update({ notes: nextNotes })
+          .eq('id', reg.id);
+      }
     }
 
     await supabase
       .from('tuition_installments')
       .update({
         status: 'paid',
+        amount: amountPaid,
         paid_at: paidAt,
         stripe_payment_intent_id: paymentKey,
       })
@@ -955,7 +1019,7 @@ export async function recordOfflineInstallmentPayment(
 
     return {
       success: true,
-      message: `Recorded payment ${inst.installment_number} ($${formatUsd(amountPaid)}) via ${methodLabel}.`,
+      message: `Recorded payment ${inst.installment_number} ($${formatUsd(amountPaid)}) via ${methodLabel}${waiveCardFee ? ' — card fee waived' : ''}.`,
     };
   } catch (err) {
     console.error('recordOfflineInstallmentPayment error:', err);

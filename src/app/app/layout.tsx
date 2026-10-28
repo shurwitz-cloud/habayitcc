@@ -27,7 +27,7 @@ export default async function AttendanceAppLayout({ children }: { children: Reac
       <div className="min-h-dvh bg-cream px-4 py-10">
         <AdminLoginForm
           title="HaBayit"
-          description="Teachers: name teacher, then your password. Open Hebrew Adventure and your class."
+          description="Teachers: name teacher, then your password. Open a program and your class."
           defaultEmail="teacher"
           emailLabel="Name"
           emailPlaceholder="teacher"

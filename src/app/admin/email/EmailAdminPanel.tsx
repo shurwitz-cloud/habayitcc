@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
+import { AiEmailDraftAssist } from '@/components/admin/AiEmailDraftAssist';
 import type { AdminRole } from '@/lib/admin/roles';
 import type {
   EmailAudienceContact,
@@ -242,6 +243,15 @@ function IndividualCompose({ onSent }: { onSent: () => void }) {
             className="w-full rounded-xl border border-line px-3 py-2 text-sm"
           />
         </div>
+        <AiEmailDraftAssist
+          subject={subject}
+          message={message}
+          recipientHint={to.trim() || undefined}
+          onApply={({ subject: nextSubject, message: nextMessage }) => {
+            setSubject(nextSubject);
+            setMessage(nextMessage);
+          }}
+        />
         <div>
           <label htmlFor="compose-subject" className="block text-sm font-semibold text-navy mb-1">
             Subject
@@ -805,6 +815,20 @@ function GroupCompose({ onSent }: { onSent: () => void }) {
             )}
           </div>
         )}
+
+        <AiEmailDraftAssist
+          subject={subject}
+          message={message}
+          audienceHint={
+            selected
+              ? `${selected.label} (${selected.recipientCount} recipients). ${selected.description}`
+              : undefined
+          }
+          onApply={({ subject: nextSubject, message: nextMessage }) => {
+            setSubject(nextSubject);
+            setMessage(nextMessage);
+          }}
+        />
 
         <div>
           <label htmlFor="group-subject" className="block text-sm font-semibold text-navy mb-1">

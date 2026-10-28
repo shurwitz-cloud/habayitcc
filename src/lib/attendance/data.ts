@@ -201,7 +201,7 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
     .select('*')
     .eq('program_slug', program.slug)
     .order('session_date', { ascending: false });
-  if (sessionsRes.error) return fail(sessionsRes.error, 'Could not load Sundays.');
+  if (sessionsRes.error) return fail(sessionsRes.error, 'Could not load sessions.');
   const sessionRows = (sessionsRes.data ?? []) as ClassSession[];
   const sessions = sessionRows.map((row) => ({
     id: row.id,

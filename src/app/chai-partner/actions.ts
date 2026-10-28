@@ -158,7 +158,7 @@ export async function confirmChaiPartnerPayment(
       console.error('confirmChaiPartner payments insert error:', paymentError);
     }
 
-    void chaiPartnerRow({
+    await chaiPartnerRow({
       firstName: input.firstName,
       lastName: input.lastName,
       email,

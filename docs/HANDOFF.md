@@ -32,10 +32,17 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   load them from a preview that shares production env. Test allowlist:
   /, /events, /donate, /invoice/*, /payment-receipt. No form submissions.
 
-## Sync plan (prepared, pending go-live approval)
-- Preferred: single squash commit atop `main` bringing it to the integrated-preview-clean tree.
-- Reviewed in two layers: (1) origin/main -> restored-live tree = the code production already runs
+## Sync status (SHIPPED 2026-10-28)
+- main = e222c9a (squash atop f273aed). Its tree is byte-identical to the tested
+  integrated-preview-clean branch (c47d46f) and to what production serves
+  (Vercel deployment dpl_AFYn6qd3M2U4DuGgkaUZX7eEkT9n, auto-promoted on build).
+- Reviewed in two layers: (1) old main -> restored-live tree = the code production already ran
   (public pages verified byte-identical vs live); (2) restored tree -> integrated branch = the small
   reviewed delta (receipt feature, invoice env relocation, privacy scrubs, EXIF-stripped photos,
   gate, docs, mobile fit).
-- Cursor handoff after push: `git pull` on main; working tree then matches live + feature; commit normally.
+- Cursor handoff: `git pull` on main; working tree then matches live; commit normally.
+- Rollback: Vercel Instant Rollback to dpl_B2qJZ4BcSASyVAgbbYYNjcjWHGbg (retained, READY).
+- Known pending items: /zeffy redirect restoration (PR #4, offline since the Oct 23 rollback);
+  teacher login Hebrew-Adventure-only scoping + office@habayitcc.org all-programs login (not yet
+  implemented - /app still lists all four programs); GitHub Actions privacy gate activation
+  (paste docs/privacy-gate.workflow.yml via web UI + branch protection; token lacks workflow scope).

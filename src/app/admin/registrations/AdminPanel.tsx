@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { AdminNav } from '@/components/admin/AdminNav';
+import type { AdminRole } from '@/lib/admin/roles';
 import type {
   PendingFamilyRegistration,
   ScheduledInstallment,
@@ -272,7 +273,7 @@ export function AdminRegistrationsPanel({
 }: {
   pending: PendingFamilyRegistration[];
   scheduled: ScheduledInstallment[];
-  role?: 'admin' | 'volunteer';
+  role?: AdminRole;
 }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');

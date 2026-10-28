@@ -2,7 +2,7 @@
 
 import type { CrmEventRecord } from '@/lib/admin/crm/types';
 import { eventsOutsideTabs, pickEventTabList } from '@/lib/admin/crm/event-tabs';
-import { formatDate } from '@/lib/admin/crm/utils';
+import { formatDate, formatUsd } from '@/lib/admin/crm/utils';
 
 export function EventTabsPanel({
   events,
@@ -116,24 +116,53 @@ export function EventTabsSummary({
 }) {
   if (!event) return null;
 
+  const peopleMode = event.peopleMode ?? 'people';
+  const showAdults = peopleMode === 'adults_kids';
+  const showKids = peopleMode === 'adults_kids' || peopleMode === 'kids';
+
   return (
-    <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted flex flex-wrap gap-x-6 gap-y-1">
-      <span>
-        <strong className="text-navy">{event.title}</strong>
-        {(event.dateLabel || event.startsAt) && (
-          <> · {event.dateLabel ?? formatDate(event.startsAt)}</>
-        )}
-      </span>
-      <span>
-        <strong className="text-navy">{event.rsvpCount}</strong> RSVP
-        {event.rsvpCount === 1 ? '' : 's'}
-      </span>
-      <span>
-        <strong className="text-navy">{event.guestTotal}</strong> guest
-        {event.guestTotal === 1 ? '' : 's'}
-      </span>
-      {event.location && <span>{event.location}</span>}
-      {mode === 'events' && event.time && <span>{event.time}</span>}
+    <div className="px-4 py-3 border-b border-line bg-soft/20 text-sm text-muted">
+      <div className="flex flex-wrap gap-x-6 gap-y-1 items-baseline">
+        <span>
+          <strong className="text-navy">{event.title}</strong>
+          {(event.dateLabel || event.startsAt) && (
+            <> · {event.dateLabel ?? formatDate(event.startsAt)}</>
+          )}
+        </span>
+        <span>
+          <strong className="text-navy">{event.rsvpCount}</strong> submission
+          {event.rsvpCount === 1 ? '' : 's'}
+        </span>
+        <span>
+          <strong className="text-navy">{event.guestTotal}</strong>{' '}
+          {peopleMode === 'couples'
+            ? event.guestTotal === 1
+              ? 'couple'
+              : 'couples'
+            : 'people'}
+        </span>
+        {showAdults ? (
+          <span>
+            <strong className="text-navy">{event.adultsTotal ?? 0}</strong> adults
+          </span>
+        ) : null}
+        {showKids ? (
+          <span>
+            <strong className="text-navy">{event.kidsTotal ?? 0}</strong> kids
+          </span>
+        ) : null}
+        <span>
+          Tickets <strong className="text-navy">{formatUsd(event.ticketTotal)}</strong>
+        </span>
+        <span>
+          Donations <strong className="text-navy">{formatUsd(event.donationTotal)}</strong>
+        </span>
+        <span>
+          Total <strong className="text-navy">{formatUsd(event.revenueTotal)}</strong>
+        </span>
+        {event.location && <span>{event.location}</span>}
+        {mode === 'events' && event.time && <span>{event.time}</span>}
+      </div>
     </div>
   );
 }

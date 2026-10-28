@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/fetch-shabbat-fallback.mjs && next dev",
-    "prebuild": "node scripts/fetch-shabbat-fallback.mjs",
+    "prebuild": "node scripts/fetch-shabbat-fallback.mjs && node scripts/audit-tracked-imports.cjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "check:imports": "node scripts/audit-tracked-imports.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^6.6.0",

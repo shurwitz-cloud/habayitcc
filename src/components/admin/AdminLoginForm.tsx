@@ -3,18 +3,24 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-const DEFAULT_ADMIN_EMAIL = 'info@habayitcc.org';
-
 export function AdminLoginForm({
   title,
   description,
   alternateLink,
+  defaultEmail = 'info@habayitcc.org',
+  emailLabel = 'Email',
+  emailPlaceholder,
+  emailInputMode = 'email',
 }: {
   title: string;
   description: string;
   alternateLink?: { href: string; label: string };
+  defaultEmail?: string;
+  emailLabel?: string;
+  emailPlaceholder?: string;
+  emailInputMode?: 'email' | 'text';
 }) {
-  const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,7 +36,7 @@ export function AdminLoginForm({
     });
     setLoading(false);
     if (!res.ok) {
-      setError('Invalid email or password.');
+      setError('Invalid name or password.');
       return;
     }
     window.location.reload();
@@ -42,16 +48,17 @@ export function AdminLoginForm({
       <p className="text-muted text-sm mb-6">{description}</p>
 
       <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">
-        Email
+        {emailLabel}
       </label>
       <input
-        type="email"
+        type="text"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         className="w-full mb-4"
         required
         autoComplete="username"
-        inputMode="email"
+        inputMode={emailInputMode}
+        placeholder={emailPlaceholder}
       />
 
       <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">

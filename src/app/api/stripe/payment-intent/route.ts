@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
+import { validatePublicDonationAmountCents } from '@/lib/stripe/amount-limits';
+import { normalizeDonorEmail } from '@/lib/donations/normalize-donor';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,23 +16,30 @@ export async function POST(req: NextRequest) {
         dedicationType?: 'honor' | 'memory';
       };
 
-    if (!amountCents || amountCents < 100) {
-      return NextResponse.json({ error: 'Invalid amount.' }, { status: 400 });
+    const amountCheck = validatePublicDonationAmountCents(amountCents);
+    if (!amountCheck.ok) {
+      return NextResponse.json({ error: amountCheck.error }, { status: 400 });
+    }
+
+    const email = normalizeDonorEmail(donorEmail ?? '');
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
+      amount: amountCheck.amountCents,
       currency: 'usd',
       payment_method_types: ['card'],
       description: 'Donation to HaBayit Jewish Center',
+      receipt_email: email,
       metadata: {
         type: 'donation',
         donation_type: 'one_time',
-        donor_name: donorName,
-        donor_email: donorEmail,
-        ...(memo && { memo }),
-        ...(campaign && { campaign }),
-        ...(dedicationName && { dedication_name: dedicationName }),
+        donor_name: (donorName ?? '').trim().replace(/\s+/g, ' '),
+        donor_email: email,
+        ...(memo && { memo: memo.trim() }),
+        ...(campaign && { campaign: campaign.trim() }),
+        ...(dedicationName && { dedication_name: dedicationName.trim() }),
         ...(dedicationType && { dedication_type: dedicationType }),
       },
     });

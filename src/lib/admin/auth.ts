@@ -1,19 +1,30 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { cookies } from 'next/headers';
 import {
+  isStaffRole,
   roleHasCapability,
   type AdminCapability,
   type AdminRole,
 } from './roles';
 
 export type { AdminCapability, AdminRole } from './roles';
-export { roleHasCapability, VOLUNTEER_HIDDEN_CRM_VIEWS } from './roles';
+export {
+  roleHasCapability,
+  VOLUNTEER_HIDDEN_CRM_VIEWS,
+  OFFICE_HIDDEN_CRM_VIEWS,
+  OFFICE_HIDDEN_PAYMENT_SOURCES,
+  crmViewsHiddenForRole,
+  roleDisplayLabel,
+  isStaffRole,
+} from './roles';
 
 export const ADMIN_COOKIE = 'habayit_admin';
 
 const SESSION_SALT = 'habayit-admin-session-v2';
 /** Dev-only fallback so local admin works without matching production secrets. */
 const LOCAL_DEV_SECRET = 'habayit-local-dev';
+
+const DEFAULT_TEACHER_LOGINS = ['teacher', 'teachers', 'teacher@habayitcc.org'];
 
 /** True only under `next dev` — never on Vercel production builds. */
 export function isLocalDevAdminBypass(): boolean {
@@ -24,13 +35,25 @@ export function getAdminLoginEmail(): string {
   return (process.env.ADMIN_EMAIL?.trim() || 'info@habayitcc.org').toLowerCase();
 }
 
-export function getVolunteerEmails(): string[] {
-  const raw = process.env.VOLUNTEER_EMAILS?.trim() || '';
-  if (!raw) return [];
+function parseEmailList(raw: string): string[] {
+  if (!raw.trim()) return [];
   return raw
     .split(/[,;\s]+/)
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+}
+
+export function getVolunteerEmails(): string[] {
+  return parseEmailList(process.env.VOLUNTEER_EMAILS || '');
+}
+
+export function getOfficeEmails(): string[] {
+  return parseEmailList(process.env.OFFICE_EMAILS || '');
+}
+
+export function getTeacherLogins(): string[] {
+  const fromEnv = parseEmailList(process.env.TEACHER_EMAILS || '');
+  return [...new Set([...DEFAULT_TEACHER_LOGINS, ...fromEnv])];
 }
 
 export function getAdminSecret(): string | undefined {
@@ -47,13 +70,32 @@ export function getVolunteerSecret(): string | undefined {
   return undefined;
 }
 
+export function getOfficeSecret(): string | undefined {
+  const configured = process.env.OFFICE_SECRET?.trim() || undefined;
+  if (configured) return configured;
+  const volunteer = getVolunteerSecret();
+  if (volunteer) return volunteer;
+  if (isLocalDevAdminBypass()) return LOCAL_DEV_SECRET;
+  return undefined;
+}
+
+export function getTeacherSecret(): string | undefined {
+  const configured = process.env.TEACHER_SECRET?.trim() || undefined;
+  if (configured) return configured;
+  if (isLocalDevAdminBypass()) return LOCAL_DEV_SECRET;
+  return undefined;
+}
+
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
 function secretForRole(role: AdminRole): string | undefined {
-  return role === 'admin' ? getAdminSecret() : getVolunteerSecret();
+  if (role === 'admin') return getAdminSecret();
+  if (role === 'office') return getOfficeSecret();
+  if (role === 'teacher') return getTeacherSecret();
+  return getVolunteerSecret();
 }
 
 /** Opaque cookie value — `role.<hmac>` — never store the raw password. */
@@ -82,8 +124,21 @@ export function resolveAdminLogin(email: string, password: string): AdminRole | 
     return safeEqual(password, secret) ? 'admin' : null;
   }
 
-  const volunteerEmails = getVolunteerEmails();
-  if (volunteerEmails.includes(normalizedEmail)) {
+  if (getTeacherLogins().includes(normalizedEmail)) {
+    if (isLocalDevAdminBypass()) return 'teacher';
+    const secret = getTeacherSecret();
+    if (!secret) return null;
+    return safeEqual(password, secret) ? 'teacher' : null;
+  }
+
+  if (getOfficeEmails().includes(normalizedEmail)) {
+    if (isLocalDevAdminBypass()) return 'office';
+    const secret = getOfficeSecret();
+    if (!secret) return null;
+    return safeEqual(password, secret) ? 'office' : null;
+  }
+
+  if (getVolunteerEmails().includes(normalizedEmail)) {
     if (isLocalDevAdminBypass()) return 'volunteer';
     const secret = getVolunteerSecret();
     if (!secret) return null;
@@ -103,9 +158,9 @@ export function parseAdminSessionCookie(value: string | undefined): AdminRole | 
 
   const dotted = value.indexOf('.');
   if (dotted > 0) {
-    const role = value.slice(0, dotted) as AdminRole;
+    const role = value.slice(0, dotted);
     const sig = value.slice(dotted + 1);
-    if (role !== 'admin' && role !== 'volunteer') return null;
+    if (!isStaffRole(role)) return null;
     const expected = getAdminSessionToken(role);
     if (!expected) return null;
     const expectedSig = expected.slice(expected.indexOf('.') + 1);

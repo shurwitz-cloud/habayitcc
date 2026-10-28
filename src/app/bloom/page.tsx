@@ -10,7 +10,6 @@ import {
   BLOOM_EARLY_BIRD_DEADLINE_LABEL,
   BLOOM_EARLY_BIRD_DISCOUNT,
   BLOOM_MONTHLY_TUITION,
-  BLOOM_PAY_IN_FULL_DISCOUNT,
   BLOOM_SESSION_MONTHS,
   isBloomEarlyBirdActive,
 } from '@/lib/programs/bloom-tuition';
@@ -148,8 +147,8 @@ export default function BloomPage() {
                 {BLOOM_EARLY_BIRD_DISCOUNT}.{' '}
               </>
             )}
-            Pay in full and save ${BLOOM_PAY_IN_FULL_DISCOUNT}. Or choose two payments (upon
-            acceptance and by November 1).
+            Pay in full upon acceptance, or choose two payments (upon acceptance and by November
+            1).
           </div>
         </Section>
 

@@ -7,24 +7,52 @@ import {
   syncDonationFromPaymentIntent,
   syncDonationFromSubscriptionInvoice,
 } from '@/lib/donations/reconcile-stripe';
+import {
+  constructStripeWebhookEvent,
+  hasStripeWebhookSecret,
+} from '@/lib/stripe/webhook-verify';
+import { productionWebhookGetBlocked } from '@/lib/security/production-only';
+import {
+  paidEventInputFromPaymentIntentMetadata,
+  persistPaidEventRegistration,
+} from '@/lib/events/persist-paid-event-registration';
+import { persistLulavOrder } from '@/lib/lulav/persist-order';
+import { computeLulavPricing } from '@/lib/lulav/pricing';
 import type Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  const blocked = productionWebhookGetBlocked();
+  if (blocked) return blocked;
+
+  return NextResponse.json({
+    ok: true,
+    endpoint: '/api/webhooks/stripe',
+    webhookSecretConfigured: hasStripeWebhookSecret(),
+    testSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET_TEST?.trim()),
+  });
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get('stripe-signature');
 
-  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!sig || !hasStripeWebhookSecret()) {
     return NextResponse.json({ error: 'Missing signature or webhook secret.' }, { status: 400 });
   }
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = constructStripeWebhookEvent(body, sig);
   } catch (err) {
     console.error('Webhook signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });
+  }
+
+  // Test-mode events often share this URL; acknowledge them but do not write to production CRM.
+  if (!event.livemode) {
+    return NextResponse.json({ received: true, skipped: 'test_mode' });
   }
 
   try {
@@ -48,15 +76,105 @@ export async function POST(req: NextRequest) {
 async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
   const { type } = pi.metadata ?? {};
 
+  if (type === 'paid_event_registration') {
+    await handlePaidEventRegistrationPayment(pi);
+    return;
+  }
+
+  if (type === 'lulav_order') {
+    await handleLulavOrderPayment(pi);
+    return;
+  }
+
   if (type === 'hebrew_adventure_tuition') {
     await handleHebrewAdventureTuitionPayment(pi);
     return;
   }
 
   const { donation_type } = pi.metadata ?? {};
-  if (type !== 'donation' || donation_type !== 'one_time') return;
+  if (type === 'donation' && donation_type === 'one_time') {
+    await syncDonationFromPaymentIntent(pi, 'One-Time');
+    return;
+  }
 
-  await syncDonationFromPaymentIntent(pi, 'One-Time');
+  const piWithInvoice = pi as Stripe.PaymentIntent & { invoice?: string | null };
+  if (piWithInvoice.invoice) {
+    const invoice = await stripe.invoices.retrieve(
+      typeof piWithInvoice.invoice === 'string'
+        ? piWithInvoice.invoice
+        : piWithInvoice.invoice,
+      { expand: ['subscription'] }
+    );
+    const subRef = invoice.parent?.subscription_details?.subscription;
+    const subscriptionId =
+      typeof subRef === 'string' ? subRef : (subRef as Stripe.Subscription | null)?.id ?? null;
+    if (subscriptionId) {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      if (subscription.metadata?.type === 'monthly_donation') {
+        await syncDonationFromSubscriptionInvoice(invoice, subscription);
+      }
+    }
+  }
+}
+
+async function handleLulavOrderPayment(pi: Stripe.PaymentIntent) {
+  const meta = (pi.metadata ?? {}) as Record<string, string>;
+  const quantity = Number(meta.quantity) || 0;
+  const email = (meta.email ?? '').trim().toLowerCase();
+  const fullName = (meta.full_name ?? '').trim();
+  const phone = (meta.phone ?? '').trim();
+  if (!quantity || !email || !fullName) {
+    console.error('[stripe webhook] lulav_order missing metadata', pi.id);
+    return;
+  }
+
+  const coverFee = meta.cover_fee === 'true';
+  const pricing = computeLulavPricing(quantity, 'card', coverFee);
+  if (pi.amount !== pricing.totalCents) {
+    console.error('[stripe webhook] lulav_order amount mismatch', pi.id, pi.amount, pricing.totalCents);
+    return;
+  }
+
+  // Safety net only — form already emails/sheets on success.
+  const result = await persistLulavOrder({
+    fullName,
+    email,
+    phone,
+    payMethod: 'card',
+    coverFee,
+    pricing,
+    status: 'paid',
+    paymentId: pi.id,
+    skipEmail: true,
+    skipSheet: true,
+  });
+  if (!result.success) {
+    console.error('[stripe webhook] lulav_order persist failed', pi.id, result.error);
+  }
+}
+
+async function handlePaidEventRegistrationPayment(pi: Stripe.PaymentIntent) {
+  const meta = (pi.metadata ?? {}) as Record<string, string>;
+  const input = paidEventInputFromPaymentIntentMetadata(meta, pi.id);
+  if (!input) {
+    console.error('[stripe webhook] paid_event_registration missing metadata', pi.id);
+    return;
+  }
+
+  // Webhook is a safety net only — form already emails/sheets on success.
+  // Always skip email/sheet here so we never double-notify when both paths run.
+  const result = await persistPaidEventRegistration({
+    ...input,
+    skipEmail: true,
+    skipSheet: true,
+  });
+  if (!result.success) {
+    console.error('[stripe webhook] paid event persist failed', pi.id, result.error);
+  } else if (result.alreadyExisted) {
+    console.info('[stripe webhook] paid event already registered', pi.id, result.registrationId);
+  } else {
+    console.info('[stripe webhook] paid event registered from webhook', pi.id, result.registrationId);
+  }
 }
 
 async function handleHebrewAdventureTuitionPayment(pi: Stripe.PaymentIntent) {

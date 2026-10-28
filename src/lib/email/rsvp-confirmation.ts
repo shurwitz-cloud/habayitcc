@@ -1,6 +1,6 @@
 import type { EventConfig } from '@/lib/events/config';
 import { formatLocationAddressHtml } from '@/lib/events/location';
-import { buildEmailHtml, getAdminEmail, sendEmail } from './client';
+import { buildEmailHtml, sendAdminNotification, sendEmail } from './client';
 
 export interface RsvpConfirmationEmailInput {
   event: EventConfig;
@@ -47,8 +47,7 @@ export async function sendRsvpConfirmationEmail(
       subject: `RSVP confirmed — ${event.title}`,
       html,
     }),
-    sendEmail({
-      to: getAdminEmail(),
+    sendAdminNotification({
       subject: `New RSVP — ${event.title} (${firstName} ${input.lastName})`,
       replyTo: email,
       html: buildEmailHtml(`

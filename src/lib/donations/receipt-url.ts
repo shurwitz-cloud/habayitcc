@@ -2,13 +2,20 @@ import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { DedicationType } from '@/types/database';
-import { DEFAULT_DONATION_MEMO, formatReceiptMemo, resolveDonationMemo } from './memo';
+import {
+  DEFAULT_DONATION_MEMO,
+  formatReceiptMemo,
+  isPaymentMethodCampaign,
+  resolveDonationMemo,
+} from './memo';
 
 export interface ReceiptUrlParams {
   name: string;
   amount: number;
   date?: Date;
   campaign?: string | null;
+  /** Explicit donation memo for the receipt (optional). */
+  memo?: string | null;
   dedicationName?: string | null;
   dedicationType?: DedicationType | null;
   method?: string;
@@ -16,12 +23,38 @@ export interface ReceiptUrlParams {
 
 const RECEIPT_SIG_PARAM = 'sig';
 
+const warnedReceiptSecretFallback = { value: false };
+
+function receiptSigningSecrets(): string[] {
+  const receiptSecret = process.env.RECEIPT_SIGNING_SECRET?.trim();
+  const adminSecret = process.env.ADMIN_SECRET?.trim();
+  const secrets: string[] = [];
+
+  if (receiptSecret) secrets.push(receiptSecret);
+  if (adminSecret && adminSecret !== receiptSecret) secrets.push(adminSecret);
+
+  if (
+    !receiptSecret &&
+    adminSecret &&
+    process.env.NODE_ENV === 'production' &&
+    !warnedReceiptSecretFallback.value
+  ) {
+    warnedReceiptSecretFallback.value = true;
+    console.warn(
+      '[receipt] RECEIPT_SIGNING_SECRET is not set — using ADMIN_SECRET. Set a dedicated RECEIPT_SIGNING_SECRET in production.'
+    );
+  }
+
+  return secrets;
+}
+
+/** Primary secret for signing new receipt URLs. */
 function getReceiptSigningSecret(): string | undefined {
-  return (
-    process.env.RECEIPT_SIGNING_SECRET?.trim() ||
-    process.env.ADMIN_SECRET?.trim() ||
-    undefined
-  );
+  return receiptSigningSecrets()[0];
+}
+
+function signReceiptPayloadWithSecret(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('hex');
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -62,7 +95,7 @@ function canonicalReceiptPayload(params: {
 function signReceiptPayload(payload: string): string {
   const secret = getReceiptSigningSecret();
   if (!secret) return '';
-  return createHmac('sha256', secret).update(payload).digest('hex');
+  return signReceiptPayloadWithSecret(payload, secret);
 }
 
 export function readReceiptParam(
@@ -83,8 +116,13 @@ export function resolveReceiptMemoFromParams(params: {
   dedicationType?: string;
   /** @deprecated legacy pre-formatted memo links */
   memo?: string;
+  /** Payment method — used so Zelle/etc. gifts without a real memo stay blank. */
+  method?: string;
 }): string {
-  const campaign = params.campaign?.trim();
+  const rawCampaign = params.campaign?.trim();
+  // Ignore payment-method "campaigns" (e.g. campaign=zelle) — Method column already shows that.
+  const campaign =
+    rawCampaign && !isPaymentMethodCampaign(rawCampaign) ? rawCampaign : undefined;
   const dedicationName = params.dedication?.trim();
   const dedicationType =
     params.dedicationType === 'honor' || params.dedicationType === 'memory'
@@ -98,7 +136,17 @@ export function resolveReceiptMemoFromParams(params: {
     });
   }
 
-  return params.memo?.trim() || DEFAULT_DONATION_MEMO;
+  if (params.memo?.trim()) return params.memo.trim();
+
+  // Manual/offline gifts: empty memo stays empty (don't invent "zelle" or "General Donation").
+  if (
+    (rawCampaign && isPaymentMethodCampaign(rawCampaign)) ||
+    isPaymentMethodCampaign(params.method)
+  ) {
+    return '';
+  }
+
+  return DEFAULT_DONATION_MEMO;
 }
 
 export function buildReceiptUrl(params: ReceiptUrlParams): string {
@@ -115,7 +163,12 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
   });
 
   const campaign = params.campaign?.trim();
-  if (campaign) search.set('campaign', campaign);
+  if (campaign && !isPaymentMethodCampaign(campaign)) {
+    search.set('campaign', campaign);
+  }
+
+  const memo = params.memo?.trim();
+  if (memo) search.set('memo', memo);
 
   const dedicationName = params.dedicationName?.trim();
   if (dedicationName) {
@@ -130,9 +183,10 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
     amount: amountStr,
     date: dateStr,
     method,
-    campaign,
+    campaign: campaign && !isPaymentMethodCampaign(campaign) ? campaign : undefined,
     dedication: dedicationName,
     dedicationType: params.dedicationType ?? undefined,
+    memo,
   });
 
   const sig = signReceiptPayload(payload);
@@ -146,8 +200,8 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
 export function verifyReceiptSearchParams(
   params: Record<string, string | string[] | undefined>
 ): boolean {
-  const secret = getReceiptSigningSecret();
-  if (!secret) return false;
+  const secrets = receiptSigningSecrets();
+  if (secrets.length === 0) return false;
 
   const sig = readReceiptParam(params[RECEIPT_SIG_PARAM]);
   if (!sig) return false;
@@ -170,8 +224,7 @@ export function verifyReceiptSearchParams(
     memo: readReceiptParam(params.memo),
   });
 
-  const expected = signReceiptPayload(payload);
-  if (!expected) return false;
-
-  return safeEqual(sig, expected);
+  return secrets.some((secret) =>
+    safeEqual(sig, signReceiptPayloadWithSecret(payload, secret))
+  );
 }

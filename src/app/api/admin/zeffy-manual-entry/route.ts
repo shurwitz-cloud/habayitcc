@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
 import { persistDonation } from '@/lib/donations/persist-donation';
-import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
 import {
-  paymentLocalDay,
-  recordZeffyChaiPartnerPayment,
-} from '@/lib/zeffy/record-chai-payment';
+  buildAbsoluteReceiptUrl,
+  buildChaiPartnerReceiptUrl,
+  sendDonationReceiptEmailFromRecord,
+} from '@/lib/email/donation-receipt';
+import { recordZeffyChaiPartnerPayment } from '@/lib/zeffy/record-chai-payment';
 import type { ParsedZeffyPayment } from '@/lib/zeffy/types';
 
 export const dynamic = 'force-dynamic';
 
 type EntryType = 'chai_partner' | 'donation';
-
-// Money source for a manual Chai Partner entry. Default 'Zeffy' preserves
-// existing behavior for gifts that really came through Zeffy; anything else
-// (Zelle, check, ...) is labeled with its own method so the ledger does not
-// misattribute it. (The one-time donation branch below is unchanged.)
-const METHODS = ['Zeffy', 'Zelle', 'Check', 'Cash', 'Other'] as const;
 
 /**
  * Manual CRM entry for Zeffy gifts (Chai Partner or one-time donor).
@@ -40,7 +35,6 @@ export async function POST(req: NextRequest) {
     amount?: number;
     paidAt?: string;
     paymentKey?: string;
-    paymentMethod?: string;
     sendEmail?: boolean;
     campaign?: string;
     memo?: string;
@@ -78,48 +72,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const rawMethod = (body.paymentMethod ?? '').trim();
-  const paymentMethod = (METHODS as readonly string[]).includes(rawMethod)
-    ? rawMethod
-    : 'Zeffy';
-  const keyPrefix = paymentMethod === 'Zeffy' ? 'zeffy' : paymentMethod.toLowerCase();
-
-  // Chai Partner: the Paid at date is part of each payment's own reference.
-  // Without it, two entries with the same email + amount (e.g. a monthly payer
-  // recorded for September and October) collapse into one dedupe key and the
-  // second payment is silently skipped. The date is therefore required for
-  // Chai entries; identical re-submits still produce the identical key, and
-  // two distinct payments on the SAME day take an explicit paymentKey
-  // (Reference field) to stay separate.
-  let paidAtDay = '';
-  if (type === 'chai_partner') {
-    const d = new Date((body.paidAt ?? '').trim());
-    if (Number.isNaN(d.getTime())) {
-      return NextResponse.json(
-        { error: 'A valid Paid at date is required for Chai Partner entries - it is part of the payment reference.' },
-        { status: 400 }
-      );
-    }
-    paidAtDay = paymentLocalDay(d).replace(/-/g, '');
-  }
-
-  const emailSlug = email.replace(/[^a-z0-9]+/g, '-');
-  const explicitKey = (body.paymentKey ?? '').trim();
   const paymentId =
-    explicitKey ||
-    `manual-${type}-${emailSlug}-${Math.round(amount * 100)}${paidAtDay ? `-${paidAtDay}` : ''}`;
-
-  // Migration guard for pre-fix manual entries, which were keyed without a
-  // date under the 'zeffy' prefix: recordZeffyChaiPartnerPayment treats ANY
-  // match on the old key as already-recorded (visible block with the matched
-  // key) instead of risking a double-record; a genuinely different payment is
-  // entered with an explicit Reference, which bypasses this guard.
-  const legacyKeys =
-    type === 'chai_partner' && !explicitKey
-      ? [`zeffy:manual-${type}-${emailSlug}-${Math.round(amount * 100)}`]
-      : undefined;
+    (body.paymentKey ?? '').trim() ||
+    `manual-${type}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}`;
 
   const sendEmail = body.sendEmail === true;
+  const paidAtRaw = (body.paidAt ?? '').trim();
+  const paidAt =
+    paidAtRaw && !Number.isNaN(new Date(paidAtRaw).getTime())
+      ? new Date(paidAtRaw).toISOString()
+      : undefined;
+  const receiptDate = paidAt ? new Date(paidAt) : new Date();
 
   if (type === 'chai_partner') {
     const parsed: ParsedZeffyPayment = {
@@ -137,15 +100,12 @@ export async function POST(req: NextRequest) {
       campaignTitle: 'HaBayit Chai Partner',
       isMonthly: true,
       status: 'succeeded',
-      raw: { source: 'admin_manual_ui', method: paymentMethod, body },
+      raw: { source: 'admin_manual_ui', body },
     };
 
     const result = await recordZeffyChaiPartnerPayment(parsed, {
       sendEmails: sendEmail,
-      paidAt: body.paidAt,
-      keyPrefix,
-      provider: keyPrefix,
-      legacyKeys,
+      paidAt,
     });
 
     if (!result.ok) {
@@ -158,15 +118,23 @@ export async function POST(req: NextRequest) {
       partnerId: result.partnerId,
       accessCode: result.accessCode,
       duplicate: Boolean(result.duplicate),
-      matchedKey: result.matchedKey,
       emailed: sendEmail && !result.duplicate,
       paymentId,
-      paymentMethod,
+      paidAt: paidAt ?? null,
+      receiptUrl: result.duplicate
+        ? null
+        : buildChaiPartnerReceiptUrl({
+            firstName,
+            lastName,
+            amount,
+            date: receiptDate,
+          }),
     });
   }
 
   // One-time (or general) Zeffy donor
   const paymentIntentId = `zeffy:${paymentId}`;
+  const campaign = (body.campaign ?? '').trim() || 'zeffy';
   const persisted = await persistDonation({
     paymentIntentId,
     amountDollars: amount,
@@ -176,7 +144,8 @@ export async function POST(req: NextRequest) {
     phone: body.phone,
     donationType: 'One-Time',
     memo: body.memo?.trim() || 'Zeffy (manual CRM entry)',
-    campaign: (body.campaign ?? '').trim() || 'zeffy',
+    campaign,
+    paidAt,
   });
 
   if (!persisted.saved) {
@@ -193,8 +162,10 @@ export async function POST(req: NextRequest) {
       firstName,
       lastName,
       amountDollars: amount,
-      campaign: (body.campaign ?? '').trim() || 'zeffy',
+      campaign,
       donationType: 'One-Time',
+      method: 'Zeffy',
+      paidAt,
     });
   }
 
@@ -205,5 +176,15 @@ export async function POST(req: NextRequest) {
     duplicate: persisted.alreadyExisted,
     emailed,
     paymentId,
+    paidAt: paidAt ?? null,
+    receiptUrl: persisted.alreadyExisted
+      ? null
+      : buildAbsoluteReceiptUrl({
+          name: `${firstName} ${lastName}`.trim(),
+          amount,
+          date: receiptDate,
+          campaign,
+          method: 'Zeffy',
+        }),
   });
 }

@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
+import { WalletPayButtons } from '@/components/stripe/WalletPayButtons';
 import { DEFAULT_DONATION_MEMO, resolveDonationMemo } from '@/lib/donations/memo';
+import { normalizeDonorEmail, normalizeDonorName } from '@/lib/donations/normalize-donor';
 import { recordDonation } from './actions';
 import type { DedicationType } from '@/types/database';
 
@@ -28,16 +30,42 @@ const CARD_STYLE: StripeCardElementOptions = {
 
 export function DonateCheckout() {
   return (
-    <Elements stripe={stripePromise}>
-      <Suspense fallback={<DonateFormSkeleton />}>
-        <DonateForm />
-      </Suspense>
+    <Suspense fallback={<DonateFormSkeleton />}>
+      <DonateCheckoutWithElements />
+    </Suspense>
+  );
+}
+
+/** Owns amount/mode so Express Checkout Elements can use deferred intent options. */
+function DonateCheckoutWithElements() {
+  const [mode, setMode] = useState<'onetime' | 'monthly'>('onetime');
+  const [amountCents, setAmountCents] = useState(100);
+
+  const elementsOptions = useMemo(
+    () => ({
+      mode: (mode === 'monthly' ? 'subscription' : 'payment') as 'payment' | 'subscription',
+      amount: Math.max(amountCents, 100),
+      currency: 'usd' as const,
+    }),
+    [mode, amountCents]
+  );
+
+  return (
+    <Elements stripe={stripePromise} options={elementsOptions}>
+      <DonateForm mode={mode} setMode={setMode} onAmountCentsChange={setAmountCents} />
     </Elements>
   );
 }
 
-// DonateForm lives inside <Elements> so it can call useStripe + useElements
-function DonateForm() {
+function DonateForm({
+  mode,
+  setMode,
+  onAmountCentsChange,
+}: {
+  mode: 'onetime' | 'monthly';
+  setMode: (mode: 'onetime' | 'monthly') => void;
+  onAmountCentsChange: (cents: number) => void;
+}) {
   const searchParams = useSearchParams();
   const campaignSlug = searchParams.get('campaign');
   const donationMemo = useMemo(
@@ -48,7 +76,6 @@ function DonateForm() {
   const stripe = useStripe();
   const elements = useElements();
 
-  const [mode, setMode] = useState<'onetime' | 'monthly'>('onetime');
   const [selectedAmt, setSelectedAmt] = useState<number | 'other' | null>(null);
   const [otherAmt, setOtherAmt] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -66,20 +93,168 @@ function DonateForm() {
 
   const resolvedAmount = selectedAmt === 'other' ? parseFloat(otherAmt) : selectedAmt;
   const fee = resolvedAmount ? Math.round(resolvedAmount * 0.03 * 100) / 100 : 0;
-  const finalAmount = resolvedAmount ? (coverFee ? Math.round(resolvedAmount * 1.03 * 100) / 100 : resolvedAmount) : null;
+  const finalAmount = resolvedAmount
+    ? coverFee
+      ? Math.round(resolvedAmount * 1.03 * 100) / 100
+      : resolvedAmount
+    : null;
+  const computedAmountCents = finalAmount ? Math.round(finalAmount * 100) : 0;
+
+  // Sync checkout amount up to Elements (Express Checkout / Apple Pay).
+  useEffect(() => {
+    onAmountCentsChange(computedAmountCents > 0 ? computedAmountCents : 100);
+  }, [computedAmountCents, onAmountCentsChange]);
+
+  const dedicationPayload = useMemo(() => {
+    const trimmedDedication = dedicationName.trim();
+    if (!trimmedDedication) return {};
+    return {
+      dedicationName: trimmedDedication,
+      dedicationType: (dedicationType || 'honor') as DedicationType,
+    };
+  }, [dedicationName, dedicationType]);
+
+  function validateDonor(): { ok: true; email: string; name: string } | { ok: false; error: string } {
+    if (!resolvedAmount || resolvedAmount < 1) {
+      return { ok: false, error: 'Please select or enter a donation amount.' };
+    }
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      return { ok: false, error: 'Please fill in your name and email.' };
+    }
+    if (computedAmountCents < 100) {
+      return { ok: false, error: 'Minimum donation is $1.' };
+    }
+    return {
+      ok: true,
+      email: normalizeDonorEmail(email),
+      name: normalizeDonorName(firstName, lastName),
+    };
+  }
+
+  async function createClientSecret(donorName: string, donorEmail: string): Promise<string> {
+    if (mode === 'onetime') {
+      const res = await fetch('/api/stripe/payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amountCents: computedAmountCents,
+          donorName,
+          donorEmail,
+          memo: donationMemo,
+          campaign: campaignSlug ?? undefined,
+          ...dedicationPayload,
+        }),
+      });
+      const data = (await res.json()) as { clientSecret?: string; error?: string };
+      if (!res.ok || !data.clientSecret) {
+        throw new Error(data.error ?? 'Could not initialize payment.');
+      }
+      return data.clientSecret;
+    }
+
+    const res = await fetch('/api/stripe/subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amountCents: computedAmountCents,
+        donorFirstName: firstName.trim(),
+        donorLastName: lastName.trim(),
+        donorEmail,
+        donorPhone: phone,
+        memo: donationMemo,
+        campaign: campaignSlug ?? undefined,
+        ...dedicationPayload,
+        type: 'monthly_donation',
+      }),
+    });
+    const data = (await res.json()) as { clientSecret?: string; error?: string };
+    if (!res.ok || !data.clientSecret) {
+      throw new Error(data.error ?? 'Could not initialize subscription.');
+    }
+    return data.clientSecret;
+  }
+
+  async function finishDonation(paymentIntentId: string) {
+    const recorded = await recordDonation({
+      paymentIntentId,
+      amountDollars: finalAmount!,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: normalizeDonorEmail(email),
+      phone: phone.trim() || undefined,
+      donationType: mode === 'monthly' ? 'Monthly' : 'One-Time',
+      memo: donationMemo,
+      campaign: campaignSlug,
+      ...dedicationPayload,
+    });
+
+    if (!recorded.success) {
+      throw new Error(
+        recorded.error ??
+          'Your card was charged but we could not finish processing. Please email info@habayitcc.org — we will confirm your gift.'
+      );
+    }
+
+    if (recorded.warning) {
+      console.warn('recordDonation warning:', recorded.warning);
+    }
+    if (recorded.receiptUrl) setReceiptUrl(recorded.receiptUrl);
+    setSuccess(true);
+  }
+
+  const handleWalletBeforeOpen = useCallback(() => {
+    const check = validateDonor();
+    if (!check.ok) throw new Error(check.error);
+    // Form fields intentionally read from latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedAmount, firstName, lastName, email, computedAmountCents]);
+
+  const handleWalletCreateSecret = useCallback(async () => {
+    const check = validateDonor();
+    if (!check.ok) throw new Error(check.error);
+    setProcessing(true);
+    setError('');
+    return createClientSecret(check.name, check.email);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    mode,
+    computedAmountCents,
+    finalAmount,
+    firstName,
+    lastName,
+    email,
+    phone,
+    donationMemo,
+    campaignSlug,
+    dedicationPayload,
+    resolvedAmount,
+  ]);
+
+  const handleWalletSucceeded = useCallback(
+    async (paymentIntentId: string) => {
+      try {
+        await finishDonation(paymentIntentId);
+      } finally {
+        setProcessing(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [finalAmount, firstName, lastName, email, phone, mode, donationMemo, campaignSlug, dedicationPayload]
+  );
+
+  const handleWalletError = useCallback((message: string) => {
+    setError(message);
+    setProcessing(false);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!stripe || !elements) return;
 
     setError('');
-
-    if (!resolvedAmount || resolvedAmount < 1) {
-      setError('Please select or enter a donation amount.');
-      return;
-    }
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setError('Please fill in your name and email.');
+    const check = validateDonor();
+    if (!check.ok) {
+      setError(check.error);
       return;
     }
 
@@ -89,99 +264,32 @@ function DonateForm() {
     setProcessing(true);
 
     try {
-      const amountCents = Math.round(finalAmount! * 100);
-      const trimmedDedication = dedicationName.trim();
-      const dedicationPayload = trimmedDedication
-        ? {
-            dedicationName: trimmedDedication,
-            dedicationType: (dedicationType || 'honor') as DedicationType,
-          }
-        : {};
-      let clientSecret: string;
-
-      if (mode === 'onetime') {
-        const res = await fetch('/api/stripe/payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amountCents,
-            donorName: `${firstName} ${lastName}`,
-            donorEmail: email,
-            memo: donationMemo,
-            campaign: campaignSlug ?? undefined,
-            ...dedicationPayload,
-          }),
-        });
-        const data = await res.json() as { clientSecret?: string; error?: string };
-        if (!res.ok || !data.clientSecret) throw new Error(data.error ?? 'Could not initialize payment.');
-        clientSecret = data.clientSecret;
-      } else {
-        const res = await fetch('/api/stripe/subscription', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amountCents,
-            donorFirstName: firstName,
-            donorLastName: lastName,
-            donorEmail: email,
-            donorPhone: phone,
-            memo: donationMemo,
-            campaign: campaignSlug ?? undefined,
-            ...dedicationPayload,
-            type: 'monthly_donation',
-          }),
-        });
-        const data = await res.json() as { clientSecret?: string; error?: string };
-        if (!res.ok || !data.clientSecret) throw new Error(data.error ?? 'Could not initialize subscription.');
-        clientSecret = data.clientSecret;
-      }
-
+      const clientSecret = await createClientSecret(check.name, check.email);
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: cardElement,
           billing_details: {
-            name: `${firstName} ${lastName}`,
-            email,
-            phone: phone || undefined,
+            name: check.name,
+            email: check.email,
+            phone: phone.trim() || undefined,
           },
         },
       });
 
       if (stripeError) {
         setError(stripeError.message ?? 'Payment failed. Please try again.');
-        setProcessing(false);
         return;
       }
 
-      if (paymentIntent?.status === 'succeeded') {
-        const recorded = await recordDonation({
-          paymentIntentId: paymentIntent.id,
-          amountDollars: finalAmount!,
-          firstName,
-          lastName,
-          email,
-          phone,
-          donationType: mode === 'monthly' ? 'Monthly' : 'One-Time',
-          memo: donationMemo,
-          campaign: campaignSlug,
-          ...dedicationPayload,
-        });
-
-        if (!recorded.success) {
-          throw new Error(recorded.error ?? 'Could not complete your donation record.');
-        }
-
-        if (recorded.warning) {
-          console.warn('recordDonation warning:', recorded.warning);
-        }
-
-        if (recorded.receiptUrl) {
-          setReceiptUrl(recorded.receiptUrl);
-        }
-        setSuccess(true);
+      if (paymentIntent?.status !== 'succeeded') {
+        setError('Payment was not completed. Please try again or contact info@habayitcc.org.');
+        return;
       }
+
+      await finishDonation(paymentIntent.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
       setProcessing(false);
     }
   }
@@ -207,7 +315,8 @@ function DonateForm() {
           </Link>
         )}
         <p className="text-muted text-[0.85rem] mt-4 max-w-[440px] mx-auto">
-          A tax receipt email from HaBayit has been sent to {email}. You can also open your receipt below.
+          A tax receipt email from HaBayit has been sent to {normalizeDonorEmail(email)}. You can also
+          open your receipt below.
         </p>
         <Link
           href="/"
@@ -228,7 +337,6 @@ function DonateForm() {
         </p>
       )}
 
-      {/* ── One-Time / Monthly / Chai Partner toggle ── */}
       <div className="flex justify-center mb-7">
         <div className="inline-flex bg-soft border border-line rounded-full p-1.5">
           <ToggleButton active={mode === 'onetime'} onClick={() => setMode('onetime')}>
@@ -246,13 +354,15 @@ function DonateForm() {
         </div>
       </div>
 
-      {/* ── Amount grid ── */}
       <div className="grid grid-cols-3 gap-3 mb-2">
         {AMOUNTS.map((amt) => (
           <AmountButton
             key={amt}
             active={selectedAmt === amt}
-            onClick={() => { setSelectedAmt(amt); setOtherAmt(''); }}
+            onClick={() => {
+              setSelectedAmt(amt);
+              setOtherAmt('');
+            }}
           >
             ${amt.toLocaleString()}
           </AmountButton>
@@ -279,7 +389,6 @@ function DonateForm() {
         </div>
       )}
 
-      {/* ── Contact + Card in one panel ── */}
       <div className="mt-7 bg-white border border-line rounded-[18px] p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
@@ -317,9 +426,7 @@ function DonateForm() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[0.78rem] font-bold uppercase tracking-wide text-navy">
-              Phone
-            </label>
+            <label className="text-[0.78rem] font-bold uppercase tracking-wide text-navy">Phone</label>
             <input
               type="tel"
               value={phone}
@@ -342,9 +449,7 @@ function DonateForm() {
               <select
                 id="dedication-type"
                 value={dedicationType}
-                onChange={(e) =>
-                  setDedicationType(e.target.value as DedicationType | '')
-                }
+                onChange={(e) => setDedicationType(e.target.value as DedicationType | '')}
               >
                 <option value="">Select…</option>
                 <option value="honor">In honor of</option>
@@ -365,8 +470,18 @@ function DonateForm() {
           </div>
         </div>
 
-        {/* ── Card details ── */}
-        <div className="pt-3 border-t border-line">
+        <div className="pt-3 border-t border-line space-y-3">
+          <WalletPayButtons
+            amountCents={computedAmountCents}
+            label={mode === 'monthly' ? 'HaBayit monthly gift' : 'HaBayit donation'}
+            disabled={processing || !stripe}
+            buttonVariant="donate"
+            recurringMonthly={mode === 'monthly'}
+            onBeforeOpen={handleWalletBeforeOpen}
+            createClientSecret={handleWalletCreateSecret}
+            onPaymentSucceeded={handleWalletSucceeded}
+            onError={handleWalletError}
+          />
           <label className="block text-[0.78rem] font-bold uppercase tracking-wide text-navy mb-1.5">
             Card Information
           </label>
@@ -376,7 +491,6 @@ function DonateForm() {
         </div>
       </div>
 
-      {/* ── Cover fee checkbox + total ── */}
       {resolvedAmount && resolvedAmount > 0 && (
         <div className="mt-4 bg-soft border border-line rounded-xl px-5 py-4">
           <label className="flex items-start gap-3 cursor-pointer">
@@ -397,7 +511,9 @@ function DonateForm() {
             </span>
             <span className="text-[1.2rem] font-extrabold text-navy">
               ${finalAmount!.toFixed(2)}
-              {mode === 'monthly' && <span className="text-[0.78rem] font-normal text-muted">/mo</span>}
+              {mode === 'monthly' && (
+                <span className="text-[0.78rem] font-normal text-muted">/mo</span>
+              )}
             </span>
           </div>
         </div>
@@ -417,19 +533,25 @@ function DonateForm() {
         {processing
           ? 'Processing…'
           : mode === 'monthly'
-          ? `Start Monthly Giving${finalAmount ? ` — $${finalAmount.toFixed(2)}/mo` : ''}`
-          : `Donate Now${finalAmount ? ` — $${finalAmount.toFixed(2)}` : ''}`}
+            ? `Start Monthly Giving${finalAmount ? ` — $${finalAmount.toFixed(2)}/mo` : ''}`
+            : `Donate Now${finalAmount ? ` — $${finalAmount.toFixed(2)}` : ''}`}
       </button>
 
       <p className="text-center text-[0.75rem] text-muted mt-3">
-        Secured by Stripe. Your card details are never stored by HaBayit.
+        Secured by Stripe. Apple Pay, Google Pay, and cards welcome.
       </p>
     </form>
   );
 }
 
-function ToggleButton({ active, onClick, children }: {
-  active: boolean; onClick: () => void; children: React.ReactNode;
+function ToggleButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <button
@@ -444,8 +566,14 @@ function ToggleButton({ active, onClick, children }: {
   );
 }
 
-function AmountButton({ active, onClick, children }: {
-  active: boolean; onClick: () => void; children: React.ReactNode;
+function AmountButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <button
@@ -462,8 +590,6 @@ function AmountButton({ active, onClick, children }: {
 
 function DonateFormSkeleton() {
   return (
-    <div className="max-w-[600px] mx-auto py-12 text-center text-muted">
-      Loading donation form…
-    </div>
+    <div className="max-w-[600px] mx-auto py-12 text-center text-muted">Loading donation form…</div>
   );
 }

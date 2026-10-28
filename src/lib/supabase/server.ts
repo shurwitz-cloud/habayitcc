@@ -57,11 +57,19 @@ export function createAdminClient() {
     console.error(
       '[supabase] SUPABASE_SERVICE_ROLE_KEY is missing — database writes will fail after RLS is enabled.'
     );
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required in production.');
+    }
+  }
+
+  const key = serviceRoleKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  if (!key) {
+    throw new Error('Supabase credentials are not configured.');
   }
 
   return createSupabaseJsClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    key,
     { auth: { persistSession: false } }
   );
 }

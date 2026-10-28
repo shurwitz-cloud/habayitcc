@@ -2,9 +2,13 @@
 
 import { buildReceiptUrl } from '@/lib/donations/receipt-url';
 import { persistDonation } from '@/lib/donations/persist-donation';
-import { verifyDonationPaymentIntent } from '@/lib/donations/verify-donation-payment';
+import {
+  resolveVerifiedDonorIdentity,
+  verifyDonationPaymentIntent,
+} from '@/lib/donations/verify-donation-payment';
 import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
 import { sendDonationAdminNotification } from '@/lib/email/donation-admin';
+import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 
 export interface RecordDonationInput {
   paymentIntentId: string;
@@ -37,6 +41,9 @@ export interface RecordDonationResult {
 export async function recordDonation(
   input: RecordDonationInput
 ): Promise<RecordDonationResult> {
+  const limited = await enforceActionRateLimit('donation', 15, 15 * 60 * 1000);
+  if (!limited.ok) return { success: false, error: limited.error };
+
   const verified = await verifyDonationPaymentIntent(
     input.paymentIntentId,
     input.donationType
@@ -46,12 +53,18 @@ export async function recordDonation(
     return { success: false, error: verified.error };
   }
 
+  const identity = resolveVerifiedDonorIdentity(verified.payment, input);
+  if (!identity.ok) {
+    return { success: false, error: identity.error };
+  }
+
   const amountDollars = verified.payment.amountDollars;
+  const { firstName, lastName, email } = identity;
 
   const emailPayload = {
-    email: input.email,
-    firstName: input.firstName,
-    lastName: input.lastName,
+    email,
+    firstName,
+    lastName,
     amountDollars,
     campaign: input.campaign,
     dedicationName: input.dedicationName,
@@ -60,7 +73,7 @@ export async function recordDonation(
   };
 
   const receiptUrl = buildReceiptUrl({
-    name: `${input.firstName} ${input.lastName}`.trim(),
+    name: `${firstName} ${lastName}`.trim(),
     amount: amountDollars,
     campaign: input.campaign,
     dedicationName: input.dedicationName,
@@ -69,12 +82,26 @@ export async function recordDonation(
   });
 
   try {
+    const persisted = await persistDonation({
+      paymentIntentId: input.paymentIntentId,
+      amountDollars,
+      firstName,
+      lastName,
+      email,
+      phone: input.phone,
+      donationType: input.donationType,
+      memo: input.memo,
+      campaign: input.campaign,
+      dedicationName: input.dedicationName,
+      dedicationType: input.dedicationType,
+    });
+
     const [emailSent, adminNotified] = await Promise.all([
       sendDonationReceiptEmailFromRecord(emailPayload),
       sendDonationAdminNotification({
-        firstName: input.firstName,
-        lastName: input.lastName,
-        email: input.email,
+        firstName,
+        lastName,
+        email,
         phone: input.phone,
         amountDollars,
         donationType: input.donationType,
@@ -85,25 +112,11 @@ export async function recordDonation(
     ]);
 
     if (!emailSent) {
-      console.error('recordDonation: donor receipt email failed for', input.email);
+      console.error('recordDonation: donor receipt email failed');
     }
     if (!adminNotified) {
-      console.error('recordDonation: admin notification failed for donation', input.paymentIntentId);
+      console.error('recordDonation: admin notification failed', input.paymentIntentId);
     }
-
-    const persisted = await persistDonation({
-      paymentIntentId: input.paymentIntentId,
-      amountDollars,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      phone: input.phone,
-      donationType: input.donationType,
-      memo: input.memo,
-      campaign: input.campaign,
-      dedicationName: input.dedicationName,
-      dedicationType: input.dedicationType,
-    });
 
     return {
       success: true,
@@ -113,7 +126,7 @@ export async function recordDonation(
       receiptUrl,
       warning: persisted.saved
         ? undefined
-        : persisted.error ?? 'Donation email sent but CRM save failed.',
+        : persisted.error ?? 'Payment verified but CRM save failed — check admin CRM or Stripe reconcile.',
     };
   } catch (err) {
     console.error('recordDonation error:', err);

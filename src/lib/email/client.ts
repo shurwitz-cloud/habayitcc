@@ -17,8 +17,37 @@ export function getFromEmail(): string {
   return process.env.RESEND_FROM_EMAIL?.trim() || 'info@habayitcc.org';
 }
 
+export function getAdminEmails(): string[] {
+  const raw = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
+  if (!raw) return [getFromEmail()];
+  const list = raw
+    .split(/[,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return list.length ? list : [getFromEmail()];
+}
+
+/** First admin notification recipient (legacy callers). */
 export function getAdminEmail(): string {
-  return process.env.ADMIN_NOTIFICATION_EMAIL?.trim() || getFromEmail();
+  return getAdminEmails()[0];
+}
+
+/** Admin alerts use a distinct from-address on the same domain as public mail. */
+export function getAdminNotificationFrom(): string {
+  const configured = process.env.ADMIN_NOTIFICATION_FROM?.trim();
+  if (configured) {
+    return configured.includes('<') ? configured : `HaBayit Notifications <${configured}>`;
+  }
+  const domain = getFromEmail().includes('@') ? getFromEmail().split('@')[1]! : 'habayitcc.org';
+  return `HaBayit Notifications <notifications@${domain}>`;
+}
+
+export function getPublicFrom(): string {
+  return `HaBayit Jewish Center <${getFromEmail()}>`;
+}
+
+export function resolveAdminDelivery(): { to: string[] } {
+  return { to: getAdminEmails() };
 }
 
 export function getSiteUrl(): string {
@@ -32,6 +61,8 @@ export interface SendEmailInput {
   subject: string;
   html: string;
   replyTo?: string;
+  from?: string;
+  bcc?: string | string[];
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
@@ -41,17 +72,30 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
     return false;
   }
 
+  const from =
+    input.from?.trim() || getPublicFrom();
+
   try {
-    const { error } = await resend.emails.send({
-      from: `HaBayit Jewish Center <${getFromEmail()}>`,
+    const payload: {
+      from: string;
+      to: string | string[];
+      subject: string;
+      html: string;
+      replyTo?: string;
+      bcc?: string | string[];
+    } = {
+      from,
       to: input.to,
       subject: input.subject,
       html: input.html,
-      replyTo: input.replyTo,
-    });
+    };
+    if (input.replyTo) payload.replyTo = input.replyTo;
+    if (input.bcc) payload.bcc = input.bcc;
+
+    const { error } = await resend.emails.send(payload);
 
     if (error) {
-      console.error('[email] send failed:', error);
+      console.error('[email] send failed:', input.subject, error);
       return false;
     }
 
@@ -60,6 +104,39 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
     console.error('[email] send error:', err);
     return false;
   }
+}
+
+/** Admin alert copies (signups, RSVP, contact, donations). */
+export async function sendAdminNotification(
+  input: Omit<SendEmailInput, 'to' | 'from' | 'bcc'> & {
+    /** Extra inboxes for this form only (e.g. office@…). Does not change the global admin list. */
+    extraTo?: string | string[];
+  }
+): Promise<boolean> {
+  const delivery = resolveAdminDelivery();
+  const extras = (Array.isArray(input.extraTo) ? input.extraTo : [input.extraTo])
+    .map((e) => e?.trim().toLowerCase())
+    .filter((e): e is string => Boolean(e));
+  const to = [...new Set([...delivery.to.map((e) => e.trim().toLowerCase()), ...extras])];
+  const { extraTo: _extraTo, ...mail } = input;
+
+  const attempts = [
+    getAdminNotificationFrom(),
+    getPublicFrom(),
+  ].filter((from, index, list) => list.indexOf(from) === index);
+
+  for (const from of attempts) {
+    const ok = await sendEmail({
+      ...mail,
+      from,
+      to,
+    });
+    if (ok) return true;
+    console.error('[email] admin notification attempt failed:', input.subject, { from, to });
+  }
+
+  console.error('[email] admin notification failed after retries:', input.subject, { to });
+  return false;
 }
 
 function emailHeaderHtml(): string {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
+import { validatePublicDonationAmountCents } from '@/lib/stripe/amount-limits';
 import type Stripe from 'stripe';
 
 export interface SubscriptionRequestBody {
@@ -39,10 +40,11 @@ export async function POST(req: NextRequest) {
       paymentMethod = 'card',
     } = body;
 
-    if (!amountCents || amountCents < 100) {
-      return NextResponse.json({ error: 'Invalid amount.' }, { status: 400 });
+    const amountCheck = validatePublicDonationAmountCents(amountCents);
+    if (!amountCheck.ok) {
+      return NextResponse.json({ error: amountCheck.error }, { status: 400 });
     }
-    if (type === 'chai_partner' && amountCents < 15000) {
+    if (type === 'chai_partner' && amountCheck.amountCents < 15000) {
       return NextResponse.json(
         { error: 'Chai Partner monthly gifts must be at least $150.' },
         { status: 400 }
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: 'usd',
             product: product.id,
-            unit_amount: amountCents,
+            unit_amount: amountCheck.amountCents,
             recurring: { interval: 'month' },
           },
         },

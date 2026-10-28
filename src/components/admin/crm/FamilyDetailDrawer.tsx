@@ -3,18 +3,26 @@
 import type { CrmFamilyRecord } from '@/lib/admin/crm/types';
 import { formatDate, formatDateTime, formatUsd, statusBadgeClass, stripeCustomerUrl } from '@/lib/admin/crm/utils';
 import type { Waiver } from '@/types/database';
+import Link from 'next/link';
 
 function labelize(value: string | null | undefined): string {
   if (!value) return '—';
   return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value?.trim()) return null;
+function DetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   return (
     <div>
       <p className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">{label}</p>
-      <p className="text-navy text-sm mt-0.5 whitespace-pre-wrap">{value}</p>
+      <div className="text-navy text-sm mt-0.5 whitespace-pre-wrap">{value}</div>
     </div>
   );
 }
@@ -130,6 +138,10 @@ export function FamilyDetailDrawer({
                 <div className="grid sm:grid-cols-2 gap-4">
                   <DetailField label="Hebrew name" value={c.hebrew_name} />
                   <DetailField label="Date of birth" value={c.date_of_birth} />
+                  <DetailField label="Hebrew birthday" value={c.hebrew_birthday} />
+                  {c.hebrew_birthday_hebrew && (
+                    <DetailField label="Hebrew birthday (Hebrew)" value={c.hebrew_birthday_hebrew} />
+                  )}
                   <DetailField label="Birth before sunset" value={labelize(c.born_sunset_timing)} />
                   <DetailField label="Grade" value={c.grade} />
                   <DetailField label="School" value={c.school_attending} />
@@ -139,11 +151,29 @@ export function FamilyDetailDrawer({
                   <DetailField label="Medications" value={c.medications} />
                   <DetailField label="Notes" value={c.notes} />
                 </div>
+                <Link
+                  href={`/admin/attendance?view=child&child=${c.id}`}
+                  className="inline-block mt-3 text-sm font-semibold text-gold"
+                >
+                  Attendance, Torah, and Hebrew reading
+                </Link>
                 {reg && (
                   <div className="mt-4 pt-4 border-t border-line grid sm:grid-cols-2 gap-4">
                     <DetailField label="Term" value={reg.term} />
                     <DetailField label="Tuition" value={formatUsd(Number(reg.tuition_total ?? 0))} />
                     <DetailField label="Status" value={labelize(reg.status)} />
+                    <DetailField
+                      label="Hebrew event code"
+                      value={
+                        reg.fair_access_code ? (
+                          <span className="font-mono text-gold font-semibold tracking-wide">
+                            {reg.fair_access_code}
+                          </span>
+                        ) : reg.status === 'accepted' || reg.status === 'active' ? (
+                          <span className="text-muted">Not issued yet</span>
+                        ) : null
+                      }
+                    />
                     {reg.chai_partner_code_used && (
                       <DetailField label="Chai code used" value={reg.chai_partner_code_used} />
                     )}

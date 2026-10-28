@@ -86,8 +86,9 @@ export const DEFAULT_SORT_KEY: Record<string, string> = {
   donations: 'date',
   chai: 'date',
   payments: 'date',
-  dates: 'name',
+  dates: 'yearOrder',
   submissions: 'date',
+  lulav: 'date',
 };
 
 /** Default direction when first clicking a column */
@@ -106,4 +107,10 @@ export const SORT_DEFAULT_DIR: Record<string, SortDir> = {
   family: 'asc',
   source: 'asc',
   form: 'asc',
+  yearOrder: 'asc',
+  hebrew: 'asc',
 };
+
+export function getSortDefaultDir(key: string): SortDir {
+  return SORT_DEFAULT_DIR[key] ?? 'desc';
+}

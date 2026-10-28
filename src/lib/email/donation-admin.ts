@@ -1,4 +1,4 @@
-import { buildEmailHtml, getAdminEmail, sendEmail } from './client';
+import { buildEmailHtml, sendAdminNotification } from './client';
 
 export async function sendDonationAdminNotification(input: {
   firstName: string;
@@ -34,8 +34,7 @@ export async function sendDonationAdminNotification(input: {
     </p>
   `);
 
-  return sendEmail({
-    to: getAdminEmail(),
+  return sendAdminNotification({
     subject: `New donation — ${name} (${frequency})`,
     replyTo: input.email,
     html,

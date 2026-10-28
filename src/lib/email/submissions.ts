@@ -15,6 +15,8 @@ export { sendDonationTaxReceiptEmail, sendDonationReceiptEmailFromRecord } from 
 export { sendChaiPartnerWelcomeEmail } from './chai-partner-welcome';
 export { sendRegistrationReceivedEmail } from './registration-received';
 export { sendRegistrationAcceptedEmail } from './registration-accepted';
+export { sendSeniorHomePermissionEmails } from './senior-home-permission';
+export { sendLulavOrderEmails } from './lulav-order';
 
 /** Every user-facing submission and its confirmation email. */
 export const SUBMISSION_EMAILS = {
@@ -27,6 +29,16 @@ export const SUBMISSION_EMAILS = {
     description: 'Event RSVP — attendee confirmation + admin notification',
     handler: 'sendRsvpConfirmationEmail',
     trigger: 'src/app/rsvp/[slug]/actions.ts → submitRsvp',
+  },
+  senior_home_permission: {
+    description: 'Achim senior home visit permission — parent confirmation + admin notification',
+    handler: 'sendSeniorHomePermissionEmails',
+    trigger: 'src/app/achim/senior-home-permission/actions.ts → submitSeniorHomePermission',
+  },
+  lulav_order: {
+    description: 'Lulav & Etrog order — confirmation or pending Zelle instructions + admin',
+    handler: 'sendLulavOrderEmails',
+    trigger: 'src/app/lulav/actions.ts → submitLulavOrder',
   },
   donation_one_time: {
     description: 'One-time donation — tax receipt email + admin notification',

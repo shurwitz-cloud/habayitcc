@@ -22,7 +22,8 @@ export type CrmView =
   | 'chai'
   | 'payments'
   | 'dates'
-  | 'submissions';
+  | 'submissions'
+  | 'lulav';
 
 export type DateFilter = 'all' | '7d' | '30d' | '90d' | 'year';
 
@@ -85,8 +86,33 @@ export type CrmEventRecord = {
   dateLabel: string | null;
   time: string | null;
   program: string | null;
+  /** Number of form submissions / registrations. */
   rsvpCount: number;
+  /** Total people attending (sum of guest counts / adults+kids). */
   guestTotal: number;
+  /** Present when any registration has an adults/kids breakdown. */
+  adultsTotal: number | null;
+  kidsTotal: number | null;
+  /** @deprecated Prefer peopleMode — kept for older clients. */
+  hasAdultsKids: boolean;
+  /**
+   * How this event counts people in CRM (from PaidEventConfig / defaults).
+   * - people: attendees only
+   * - adults_kids: adults + kids + total
+   * - kids: children + total
+   * - couples: couple tickets
+   */
+  peopleMode: 'people' | 'adults_kids' | 'kids' | 'couples';
+  /** Ticket revenue (excludes sponsorship + card fee). */
+  ticketTotal: number;
+  /** Sponsorship / donation add-ons. */
+  donationTotal: number;
+  /** Card processing fees collected. */
+  feeTotal: number;
+  /** Grand total charged (tickets + donations + fees). */
+  revenueTotal: number;
+  hasMoney: boolean;
+  /** Newest submission first. */
   rsvps: CrmRsvpRecord[];
 };
 

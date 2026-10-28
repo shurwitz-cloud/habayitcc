@@ -3,9 +3,10 @@ import {
   ADMIN_COOKIE,
   getAdminSessionToken,
   resolveAdminLogin,
+  type AdminRole,
 } from '@/lib/admin/auth';
 
-function setSessionCookie(res: NextResponse, role: 'admin' | 'volunteer') {
+function setSessionCookie(res: NextResponse, role: AdminRole) {
   const token = getAdminSessionToken(role);
   res.cookies.set(ADMIN_COOKIE, token, {
     httpOnly: true,
@@ -29,15 +30,15 @@ export async function POST(req: NextRequest) {
 
   const token = getAdminSessionToken(role);
   if (!token) {
-    return NextResponse.json(
-      {
-        error:
-          role === 'volunteer'
+    const missing =
+      role === 'teacher'
+        ? 'Teacher login is not configured (missing TEACHER_SECRET).'
+        : role === 'office'
+          ? 'Office login is not configured (missing OFFICE_SECRET).'
+          : role === 'volunteer'
             ? 'Volunteer login is not configured (missing VOLUNTEER_SECRET).'
-            : 'Admin login is not configured (missing ADMIN_SECRET).',
-      },
-      { status: 500 }
-    );
+            : 'Admin login is not configured (missing ADMIN_SECRET).';
+    return NextResponse.json({ error: missing }, { status: 500 });
   }
 
   const res = NextResponse.json({ ok: true, role });

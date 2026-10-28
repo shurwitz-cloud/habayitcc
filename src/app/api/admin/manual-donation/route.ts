@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
 import { persistDonation } from '@/lib/donations/persist-donation';
-import { sendDonationReceiptEmailFromRecord } from '@/lib/email/donation-receipt';
+import {
+  buildAbsoluteReceiptUrl,
+  sendDonationReceiptEmailFromRecord,
+} from '@/lib/email/donation-receipt';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +83,12 @@ export async function POST(req: NextRequest) {
     `via ${paymentMethod}`,
   ].filter(Boolean);
 
+  const paidAtRaw = (body.paidAt ?? '').trim();
+  const paidAt =
+    paidAtRaw && !Number.isNaN(new Date(paidAtRaw).getTime())
+      ? new Date(paidAtRaw).toISOString()
+      : undefined;
+
   const persisted = await persistDonation({
     paymentIntentId,
     amountDollars: amount,
@@ -90,6 +99,7 @@ export async function POST(req: NextRequest) {
     donationType,
     memo: memoParts.join(' · '),
     campaign,
+    paidAt,
   });
 
   if (!persisted.saved) {
@@ -97,11 +107,6 @@ export async function POST(req: NextRequest) {
       { error: persisted.error ?? 'Failed to save donation.' },
       { status: 500 }
     );
-  }
-
-  // Optional: stamp paid_at when provided (persistDonation uses now for payments row).
-  if (body.paidAt && persisted.donationId && !persisted.alreadyExisted) {
-    // best-effort; ignore failures
   }
 
   let emailed = false;
@@ -114,6 +119,7 @@ export async function POST(req: NextRequest) {
       campaign,
       donationType,
       method: paymentMethod,
+      paidAt,
     });
   }
 
@@ -124,5 +130,16 @@ export async function POST(req: NextRequest) {
     emailed,
     paymentMethod,
     paymentIntentId,
+    paidAt: paidAt ?? null,
+    receiptUrl:
+      !persisted.alreadyExisted
+        ? buildAbsoluteReceiptUrl({
+            name: `${firstName} ${lastName}`.trim(),
+            amount,
+            date: paidAt ? new Date(paidAt) : new Date(),
+            campaign,
+            method: paymentMethod,
+          })
+        : null,
   });
 }

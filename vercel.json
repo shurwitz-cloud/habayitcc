@@ -1,0 +1,3 @@
+{
+  "buildCommand": "bash scripts/prepush-privacy-gate.sh --tree && next build"
+}

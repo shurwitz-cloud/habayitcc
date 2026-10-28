@@ -53,6 +53,9 @@ export interface Child {
   date_of_birth: string | null;
   born_before_sunset: boolean | null;
   born_sunset_timing: string | null;
+  hebrew_birthday: string | null;
+  hebrew_birthday_hebrew: string | null;
+  hebrew_birthday_year: string | null;
   grade: string | null;
   school_attending: string | null;
   attended_before: string | null;
@@ -90,6 +93,7 @@ export interface ProgramRegistration {
   chai_partner_code_used: string | null;
   payment_plan: PaymentPlan | null;
   tuition_total: number | null;
+  fair_access_code: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -121,7 +125,35 @@ export interface EventRegistration {
   phone: string | null;
   guest_count: number;
   notes: string | null;
+  /** Grand total charged (tickets + sponsor + card fee). */
+  amount?: number | null;
+  /** Optional sponsorship / donation add-on. */
+  sponsor_amount?: number | null;
+  card_fee?: number | null;
+  stripe_payment_intent_id?: string | null;
+  /** Structured ticket breakdown (dinner/fair/womens + ticketSubtotal). */
+  registration_details?: Record<string, unknown> | null;
   created_at: string;
+}
+
+export interface HebrewFairCodeRedemption {
+  [key: string]: unknown;
+  id: string;
+  program_registration_id: string;
+  event_id: string;
+  event_registration_id: string | null;
+  fair_access_code: string;
+  redeemed_at: string;
+}
+
+export interface ChaiEventCodeRedemption {
+  [key: string]: unknown;
+  id: string;
+  chai_partner_id: string;
+  event_id: string;
+  event_registration_id: string | null;
+  access_code: string;
+  redeemed_at: string;
 }
 
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
@@ -169,7 +201,11 @@ export interface ChaiPartner {
   updated_at: string;
 }
 
-export type PaymentSourceType = 'donation' | 'chai_partner' | 'program_registration';
+export type PaymentSourceType =
+  | 'donation'
+  | 'chai_partner'
+  | 'program_registration'
+  | 'event_registration';
 
 export interface Payment {
   [key: string]: unknown;
@@ -179,6 +215,10 @@ export interface Payment {
   amount: number;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
+  /** Zelle, Cash, HaBayit donation link, Credit Card, … */
+  payment_method?: string | null;
+  /** Chai months this payment covers (default 1). */
+  coverage_months?: number | null;
   status: PaymentStatus;
   paid_at: string | null;
   created_at: string;
@@ -236,9 +276,50 @@ export interface Attendance {
   id: string;
   program_registration_id: string | null;
   event_registration_id: string | null;
+  child_id: string | null;
+  class_session_id: string | null;
   attended_on: string;
-  was_present: boolean;
+  was_present: boolean | null;
+  behavior_note: string | null;
+  participation_note: string | null;
   notes: string | null;
+  created_at: string;
+}
+
+export type ClassRosterStatus = 'enrolled' | 'tryout';
+
+export interface ClassRoster {
+  [key: string]: unknown;
+  id: string;
+  program_slug: string;
+  class_key: string;
+  child_id: string;
+  status: ClassRosterStatus;
+  joined_on: string;
+  removed_on: string | null;
+  created_at: string;
+}
+
+export interface ClassSession {
+  [key: string]: unknown;
+  id: string;
+  program_slug: string;
+  class_key: string;
+  session_date: string;
+  created_at: string;
+}
+
+export type LearningTrack = 'torah' | 'hebrew_reading';
+
+export interface LearningProgress {
+  [key: string]: unknown;
+  id: string;
+  child_id: string;
+  program_slug: string;
+  track: LearningTrack;
+  standing: string;
+  note: string | null;
+  recorded_on: string;
   created_at: string;
 }
 
@@ -293,6 +374,18 @@ export interface FormSubmission {
   created_at: string;
 }
 
+export interface EmailGroupOverride {
+  [key: string]: unknown;
+  id: string;
+  program_id: string;
+  email: string;
+  action: 'include' | 'exclude';
+  first_name: string | null;
+  last_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================
 // Supabase Database type — used to type the Supabase client.
 // Extend this as tables are added.
@@ -334,6 +427,22 @@ export interface Database {
         Insert: Insertable<EventRegistration>;
         Update: Partial<Insertable<EventRegistration>>;
       };
+      hebrew_fair_code_redemptions: {
+        Row: HebrewFairCodeRedemption;
+        Insert: Omit<HebrewFairCodeRedemption, 'id' | 'redeemed_at'> & {
+          id?: string;
+          redeemed_at?: string;
+        };
+        Update: Partial<HebrewFairCodeRedemption>;
+      };
+      chai_event_code_redemptions: {
+        Row: ChaiEventCodeRedemption;
+        Insert: Omit<ChaiEventCodeRedemption, 'id' | 'redeemed_at'> & {
+          id?: string;
+          redeemed_at?: string;
+        };
+        Update: Partial<ChaiEventCodeRedemption>;
+      };
       donations: { Row: Donation; Insert: Insertable<Donation>; Update: Partial<Insertable<Donation>> };
       chai_partners: {
         Row: ChaiPartner;
@@ -362,6 +471,21 @@ export interface Database {
         Insert: Insertable<Attendance>;
         Update: Partial<Insertable<Attendance>>;
       };
+      class_rosters: {
+        Row: ClassRoster;
+        Insert: Insertable<ClassRoster>;
+        Update: Partial<Insertable<ClassRoster>>;
+      };
+      class_sessions: {
+        Row: ClassSession;
+        Insert: Insertable<ClassSession>;
+        Update: Partial<Insertable<ClassSession>>;
+      };
+      learning_progress: {
+        Row: LearningProgress;
+        Insert: Insertable<LearningProgress>;
+        Update: Partial<Insertable<LearningProgress>>;
+      };
       waivers: { Row: Waiver; Insert: Insertable<Waiver>; Update: Partial<Insertable<Waiver>> };
       sponsors: { Row: Sponsor; Insert: Insertable<Sponsor>; Update: Partial<Insertable<Sponsor>> };
       important_dates: {
@@ -373,6 +497,11 @@ export interface Database {
         Row: FormSubmission;
         Insert: Omit<FormSubmission, 'id' | 'created_at'>;
         Update: Partial<Omit<FormSubmission, 'id' | 'created_at'>>;
+      };
+      email_group_overrides: {
+        Row: EmailGroupOverride;
+        Insert: Insertable<EmailGroupOverride>;
+        Update: Partial<Insertable<EmailGroupOverride>>;
       };
       site_image_slots: {
         Row: SiteImageSlotRow;

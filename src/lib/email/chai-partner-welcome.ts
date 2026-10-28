@@ -1,5 +1,6 @@
-import { buildEmailHtml, emailButton, getAdminEmail, sendEmail } from '@/lib/email/client';
+import { buildEmailHtml, emailButton, sendAdminNotification, sendEmail } from '@/lib/email/client';
 import { HEBREW_ADVENTURE_NAME } from '@/lib/programs/names';
+import { collectRecipientEmails, formatCoupleNames } from '@/lib/donations/couple-names';
 
 export interface ChaiPartnerWelcomeEmailInput {
   firstName: string;
@@ -8,19 +9,70 @@ export interface ChaiPartnerWelcomeEmailInput {
   phone: string;
   monthlyAmount: number;
   accessCode: string;
-  /** First monthly payment receipt — shown as a button at the bottom. */
+  /** First payment receipt — shown as a button at the bottom. */
   receiptUrl?: string;
+  spouseFirstName?: string | null;
+  spouseLastName?: string | null;
+  spouseEmail?: string | null;
+  /**
+   * Full year (or other) paid in one gift. Email + receipt button use paidAmount
+   * (not monthly wording). CRM still keeps monthlyAmount for Chai/mo.
+   */
+  paidUpfront?: boolean;
+  /** Total charged when paidUpfront — defaults to monthlyAmount. */
+  paidAmount?: number;
+  /** Override the “What happens next?” body (HTML allowed for <strong>). */
+  nextStepsLine?: string | null;
+  /**
+   * Legal / business name on the tax receipt link only.
+   * Greeting still uses the personal couple/person name unless greetingName is set.
+   */
+  receiptLegalName?: string | null;
+  /** Override “Dear …” greeting (e.g. personal name when receipt is a business). */
+  greetingName?: string | null;
+}
+
+function formatUsd(amount: number): string {
+  return `$${amount.toFixed(2)}`;
 }
 
 function formatMonthlyAmount(amount: number): string {
-  return `$${amount.toFixed(2)}/month`;
+  return `${formatUsd(amount)}/month`;
 }
 
 export async function sendChaiPartnerWelcomeEmail(
   input: ChaiPartnerWelcomeEmailInput
 ): Promise<boolean> {
-  const name = `${input.firstName} ${input.lastName}`.trim();
+  const names = formatCoupleNames({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    spouseFirstName: input.spouseFirstName,
+    spouseLastName: input.spouseLastName,
+  });
+  const greeting = (input.greetingName ?? '').trim() || names.greeting;
+  const paidUpfront = input.paidUpfront === true;
+  const paidAmount = Number.isFinite(input.paidAmount)
+    ? Number(input.paidAmount)
+    : input.monthlyAmount;
   const monthly = formatMonthlyAmount(input.monthlyAmount);
+  const paid = formatUsd(paidAmount);
+  const partnershipLine = paidUpfront
+    ? `Your Chai Partner gift of <strong>${paid}</strong> (equivalent to ${monthly})`
+    : `Your monthly partnership of <strong>${monthly}</strong>`;
+  const nextStepsLine =
+    (input.nextStepsLine ?? '').trim() ||
+    (paidUpfront
+      ? `Your annual Chai Partner gift of <strong>${paid}</strong> is recorded. Your partnership is active, and your support helps keep HaBayit vibrant, welcoming, and alive with Torah, community, and joy.`
+      : `Your monthly gift of ${monthly} is now set up. Each month, your support helps keep HaBayit vibrant, welcoming, and alive with Torah, community, and joy.`);
+  const receiptCaption = paidUpfront
+    ? 'Your tax receipt for this gift:'
+    : 'Your tax receipt for this month&apos;s gift:';
+  const adminAmountLine = paidUpfront
+    ? `Paid upfront: ${paid}<br>CRM monthly: ${monthly}`
+    : `Monthly amount: ${monthly}`;
+  const adminSubjectAmount = paidUpfront ? `${paid} upfront` : monthly;
+  const recipients = collectRecipientEmails(input.email, input.spouseEmail);
+  if (!recipients.length) return false;
 
   const html = buildEmailHtml(`
     <p style="text-align:center;font-family:Georgia,'Times New Roman',serif;font-size:28px;color:#b8902a;margin:0 0 8px;">חי</p>
@@ -28,11 +80,11 @@ export async function sendChaiPartnerWelcomeEmail(
       Thank you for becoming a HaBayit Chai Partner
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
-      Dear ${input.firstName},
+      Dear ${greeting},
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
-      We are grateful — <strong>thank you</strong>. Your monthly partnership of
-      <strong>${monthly}</strong> means more than we can easily put into words. Chai Partners like
+      We are grateful — <strong>thank you</strong>. ${partnershipLine}
+      means more than we can easily put into words. Chai Partners like
       you help sustain Shabbat, holidays, learning, and the warm Jewish home we are building
       together in Cooper City.
     </p>
@@ -55,8 +107,7 @@ export async function sendChaiPartnerWelcomeEmail(
     </div>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
       <strong>What happens next?</strong><br>
-      Your monthly gift of ${monthly} is now set up. Each month, your support helps keep HaBayit
-      vibrant, welcoming, and alive with Torah, community, and joy.
+      ${nextStepsLine}
     </p>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.7;">
       If you have questions, or if there is ever anything we can do for you, please reach out.
@@ -72,7 +123,7 @@ export async function sendChaiPartnerWelcomeEmail(
       input.receiptUrl
         ? `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #e4ded2;text-align:center;">
       <p style="margin:0 0 4px;font-size:13px;line-height:1.6;color:#6f6a60;">
-        Your tax receipt for this month&apos;s gift:
+        ${receiptCaption}
       </p>
       ${emailButton(input.receiptUrl, 'View &amp; Print Tax Receipt')}
     </div>`
@@ -82,23 +133,22 @@ export async function sendChaiPartnerWelcomeEmail(
 
   const [partnerSent] = await Promise.all([
     sendEmail({
-      to: input.email,
+      to: recipients,
       subject: 'Thank you for becoming a HaBayit Chai Partner',
       html,
     }),
-    sendEmail({
-      to: getAdminEmail(),
-      subject: `New Chai Partner: ${name} (${monthly})`,
+    sendAdminNotification({
+      subject: `New Chai Partner: ${names.receiptName} (${adminSubjectAmount})`,
       replyTo: input.email,
       html: buildEmailHtml(`
         <p style="font-size:16px;color:#172643;font-weight:bold;margin:0 0 12px;">
           New Chai Partner signup
         </p>
         <p style="margin:0 0 12px;line-height:1.7;">
-          <strong>${name}</strong><br>
-          Email: ${input.email}<br>
+          <strong>${names.receiptName}</strong><br>
+          Email: ${recipients.join(', ')}<br>
           Phone: ${input.phone}<br>
-          Monthly amount: ${monthly}<br>
+          ${adminAmountLine}<br>
           Access code: <strong>${input.accessCode}</strong>
         </p>
       `),

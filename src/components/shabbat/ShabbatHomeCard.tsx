@@ -7,6 +7,48 @@ interface ShabbatHomeCardProps {
   variant?: 'default' | 'compact';
 }
 
+function ShabbatTimes({
+  shabbat,
+  compact = false,
+}: {
+  shabbat: ShabbatInfo;
+  compact?: boolean;
+}) {
+  const candlePrefix = compact ? 'Candles' : 'Candle lighting';
+  const endPrefix = shabbat.kind === 'holiday' ? 'Yom Tov ends' : compact ? 'Ends' : 'Shabbos ends';
+  const timeClass = compact
+    ? 'text-navy font-bold text-[0.8rem] leading-tight'
+    : 'text-navy font-bold text-[0.8rem] md:text-[0.88rem] leading-tight';
+  const labelClass = compact
+    ? 'text-[0.62rem] text-muted leading-tight mb-0.5'
+    : 'text-[0.65rem] text-muted leading-tight mb-0.5';
+
+  return (
+    <>
+      <div>
+        <p className={labelClass}>{shabbat.fridayLabel}</p>
+        <p className={timeClass}>
+          {candlePrefix} {shabbat.candleLighting}
+        </p>
+      </div>
+      {shabbat.secondCandleLabel && shabbat.secondCandleLighting && (
+        <div>
+          <p className={labelClass}>{shabbat.secondCandleLabel}</p>
+          <p className={timeClass}>
+            {candlePrefix} after {shabbat.secondCandleLighting}
+          </p>
+        </div>
+      )}
+      <div>
+        <p className={labelClass}>{shabbat.shabbatLabel}</p>
+        <p className={timeClass}>
+          {endPrefix} {shabbat.shabbosEnds}
+        </p>
+      </div>
+    </>
+  );
+}
+
 export function ShabbatHomeCard({
   shabbat,
   className = '',
@@ -24,7 +66,7 @@ export function ShabbatHomeCard({
         <div className="flex flex-col md:flex-row lg:flex-col gap-4 md:gap-6 lg:gap-0">
           <div className="min-w-0">
             <p className="text-[0.62rem] tracking-[0.14em] uppercase text-gold font-bold mb-2">
-              This week&apos;s parsha
+              {shabbat.kicker}
             </p>
             <p className="heb text-[1.35rem] text-navy font-bold leading-tight">
               {shabbat.parsha.hebrew}
@@ -45,18 +87,7 @@ export function ShabbatHomeCard({
           </div>
 
           <div className="flex flex-col gap-2.5 pt-3.5 border-t border-line md:pt-0 md:border-t-0 md:border-l md:pl-6 md:shrink-0 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-2 lg:flex lg:flex-col lg:gap-2.5 lg:pt-3.5 lg:mt-3.5 lg:border-t lg:border-l-0 lg:pl-0">
-            <div>
-              <p className="text-[0.62rem] text-muted leading-tight mb-0.5">{shabbat.fridayLabel}</p>
-              <p className="text-navy font-bold text-[0.8rem] leading-tight">
-                Candles {shabbat.candleLighting}
-              </p>
-            </div>
-            <div>
-              <p className="text-[0.62rem] text-muted leading-tight mb-0.5">{shabbat.shabbatLabel}</p>
-              <p className="text-navy font-bold text-[0.8rem] leading-tight">
-                Ends {shabbat.shabbosEnds}
-              </p>
-            </div>
+            <ShabbatTimes shabbat={shabbat} compact />
           </div>
         </div>
       </div>
@@ -68,7 +99,7 @@ export function ShabbatHomeCard({
       className={`bg-cream border border-line rounded-[18px] p-4 md:p-5 flex flex-col justify-center ${className}`}
     >
       <p className="text-[0.62rem] tracking-[0.12em] uppercase text-gold font-bold mb-2 md:text-[0.68rem] md:tracking-[0.14em]">
-        This week&apos;s parsha is
+        {shabbat.kicker}
       </p>
 
       <div className="flex flex-row gap-3 items-start md:flex-col-reverse md:gap-0.5">
@@ -91,19 +122,8 @@ export function ShabbatHomeCard({
         </div>
       )}
 
-      <div className="mt-3.5 pt-3.5 border-t border-line grid grid-cols-2 gap-x-4 gap-y-0 md:grid-cols-1 md:gap-y-2.5">
-        <div>
-          <p className="text-[0.65rem] text-muted leading-tight mb-0.5">{shabbat.fridayLabel}</p>
-          <p className="text-navy font-bold text-[0.8rem] md:text-[0.88rem] leading-tight">
-            Candle lighting {shabbat.candleLighting}
-          </p>
-        </div>
-        <div>
-          <p className="text-[0.65rem] text-muted leading-tight mb-0.5">{shabbat.shabbatLabel}</p>
-          <p className="text-navy font-bold text-[0.8rem] md:text-[0.88rem] leading-tight">
-            Shabbos ends {shabbat.shabbosEnds}
-          </p>
-        </div>
+      <div className="mt-3.5 pt-3.5 border-t border-line grid grid-cols-1 gap-y-2.5">
+        <ShabbatTimes shabbat={shabbat} />
       </div>
     </div>
   );

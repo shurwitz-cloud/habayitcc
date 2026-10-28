@@ -1,4 +1,4 @@
-import { buildEmailHtml, getAdminEmail, sendEmail } from './client';
+import { buildEmailHtml, sendAdminNotification, sendEmail } from './client';
 
 export interface ContactEmailInput {
   firstName: string;
@@ -34,19 +34,22 @@ export async function sendContactEmails(input: ContactEmailInput): Promise<boole
     </p>
   `);
 
-  const [userSent] = await Promise.all([
+  const [userSent, adminSent] = await Promise.all([
     sendEmail({
       to: input.email,
       subject: 'We received your message — HaBayit',
       html: userHtml,
     }),
-    sendEmail({
-      to: getAdminEmail(),
+    sendAdminNotification({
       subject: `Contact form — ${name}`,
       replyTo: input.email,
       html: adminHtml,
     }),
   ]);
+
+  if (!adminSent) {
+    console.error('[contact] admin notification failed for', input.email);
+  }
 
   return userSent;
 }

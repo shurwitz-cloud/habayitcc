@@ -10,7 +10,6 @@ import {
   ACHIM_EARLY_BIRD_DEADLINE_LABEL,
   ACHIM_EARLY_BIRD_DISCOUNT,
   ACHIM_MONTHLY_TUITION,
-  ACHIM_PAY_IN_FULL_DISCOUNT,
   ACHIM_SESSION_MONTHS,
   isAchimEarlyBirdActive,
 } from '@/lib/programs/achim-tuition';
@@ -139,8 +138,8 @@ export default function AchimPage() {
                 {ACHIM_EARLY_BIRD_DISCOUNT}.{' '}
               </>
             )}
-            Pay in full and save ${ACHIM_PAY_IN_FULL_DISCOUNT}. Or choose two payments (upon
-            acceptance and by November 1).
+            Pay in full upon acceptance, or choose two payments (upon acceptance and by November
+            1).
           </div>
         </Section>
       </main>

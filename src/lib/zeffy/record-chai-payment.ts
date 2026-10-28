@@ -6,7 +6,9 @@ import {
   buildChaiPartnerReceiptUrl,
   sendDonationReceiptEmailFromRecord,
 } from '@/lib/email/donation-receipt';
+import { formatCoupleNames } from '@/lib/donations/couple-names';
 import type { ParsedZeffyPayment } from './types';
+import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -17,23 +19,25 @@ function generateAccessCode(): string {
   return `HABAYIT-${code}`;
 }
 
-function paymentStorageKey(prefix: string, paymentId: string): string {
-  return `${prefix}:${paymentId}`;
+function zeffyPaymentKey(paymentId: string): string {
+  return `zeffy:${paymentId}`;
 }
 
-// The org runs on US Eastern time. Payment references and dedupe day
-// comparisons use the calendar day in this timezone, not the UTC day, so a
-// payment an admin dates "Sep 17" keys as Sep 17 regardless of the time of
-// day it is entered (UTC conversion can otherwise shift the day).
-export function paymentLocalDay(value: string | Date): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d);
+/** Memo / note keywords that mean the entered amount is the full prepaid gift. */
+export function isChaiPaidUpfrontNote(text?: string | null): boolean {
+  const t = (text || '').toLowerCase();
+  return (
+    /\bprepaid\b/.test(t) ||
+    /\bupfront\b/.test(t) ||
+    /\bpaid\s+up\s*front\b/.test(t) ||
+    /\bfull\s+year\b/.test(t) ||
+    /\bannual\b/.test(t) ||
+    /\bpaid\s+in\s+full\b/.test(t)
+  );
+}
+
+export function chaiMonthlyFromUpfront(paidAmount: number): number {
+  return Math.round((paidAmount / 12) * 100) / 100;
 }
 
 export type RecordZeffyOptions = {
@@ -43,79 +47,88 @@ export type RecordZeffyOptions = {
    * Imports must never pass true.
    */
   sendEmails?: boolean;
-  /** Override payment timestamp (e.g. manual Zeffy feed). */
+  /** When sendEmails is true, include tax-receipt button. Default true. */
+  includeReceiptLink?: boolean;
+  /** Override payment timestamp (e.g. manual late entry). */
   paidAt?: string;
+  /** Receipt / ledger method label (Zelle, Zeffy, Cash App, …). */
+  paymentMethod?: string;
+  spouseFirstName?: string | null;
+  spouseLastName?: string | null;
+  spouseEmail?: string | null;
+  spousePhone?: string | null;
   /**
-   * Storage-key prefix for stripe_payment_intent_id. Default 'zeffy' (real
-   * Zeffy webhook / feed imports). Manual admin entries for money that arrived
-   * by another channel pass that method, e.g. 'zelle', so the ledger does not
-   * mislabel the source.
+   * Amount paid is the full prepaid gift (email/receipt show this).
+   * CRM `monthly_amount` uses monthlyAmount or paid÷12.
    */
-  keyPrefix?: string;
-  /** Provider label recorded in the form-log payload. Default 'zeffy'. */
-  provider?: string;
-  /**
-   * Older manual entries were keyed without a payment date, so a dated manual
-   * key cannot find them and would double-record the same real payment.
-   * Callers that generate dated manual keys pass the old undated key(s) here.
-   * ANY legacy match conservatively blocks the entry as already-recorded
-   * (duplicate + matchedKey): a legacy row's stored date is not reliable
-   * (early manual rows carry entry time, not the real payment date), so a
-   * date comparison could both block a real payment and miss a replayed one.
-   * A genuinely distinct payment is entered with an explicit unique
-   * paymentKey (Reference), which bypasses this guard.
-   */
-  legacyKeys?: string[];
+  paidUpfront?: boolean;
+  /** Effective monthly rate when paidUpfront (default paid÷12). */
+  monthlyAmount?: number;
+  /** How many Chai months this payment covers (default 1; 12 when paidUpfront). */
+  coverageMonths?: number;
+  /** Optional override for tax receipt “Name” line (e.g. business name). */
+  receiptName?: string | null;
+  /** Optional admin note (e.g. memo "prepaid"). */
+  note?: string | null;
 };
 
 /**
  * Upsert Chai Partner + payment ledger from a verified Zeffy payment.
- * Idempotent on payment id (stored in stripe_payment_intent_id as <prefix>:<id>,
- * 'zeffy' for real Zeffy money, the method name for manual admin entries).
+ * Idempotent on Zeffy payment id (stored in stripe_payment_intent_id as zeffy:<id>).
  */
 export async function recordZeffyChaiPartnerPayment(
   parsed: ParsedZeffyPayment,
   options: RecordZeffyOptions = {}
-): Promise<{
-  ok: boolean;
-  partnerId?: string;
-  accessCode?: string;
-  duplicate?: boolean;
-  /** The storage key of the payment row that already covered this entry. */
-  matchedKey?: string;
-}> {
+): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
   // Default OFF — never email unless caller explicitly opts in.
   const sendEmails = options.sendEmails === true;
+  const includeReceiptLink = options.includeReceiptLink !== false;
   const paidAt = options.paidAt ?? new Date().toISOString();
+  const paymentMethodLabel = options.paymentMethod?.trim() || 'Credit Card';
+  const spouseFirstName = options.spouseFirstName?.trim() || '';
+  const spouseLastName = options.spouseLastName?.trim() || '';
+  const spouseEmail = options.spouseEmail?.trim().toLowerCase() || '';
+  const spousePhone = options.spousePhone?.trim() || '';
+  const noteText = (options.note ?? '').trim();
+  const receiptNameOverride = (options.receiptName ?? '').trim();
+  const paidUpfront =
+    options.paidUpfront === true || isChaiPaidUpfrontNote(noteText);
+  const paidAmount = parsed.amountDollars;
+  const coverageMonthsRaw = Number(options.coverageMonths);
+  const coverageMonths = paidUpfront
+    ? 12
+    : Number.isFinite(coverageMonthsRaw) && coverageMonthsRaw >= 1
+      ? Math.floor(coverageMonthsRaw)
+      : 1;
+  // Existing partners keep their CRM monthly rate; new multi-month cash/Zelle
+  // entries derive monthly as amount ÷ months covered.
+  const monthlyAmount = paidUpfront
+    ? Number.isFinite(options.monthlyAmount) && Number(options.monthlyAmount) > 0
+      ? Number(options.monthlyAmount)
+      : chaiMonthlyFromUpfront(paidAmount)
+    : Number.isFinite(options.monthlyAmount) && Number(options.monthlyAmount) > 0
+      ? Number(options.monthlyAmount)
+      : coverageMonths > 1
+        ? Math.round((paidAmount / coverageMonths) * 100) / 100
+        : paidAmount;
+  const coupleNames = formatCoupleNames({
+    firstName: parsed.firstName,
+    lastName: parsed.lastName,
+    spouseFirstName,
+    spouseLastName,
+  });
+  const receiptDisplayName = receiptNameOverride || coupleNames.receiptName;
   const supabase = createAdminClient();
-  const keyPrefix = options.keyPrefix ?? 'zeffy';
-  const paymentKey = paymentStorageKey(keyPrefix, parsed.paymentId);
+  const paymentKey = zeffyPaymentKey(parsed.paymentId);
 
-  const lookupKeys = [paymentKey, ...(options.legacyKeys ?? [])];
-  const { data: existingPayments } = await supabase
+  const { data: existingPayment } = await supabase
     .from('payments')
-    .select('id, source_id, stripe_payment_intent_id, paid_at')
-    .in('stripe_payment_intent_id', lookupKeys);
+    .select('id, source_id')
+    .eq('stripe_payment_intent_id', paymentKey)
+    .maybeSingle();
 
-  const exactMatch = (existingPayments ?? []).find(
-    (row) => row.stripe_payment_intent_id === paymentKey
-  );
-  if (exactMatch) {
-    return { ok: true, partnerId: exactMatch.source_id, duplicate: true, matchedKey: paymentKey };
-  }
-
-  const legacyMatch = (existingPayments ?? [])[0];
-  if (legacyMatch) {
-    // Conservative needs-review block: no date comparison (unreliable on
-    // legacy rows). Surface the matched key so the admin can inspect the
-    // historical row and, when this is truly a different payment, re-enter
-    // it with an explicit unique Reference.
-    return {
-      ok: true,
-      partnerId: legacyMatch.source_id,
-      duplicate: true,
-      matchedKey: legacyMatch.stripe_payment_intent_id ?? undefined,
-    };
+  if (existingPayment) {
+    return { ok: true, partnerId: existingPayment.source_id, duplicate: true };
   }
 
   const { data: existingPartner } = await supabase
@@ -135,15 +148,15 @@ export async function recordZeffyChaiPartnerPayment(
     const { data: partner, error: partnerError } = await supabase
       .from('chai_partners')
       .insert({
-        first_name: parsed.firstName,
-        last_name: parsed.lastName,
+        first_name: parsed.firstName || 'Member',
+        last_name: parsed.lastName || '',
         email: parsed.email,
         phone: parsed.phone || null,
         street_address: parsed.street || null,
         city: parsed.city || null,
         state: parsed.state || null,
         zip: parsed.zip || null,
-        monthly_amount: parsed.amountDollars,
+        monthly_amount: monthlyAmount,
         stripe_customer_id: null,
         stripe_subscription_id: null,
         access_code: accessCode,
@@ -157,38 +170,95 @@ export async function recordZeffyChaiPartnerPayment(
       return { ok: false };
     }
     partnerId = partner.id;
-  } else if (parsed.amountDollars > 0) {
-    // Keep monthly_amount in sync with latest successful Zeffy charge.
-    await supabase
-      .from('chai_partners')
-      .update({
-        monthly_amount: parsed.amountDollars,
-        status: 'active',
-        ...(parsed.phone ? { phone: parsed.phone } : {}),
-        ...(parsed.street ? { street_address: parsed.street } : {}),
-        ...(parsed.city ? { city: parsed.city } : {}),
-        ...(parsed.state ? { state: parsed.state } : {}),
-        ...(parsed.zip ? { zip: parsed.zip } : {}),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', partnerId);
+  } else {
+    const namePatch: Record<string, unknown> = {
+      status: 'active',
+      ...(parsed.phone ? { phone: parsed.phone } : {}),
+      ...(parsed.street ? { street_address: parsed.street } : {}),
+      ...(parsed.city ? { city: parsed.city } : {}),
+      ...(parsed.state ? { state: parsed.state } : {}),
+      ...(parsed.zip ? { zip: parsed.zip } : {}),
+      updated_at: new Date().toISOString(),
+    };
+    if (monthlyAmount > 0) {
+      namePatch.monthly_amount = monthlyAmount;
+    }
+    // Upgrade placeholder / empty names when Zeffy finally sends a real name
+    if (parsed.firstName) {
+      const { data: cur } = await supabase
+        .from('chai_partners')
+        .select('first_name, last_name')
+        .eq('id', partnerId)
+        .maybeSingle();
+      const badFirst = ['', 'friend', 'unknown', 'member'].includes(
+        String(cur?.first_name || '').toLowerCase(),
+      );
+      const badLast = ['', 'partner', 'unknown'].includes(
+        String(cur?.last_name || '').toLowerCase(),
+      );
+      if (badFirst) namePatch.first_name = parsed.firstName;
+      if (parsed.lastName && badLast) namePatch.last_name = parsed.lastName;
+    }
+    await supabase.from('chai_partners').update(namePatch).eq('id', partnerId);
   }
 
-  const { error: paymentError } = await supabase.from('payments').insert({
+  const paymentRow: Record<string, unknown> = {
     source_type: 'chai_partner',
     source_id: partnerId,
-    amount: parsed.amountDollars,
+    amount: paidAmount,
     stripe_payment_intent_id: paymentKey,
     stripe_charge_id: null,
     status: 'succeeded',
-    // Honor the caller-provided payment date (e.g. admin manual entry backdating);
-    // previously this always stamped "now" and silently ignored options.paidAt.
     paid_at: paidAt,
-  });
+    payment_method: paymentMethodLabel,
+    coverage_months: coverageMonths,
+  };
+
+  let { error: paymentError } = await supabase.from('payments').insert(paymentRow);
+  if (
+    paymentError &&
+    /payment_method|coverage_months|schema cache|column/i.test(paymentError.message)
+  ) {
+    delete paymentRow.payment_method;
+    delete paymentRow.coverage_months;
+    ({ error: paymentError } = await supabase.from('payments').insert(paymentRow));
+  }
 
   if (paymentError) {
     console.error('[zeffy] payments insert error:', paymentError);
     return { ok: false };
+  }
+
+  const amountNote = paidUpfront
+    ? `Paid upfront: $${paidAmount.toFixed(2)}\nCRM monthly: $${monthlyAmount.toFixed(2)}`
+    : coverageMonths > 1
+      ? `Amount: $${paidAmount.toFixed(2)} · covers ${coverageMonths} months`
+      : `Amount: $${paidAmount.toFixed(2)}`;
+
+  await ensureCrmContact({
+    firstName: parsed.firstName,
+    lastName: parsed.lastName,
+    email: parsed.email,
+    phone: parsed.phone,
+    interest: 'Chai Partner',
+    note: `--- Synced from Zeffy Chai ---\n${amountNote}${
+      noteText ? `\nMemo: ${noteText}` : ''
+    }${coupleNames.hasSpouse ? `\nSpouse: ${coupleNames.receiptName}` : ''}`,
+    createdAt: paidAt,
+    isResolved: true,
+  });
+
+  if (spouseFirstName && spouseEmail.includes('@')) {
+    await ensureCrmContact({
+      firstName: spouseFirstName,
+      lastName: spouseLastName || parsed.lastName,
+      email: spouseEmail,
+      phone: spousePhone || null,
+      interest: 'Chai Partner',
+      note: `--- Spouse of Chai Partner ---\nPartner: ${parsed.firstName} ${parsed.lastName} (${parsed.email})`,
+      createdAt: paidAt,
+      isResolved: true,
+    });
   }
 
   void logFormSubmission({
@@ -196,18 +266,25 @@ export async function recordZeffyChaiPartnerPayment(
     email: parsed.email,
     sourceId: partnerId,
     payload: {
-      provider: options.provider ?? 'zeffy',
+      provider: 'zeffy',
       type: isNewPartner ? 'signup' : 'renewal',
       zeffyPaymentId: parsed.paymentId,
-      amountDollars: parsed.amountDollars,
+      amountDollars: paidAmount,
+      monthlyAmount,
+      paidUpfront,
+      coverageMonths,
+      paymentMethod: paymentMethodLabel,
       campaignId: parsed.campaignId,
       campaignTitle: parsed.campaignTitle,
       accessCode,
+      spouseFirstName: spouseFirstName || undefined,
+      spouseLastName: spouseLastName || undefined,
+      spouseEmail: spouseEmail || undefined,
     },
   });
 
   if (isNewPartner && accessCode) {
-    void chaiPartnerRow({
+    await chaiPartnerRow({
       firstName: parsed.firstName,
       lastName: parsed.lastName,
       email: parsed.email,
@@ -216,9 +293,9 @@ export async function recordZeffyChaiPartnerPayment(
       city: parsed.city,
       state: parsed.state,
       zip: parsed.zip,
-      monthlyAmount: parsed.amountDollars,
+      monthlyAmount,
       accessCode,
-      subscriptionId: `${keyPrefix}:${parsed.paymentId}`,
+      subscriptionId: `zeffy:${parsed.paymentId}`,
       customerId: '',
     });
 
@@ -229,13 +306,23 @@ export async function recordZeffyChaiPartnerPayment(
           lastName: parsed.lastName,
           email: parsed.email,
           phone: parsed.phone,
-          monthlyAmount: parsed.amountDollars,
+          monthlyAmount,
+          paidUpfront,
+          paidAmount,
           accessCode,
-          receiptUrl: buildChaiPartnerReceiptUrl({
-            firstName: parsed.firstName,
-            lastName: parsed.lastName,
-            amount: parsed.amountDollars,
-          }),
+          spouseFirstName,
+          spouseLastName,
+          spouseEmail,
+          receiptUrl: includeReceiptLink
+            ? buildChaiPartnerReceiptUrl({
+                firstName: parsed.firstName,
+                lastName: parsed.lastName,
+                amount: paidAmount,
+                date: new Date(paidAt),
+                method: paymentMethodLabel,
+                name: receiptDisplayName,
+              })
+            : undefined,
         });
       } catch (err) {
         console.error('[zeffy] welcome email failed:', err);
@@ -243,13 +330,27 @@ export async function recordZeffyChaiPartnerPayment(
     }
   } else if (sendEmails) {
     try {
+      // Payment amount on the receipt; monthly rate for copy (never "$600/month"
+      // when they prepaid several months at $150/mo).
+      const rateForEmail =
+        monthlyAmount > 0
+          ? monthlyAmount
+          : Number(existingPartner?.monthly_amount) || paidAmount;
       await sendDonationReceiptEmailFromRecord({
         email: parsed.email,
         firstName: parsed.firstName || existingPartner?.first_name || '',
         lastName: parsed.lastName || existingPartner?.last_name || '',
-        amountDollars: parsed.amountDollars,
+        amountDollars: paidAmount,
         campaign: 'chai-partner',
-        donationType: 'Monthly',
+        donationType: paidUpfront || coverageMonths > 1 ? 'One-Time' : 'Monthly',
+        method: paymentMethodLabel,
+        paidAt,
+        includeReceiptLink,
+        spouseFirstName,
+        spouseLastName,
+        spouseEmail,
+        monthlyAmount: rateForEmail,
+        coverageMonths,
       });
     } catch (err) {
       console.error('[zeffy] renewal receipt failed:', err);

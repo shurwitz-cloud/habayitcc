@@ -7,6 +7,7 @@ import {
   HebrewAdventurePaymentSetup,
   type HebrewAdventurePaymentSetupHandle,
 } from '@/components/stripe/HebrewAdventurePaymentSetup';
+import { HebrewBirthdayPreview } from '@/components/forms/HebrewBirthdayPreview';
 import {
   getHebrewAdventureSessionTuition,
   getHebrewAdventureSiblingDiscount,
@@ -17,9 +18,11 @@ import {
   HEBREW_ADVENTURE_MONTHLY_TUITION,
   HEBREW_ADVENTURE_SESSION_MONTHS,
   HEBREW_ADVENTURE_CARD_PROCESSING_RATE,
-  HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT,
-  HEBREW_ADVENTURE_TWO_PAYMENT_DISCOUNT,
+  HEBREW_ADVENTURE_EARLY_BIRD_DISCOUNT,
+  getHebrewAdventureBaseSessionTuition,
+  getHebrewAdventureEarlyBirdDiscount,
   getHebrewAdventurePaymentPlanDiscount,
+  isHebrewAdventureEarlyBirdActive,
   type HebrewAdventurePaymentPlan,
   type HebrewAdventurePaymentMethod,
 } from '@/lib/programs/hebrew-adventure-tuition';
@@ -42,6 +45,9 @@ const emptyChild: ChildInput = {
 
 const GRADES = ['K', '1st', '2nd', '3rd', '4th', '5th'];
 
+const earlyBirdActive = isHebrewAdventureEarlyBirdActive();
+const earlyBirdDiscount = getHebrewAdventureEarlyBirdDiscount();
+
 const PAYMENT_PLAN_OPTIONS: {
   value: HebrewAdventurePaymentPlan;
   title: string;
@@ -50,17 +56,12 @@ const PAYMENT_PLAN_OPTIONS: {
   {
     value: 'full',
     title: 'Pay in full',
-    description: `Upon acceptance — $${HEBREW_ADVENTURE_PAY_IN_FULL_DISCOUNT} off.`,
+    description: 'Charged upon acceptance.',
   },
   {
     value: 'two_installments',
     title: 'Two-payment plan',
-    description: `Upon acceptance and by October 1 — $${HEBREW_ADVENTURE_TWO_PAYMENT_DISCOUNT} off.`,
-  },
-  {
-    value: 'three_installments',
-    title: 'Three-payment plan',
-    description: 'Upon acceptance, October 1, and November 1.',
+    description: 'Upon acceptance and by November 1.',
   },
 ];
 
@@ -322,6 +323,10 @@ export function RegistrationForm() {
                 <option value="unknown">Not sure</option>
               </select>
             </Field>
+            <HebrewBirthdayPreview
+              dateOfBirth={child.dateOfBirth}
+              bornBeforeSunset={child.bornBeforeSunset}
+            />
           </div>
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             <Field label="Grade Entering" required>
@@ -561,6 +566,20 @@ export function RegistrationForm() {
           </div>
         </div>
 
+        {earlyBirdActive && (
+          <div className="bg-soft border border-gold rounded-[18px] px-5 py-4 mb-5">
+            <p className="text-gold text-[0.74rem] font-extrabold uppercase tracking-wider mb-1">
+              Limited-time offer
+            </p>
+            <p className="text-navy font-bold text-[1.05rem]">
+              ${HEBREW_ADVENTURE_EARLY_BIRD_DISCOUNT} off when you register by August 7
+            </p>
+            <p className="text-muted text-[0.85rem] mt-1">
+              Applied automatically to each child — stacks with sibling discounts.
+            </p>
+          </div>
+        )}
+
         <div className="border border-line rounded-[18px] p-5">
           <label className="flex items-start gap-2.5">
             <input
@@ -638,7 +657,7 @@ export function RegistrationForm() {
             Estimated Tuition Summary
           </p>
           {children.map((_, i) => {
-            const sticker = getHebrewAdventureSessionTuition(isChaiPartner, 'three_installments');
+            const sticker = getHebrewAdventureBaseSessionTuition(isChaiPartner);
             const siblingDiscount = getHebrewAdventureSiblingDiscount(i);
             return (
               <div key={i} className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
@@ -650,10 +669,23 @@ export function RegistrationForm() {
               </div>
             );
           })}
+          {earlyBirdDiscount > 0 && (
+            <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
+              <span>
+                Early registration discount (by Aug 7)
+                {children.length > 1
+                  ? ` (−$${earlyBirdDiscount} × ${children.length})`
+                  : ''}
+              </span>
+              <strong className="tabular-nums">
+                −${(earlyBirdDiscount * children.length).toLocaleString()}
+              </strong>
+            </div>
+          )}
           {getHebrewAdventurePaymentPlanDiscount(paymentPlan) > 0 && (
             <div className="flex justify-between py-2 border-b border-black/[0.06] text-muted">
               <span>
-                {paymentPlan === 'full' ? 'Pay-in-full discount' : 'Two-payment discount'}
+                Pay-in-full discount
                 {children.length > 1
                   ? ` (−$${getHebrewAdventurePaymentPlanDiscount(paymentPlan)} × ${children.length})`
                   : ''}
@@ -689,11 +721,7 @@ export function RegistrationForm() {
                       ? ' — upon acceptance'
                       : i === 0
                         ? ' — upon acceptance'
-                        : paymentPlan === 'two_installments'
-                          ? ' — by October 1'
-                          : i === 1
-                            ? ' — October 1'
-                            : ' — November 1'}
+                        : ' — by November 1'}
                   </span>
                   <strong className="tabular-nums">${formatCurrency(amount)}</strong>
                 </div>

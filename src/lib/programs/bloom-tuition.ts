@@ -12,8 +12,8 @@ export const BLOOM_CHAI_DISCOUNT = BLOOM_MONTHLY_TUITION;
 
 export const BLOOM_CHAI_SESSION_TUITION = BLOOM_SESSION_TUITION - BLOOM_CHAI_DISCOUNT;
 
-/** Discount when paying the full year in one payment. */
-export const BLOOM_PAY_IN_FULL_DISCOUNT = 15;
+/** Pay-in-full no longer has a discount. */
+export const BLOOM_PAY_IN_FULL_DISCOUNT = 0;
 
 /** Signup by early registration deadline — early registration discount. */
 export const BLOOM_EARLY_BIRD_DISCOUNT = 40;
@@ -43,13 +43,12 @@ export function isBloomEarlyBirdActive(now: Date = new Date()): boolean {
 
 export function getBloomSessionTuition(
   isChaiPartner: boolean,
-  paymentPlan: BloomPaymentPlan = 'two_installments',
+  _paymentPlan: BloomPaymentPlan = 'two_installments',
   options?: { now?: Date; earlyBird?: boolean }
 ): number {
   let total = isChaiPartner ? BLOOM_CHAI_SESSION_TUITION : BLOOM_SESSION_TUITION;
   const earlyBird = options?.earlyBird ?? isBloomEarlyBirdActive(options?.now);
   if (earlyBird) total -= BLOOM_EARLY_BIRD_DISCOUNT;
-  if (paymentPlan === 'full') total -= BLOOM_PAY_IN_FULL_DISCOUNT;
   return total;
 }
 

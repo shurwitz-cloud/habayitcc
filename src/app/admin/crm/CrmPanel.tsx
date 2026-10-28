@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMemo, useState, useTransition, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
@@ -11,6 +11,8 @@ import {
   ProgramApplicationsPanel,
   ProgramApplicationsSummary,
 } from '@/components/admin/crm/ProgramApplicationsPanel';
+import { BackfillHebrewFairCodesButton } from '@/components/admin/BackfillHebrewFairCodesButton';
+import { HEBREW_ADVENTURE_SLUG } from '@/lib/programs/names';
 import {
   EventTabsPanel,
   EventTabsSummary,
@@ -25,12 +27,16 @@ import type {
   DateFilter,
 } from '@/lib/admin/crm/types';
 import type { AdminRole } from '@/lib/admin/roles';
-import { roleHasCapability, VOLUNTEER_HIDDEN_CRM_VIEWS } from '@/lib/admin/roles';
+import {
+  crmViewsHiddenForRole,
+  roleHasCapability,
+} from '@/lib/admin/roles';
 import { activityTypeLabel, buildActivityFeed } from '@/lib/admin/crm/activity';
 import { resolvePaymentParty } from '@/lib/admin/crm/payment-party';
 import {
   DEFAULT_SORT_KEY,
   EMPTY_DETAIL_FILTERS,
+  getSortDefaultDir,
   matchesAmountRange,
   matchesDateRange,
   sortRows,
@@ -49,11 +55,43 @@ import {
   stripeCustomerUrl,
   stripePaymentUrl,
 } from '@/lib/admin/crm/utils';
-import { setContactResolved, addImportantDate } from './actions';
+import { setContactResolved, addImportantDate, markLulavOrderPaid } from './actions';
+import { LULAV_OFFLINE_METHODS } from '@/lib/lulav/offline-methods';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
-import { ManualZeffyEntryForm } from '@/components/admin/ManualZeffyEntryForm';
-import { ManualDonationForm } from '@/components/admin/ManualDonationForm';
+import { BackfillHebrewBirthdaysButton } from '@/components/admin/BackfillHebrewBirthdaysButton';
+import { SyncImportantDatesSheetButton } from '@/components/admin/SyncImportantDatesSheetButton';
+import {
+  ManualEntryForm,
+  type ManualEntryPrefill,
+} from '@/components/admin/ManualEntryForm';
+import {
+  ChaiAddPaymentForm,
+  ChaiUpdateMonthlyForm,
+} from '@/components/admin/ChaiAddPaymentForm';
+import { DeleteCrmEntryButton } from '@/components/admin/DeleteCrmEntryButton';
+import { RecoverPaidEventRegistrationsButton } from '@/components/admin/RecoverPaidEventRegistrationsButton';
+import {
+  parseEventMoney,
+  parseEventPeople,
+} from '@/lib/admin/crm/event-registration-stats';
+import { buildPersonSuggestions } from '@/lib/admin/crm/person-suggestions';
+import {
+  coverageMonthsOf,
+  paymentCoversThrough,
+} from '@/lib/donations/payment-coverage';
+import {
+  formatHebrewAnnualLabel,
+  formatHebrewDisplayDate,
+  getHebrewAnnualSortKey,
+  getHebrewYearSortKey,
+} from '@/lib/hebrew-birthday/hebrew-annual-order';
+import {
+  eventShowsAdults,
+  eventShowsKids,
+  resolveEventPeopleMode,
+  type EventPeopleMode,
+} from '@/lib/admin/crm/event-display';
 
 const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'activity', label: 'All activity' },
@@ -64,6 +102,7 @@ const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'donations', label: 'Donations' },
   { id: 'chai', label: 'Chai partners' },
   { id: 'payments', label: 'Payments' },
+  { id: 'lulav', label: 'Lulav orders' },
   { id: 'dates', label: 'Birthdays & yahrzeit' },
   { id: 'submissions', label: 'Form log' },
 ];
@@ -77,15 +116,13 @@ export function CrmPanel({
 }) {
   const router = useRouter();
   const canSeeFinance = roleHasCapability(role, 'crm_finance');
+  const canSeePayments = roleHasCapability(role, 'crm_event_payments');
   const views = useMemo(
-    () =>
-      canSeeFinance
-        ? VIEWS
-        : VIEWS.filter(
-            (v) =>
-              !(VOLUNTEER_HIDDEN_CRM_VIEWS as readonly string[]).includes(v.id)
-          ),
-    [canSeeFinance]
+    () => {
+      const hidden = new Set(crmViewsHiddenForRole(role));
+      return VIEWS.filter((v) => !hidden.has(v.id));
+    },
+    [role]
   );
   const [view, setView] = useState<CrmView>('activity');
   const [search, setSearch] = useState('');
@@ -100,6 +137,8 @@ export function CrmPanel({
   const [drawerFamily, setDrawerFamily] = useState<CrmFamilyRecord | null>(null);
   const [drawerEvent, setDrawerEvent] = useState<CrmEventRecord | null>(null);
   const [drawerLead, setDrawerLead] = useState<CrmLeadRecord | null>(null);
+  const [manualPrefill, setManualPrefill] = useState<ManualEntryPrefill | null>(null);
+  const [manualPrefillKey, setManualPrefillKey] = useState<number | null>(null);
   const [applicationProgramSlug, setApplicationProgramSlug] = useState(
     () => snapshot.programTracks[0]?.programSlug ?? 'hebrew-adventure',
   );
@@ -122,8 +161,9 @@ export function CrmPanel({
     setDrawerFamily(null);
     setDrawerEvent(null);
     setDrawerLead(null);
-    setSortKey(DEFAULT_SORT_KEY[next] ?? 'date');
-    setSortDir('desc');
+    const nextSortKey = DEFAULT_SORT_KEY[next] ?? 'date';
+    setSortKey(nextSortKey);
+    setSortDir(getSortDefaultDir(nextSortKey));
   }
 
   function clearFilters() {
@@ -137,7 +177,7 @@ export function CrmPanel({
   }
 
   function handleSort(key: string) {
-    const next = toggleSort(sortKey, sortDir, key, key === 'name' || key === 'email' || key === 'event' ? 'asc' : 'desc');
+    const next = toggleSort(sortKey, sortDir, key, getSortDefaultDir(key));
     setSortKey(next.key);
     setSortDir(next.dir);
   }
@@ -153,6 +193,7 @@ export function CrmPanel({
     if (view === 'applications') return ['all', 'open', 'resolved', 'pending', 'accepted', 'active', 'withdrawn'];
     if (view === 'dates') return ['all', 'birthday', 'yahrzeit', 'anniversary', 'other'];
     if (view === 'submissions') return ['all', 'contact', 'donation', 'chai_partner', 'hebrew_adventure_registration', 'achim_registration', 'rsvp'];
+    if (view === 'lulav') return ['all', 'pending', 'paid'];
     return ['all'];
   }, [view]);
 
@@ -228,6 +269,10 @@ export function CrmPanel({
     () => filterSubmissions(snapshot, search, dateRange, statusFilter),
     [snapshot, search, dateRange, statusFilter],
   );
+  const filteredLulavOrders = useMemo(
+    () => filterLulavOrders(snapshot, search, dateRange, statusFilter),
+    [snapshot, search, dateRange, statusFilter],
+  );
 
   const sortedActivity = useMemo(
     () =>
@@ -274,6 +319,19 @@ export function CrmPanel({
       }, sortDir),
     [filteredChai, sortKey, sortDir],
   );
+  const chaiSummary = useMemo(() => {
+    const count = sortedChai.length;
+    const monthlyTotal = sortedChai.reduce(
+      (sum, c) => sum + Number(c.monthly_amount || 0),
+      0,
+    );
+    return {
+      count,
+      monthlyTotal,
+      average: count > 0 ? monthlyTotal / count : 0,
+      yearlyTotal: monthlyTotal * 12,
+    };
+  }, [sortedChai]);
   const sortedApplications = useMemo(
     () =>
       sortRows(filteredApplications, (f) => {
@@ -303,6 +361,9 @@ export function CrmPanel({
         if (sortKey === 'name') return `${r.last_name} ${r.first_name}`;
         if (sortKey === 'email') return r.email ?? '';
         if (sortKey === 'guests') return r.guest_count;
+        if (sortKey === 'donation') return parseEventMoney(r).donation;
+        if (sortKey === 'adults') return parseEventPeople(r).adults ?? 0;
+        if (sortKey === 'kids') return parseEventPeople(r).kids ?? 0;
         return new Date(r.created_at).getTime();
       }, sortDir),
     [filteredRsvps, sortKey, sortDir],
@@ -320,17 +381,36 @@ export function CrmPanel({
       }, sortDir),
     [filteredPayments, sortKey, sortDir, snapshot],
   );
-  const sortedDates = useMemo(
-    () =>
-      sortRows(filteredDates, (d) => {
-        if (sortKey === 'name') return d.label;
-        if (sortKey === 'type') return d.date_type;
-        if (sortKey === 'hebrew') return d.hebrew_date ?? '';
-        if (sortKey === 'date') return d.gregorian_date ?? '';
-        return d.label;
-      }, sortDir),
-    [filteredDates, sortKey, sortDir],
-  );
+  const sortedDates = useMemo(() => {
+    const rows = [...filteredDates];
+    rows.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'name') {
+        cmp = a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'type') {
+        cmp = a.date_type.localeCompare(b.date_type);
+      } else if (sortKey === 'yearOrder') {
+        cmp = getHebrewAnnualSortKey(a.hebrew_date) - getHebrewAnnualSortKey(b.hebrew_date);
+        if (cmp === 0) {
+          cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
+        }
+      } else if (sortKey === 'hebrew') {
+        cmp = getHebrewYearSortKey(a.hebrew_date) - getHebrewYearSortKey(b.hebrew_date);
+        if (cmp === 0) {
+          cmp = getHebrewAnnualSortKey(a.hebrew_date) - getHebrewAnnualSortKey(b.hebrew_date);
+        }
+        if (cmp === 0) {
+          cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
+        }
+      } else if (sortKey === 'date') {
+        cmp = (a.gregorian_date ?? '').localeCompare(b.gregorian_date ?? '');
+      } else {
+        cmp = a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [filteredDates, sortKey, sortDir]);
   const sortedSubmissions = useMemo(
     () =>
       sortRows(filteredSubmissions, (s) => {
@@ -340,8 +420,41 @@ export function CrmPanel({
       }, sortDir),
     [filteredSubmissions, sortKey, sortDir],
   );
+  const sortedLulavOrders = useMemo(
+    () =>
+      sortRows(filteredLulavOrders, (o) => {
+        if (sortKey === 'name') return o.fullName;
+        if (sortKey === 'email') return o.email;
+        if (sortKey === 'amount') return o.total;
+        if (sortKey === 'status') return o.status;
+        return new Date(o.createdAt).getTime();
+      }, sortDir),
+    [filteredLulavOrders, sortKey, sortDir],
+  );
 
   const sortProps = { sortKey, sortDir, onSort: handleSort };
+
+  const personSuggestions = useMemo(
+    () => buildPersonSuggestions(snapshot),
+    [snapshot],
+  );
+
+  function startManualEntryFromContact(
+    contact: { first_name: string; last_name: string; email: string; phone?: string | null },
+    kind: ManualEntryPrefill['kind'] = 'one_time',
+  ) {
+    if (!canSeeFinance) return;
+    const targetView: CrmView = kind === 'chai_partner' ? 'chai' : 'donations';
+    switchView(targetView);
+    setManualPrefill({
+      firstName: contact.first_name,
+      lastName: contact.last_name,
+      email: contact.email,
+      phone: contact.phone ?? '',
+      kind,
+    });
+    setManualPrefillKey(Date.now());
+  }
 
   function handleResolve(contactId: string, resolved: boolean) {
     setMessage('');
@@ -407,15 +520,14 @@ export function CrmPanel({
     if (view === 'chai') {
       exportCsv(
         'habayit-chai-partners.csv',
-        ['Date', 'Name', 'Email', 'Monthly', 'Status', 'City', 'Access code'],
+        ['Last name', 'Name', 'Phone', 'Email', 'Address', 'Date joined'],
         filteredChai.map((c) => [
-          formatDate(c.created_at),
-          `${c.first_name} ${c.last_name}`,
+          c.last_name ?? '',
+          c.first_name ?? '',
+          c.phone ?? '',
           c.email,
-          String(c.monthly_amount),
-          c.status,
-          c.city ?? '',
-          c.access_code ?? '',
+          [c.street_address, c.city, c.state, c.zip].filter(Boolean).join(', '),
+          formatDate(c.created_at),
         ]),
       );
       return;
@@ -424,10 +536,18 @@ export function CrmPanel({
       const label = activeProgramTrack?.tabLabel ?? 'program';
       exportCsv(
         `habayit-${label.toLowerCase().replace(/\s+/g, '-')}-applications.csv`,
-        ['Date', 'Family', 'Parent email', 'Children', 'Status', 'Tuition'],
+        ['Date', 'Family', 'Parent email', 'Children', 'Status', 'Tuition', 'Hebrew event codes'],
         filteredApplications.map((f) => {
           const primary = f.parents.find((p) => p.is_primary_contact) ?? f.parents[0];
           const total = f.registrations.reduce((s, r) => s + Number(r.tuition_total ?? 0), 0);
+          const codes = f.registrations
+            .map((r) =>
+              r.fair_access_code
+                ? `${r.childName}: ${r.fair_access_code}`
+                : null
+            )
+            .filter(Boolean)
+            .join('; ');
           return [
             formatDate(f.createdAt),
             f.familyName,
@@ -435,20 +555,76 @@ export function CrmPanel({
             String(f.children.length),
             f.registrations.map((r) => r.status).join('; '),
             String(total),
+            codes,
           ];
         }),
       );
       return;
     }
     if (view === 'events') {
+      if (selectedEventId !== 'all') {
+          exportCsv(
+          'habayit-event-submissions.csv',
+          [
+            'Date',
+            'Event',
+            'Name',
+            'Email',
+            'Phone',
+            'People',
+            'Adults',
+            'Kids',
+            'Tickets',
+            'Donation',
+            'Total',
+            'Notes',
+          ],
+          filteredRsvps.map((r) => {
+            const mode = resolveEventPeopleMode(r.event_slug);
+            const people = parseEventPeople(r);
+            const money = parseEventMoney(r);
+            return [
+              formatDateTime(r.created_at),
+              r.eventTitle,
+              `${r.first_name} ${r.last_name}`,
+              r.email ?? '',
+              r.phone ?? '',
+              String(people.guests),
+              eventShowsAdults(mode) ? String(people.adults ?? 0) : '',
+              eventShowsKids(mode) ? String(people.kids ?? 0) : '',
+              money.hasMoney ? String(money.ticket) : '',
+              money.hasMoney ? String(money.donation) : '',
+              money.hasMoney ? String(money.total) : '',
+              r.notes ?? '',
+            ];
+          }),
+        );
+        return;
+      }
       exportCsv(
         'habayit-events.csv',
-        ['Event', 'Date', 'RSVPs', 'Guests', 'Location'],
+        [
+          'Event',
+          'Date',
+          'Submissions',
+          'People',
+          'Adults',
+          'Kids',
+          'Tickets',
+          'Donations',
+          'Total',
+          'Location',
+        ],
         filteredEvents.map((e) => [
           e.title,
           e.dateLabel ?? formatDateTime(e.startsAt),
           String(e.rsvpCount),
           String(e.guestTotal),
+          e.adultsTotal != null ? String(e.adultsTotal) : '',
+          e.kidsTotal != null ? String(e.kidsTotal) : '',
+          String(e.ticketTotal),
+          String(e.donationTotal),
+          String(e.revenueTotal),
           e.location ?? '',
         ]),
       );
@@ -470,6 +646,23 @@ export function CrmPanel({
             p.stripe_payment_intent_id ?? '',
           ];
         }),
+      );
+      return;
+    }
+    if (view === 'lulav') {
+      exportCsv(
+        'habayit-lulav-orders.csv',
+        ['Date', 'Name', 'Email', 'Phone', 'Qty', 'Total', 'Pay method', 'Status'],
+        filteredLulavOrders.map((o) => [
+          formatDateTime(o.createdAt),
+          o.fullName,
+          o.email,
+          o.phone,
+          String(o.quantity),
+          String(o.total),
+          o.payMethod,
+          o.status === 'paid' ? 'Paid' : 'Not paid',
+        ]),
       );
       return;
     }
@@ -496,7 +689,9 @@ export function CrmPanel({
       : view === 'contacts'
         ? filteredContacts.length
         : view === 'events'
-          ? filteredEvents.length
+          ? selectedEventId === 'all'
+            ? filteredEvents.length
+            : filteredRsvps.length
           : view === 'rsvps'
             ? filteredRsvps.length
             : view === 'applications'
@@ -509,7 +704,9 @@ export function CrmPanel({
                     ? filteredDates.length
                     : view === 'submissions'
                       ? filteredSubmissions.length
-                      : filteredPayments.length;
+                      : view === 'lulav'
+                        ? filteredLulavOrders.length
+                        : filteredPayments.length;
 
   return (
     <div>
@@ -520,8 +717,10 @@ export function CrmPanel({
         <h1 className="text-3xl font-bold text-navy">CRM</h1>
         <p className="text-sm text-muted mt-1">
           {canSeeFinance
-            ? 'All form data from Supabase â€” contacts, RSVPs, registrations, donations, payments, and more.'
-            : 'Volunteer CRM â€” contacts, events, RSVPs, applications, and form log. Donations and Chai are admin-only.'}
+            ? 'All form data from Supabase — contacts, RSVPs, registrations, donations, payments, and more.'
+            : canSeePayments
+              ? 'Office CRM — contacts, events, RSVPs, applications, form log, and event/program payments. Donations and Chai are admin-only.'
+              : 'Volunteer CRM — contacts, events, RSVPs, applications, and form log. Donations and Chai are admin-only.'}
         </p>
       </div>
 
@@ -535,8 +734,10 @@ export function CrmPanel({
           <>
             <StatCard label="Donated" value={formatUsd(snapshot.stats.donationsTotal)} />
             <StatCard label="Chai / mo" value={formatUsd(snapshot.stats.chaiMonthlyTotal)} />
-            <StatCard label="Payments" value={formatUsd(snapshot.stats.paymentsTotal)} />
           </>
+        )}
+        {(canSeeFinance || canSeePayments) && (
+          <StatCard label="Payments" value={formatUsd(snapshot.stats.paymentsTotal)} />
         )}
         <StatCard label="Important dates" value={snapshot.stats.importantDates} />
         <StatCard label="Form log" value={snapshot.stats.formSubmissions} />
@@ -566,6 +767,9 @@ export function CrmPanel({
               onSelect={setApplicationProgramSlug}
             />
             <ProgramApplicationsSummary track={activeProgramTrack} />
+            {applicationProgramSlug === HEBREW_ADVENTURE_SLUG && (
+              <BackfillHebrewFairCodesButton />
+            )}
           </>
         )}
 
@@ -574,7 +778,14 @@ export function CrmPanel({
             <EventTabsPanel
               events={snapshot.events}
               activeEventId={selectedEventId}
-              onSelect={setSelectedEventId}
+              onSelect={(eventId) => {
+                setSelectedEventId(eventId);
+                setExpandedId(null);
+                if (eventId !== 'all') {
+                  setSortKey('date');
+                  setSortDir('desc');
+                }
+              }}
               mode={view}
             />
             <EventTabsSummary event={activeEvent} mode={view} />
@@ -604,7 +815,7 @@ export function CrmPanel({
         <p className="px-4 py-2 text-xs text-muted border-b border-line">
           {rowCount} record{rowCount === 1 ? '' : 's'}
           <span className="ml-2">
-            Â· Sorted by {sortKey} ({sortDir === 'asc' ? 'Aâ†’Z / lowâ†’high' : 'Zâ†’A / highâ†’low'})
+            · Sorted by {sortKey} ({sortDir === 'asc' ? 'A→Z / low→high' : 'Z→A / high→low'})
           </span>
           {message && <span className="ml-3 text-navy font-medium">{message}</span>}
         </p>
@@ -617,6 +828,16 @@ export function CrmPanel({
               onToggle={setExpandedId}
               snapshot={snapshot}
               onResolve={handleResolve}
+              onAddDonation={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'one_time')
+                  : undefined
+              }
+              onAddChai={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'chai_partner')
+                  : undefined
+              }
               isPending={isPending}
               {...sortProps}
             />
@@ -627,6 +848,16 @@ export function CrmPanel({
               expandedId={expandedId}
               onToggle={setExpandedId}
               onResolve={handleResolve}
+              onAddDonation={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'one_time')
+                  : undefined
+              }
+              onAddChai={
+                canSeeFinance
+                  ? (c) => startManualEntryFromContact(c, 'chai_partner')
+                  : undefined
+              }
               isPending={isPending}
               {...sortProps}
             />
@@ -634,24 +865,75 @@ export function CrmPanel({
           {view === 'donations' && canSeeFinance && (
             <>
               <ReconcileStripeButton />
-              <ManualZeffyEntryForm defaultType="donation" />
+              <ManualEntryForm
+                defaultKind="one_time"
+                people={personSuggestions}
+                prefill={manualPrefill}
+                prefillKey={manualPrefillKey}
+                onPrefillConsumed={() => {
+                  setManualPrefillKey(null);
+                  setManualPrefill(null);
+                }}
+              />
               <DonationsTable rows={sortedDonations} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
           )}
           {view === 'chai' && canSeeFinance && (
             <>
-              <ManualZeffyEntryForm defaultType="chai_partner" />
+              <ManualEntryForm
+                defaultKind="chai_partner"
+                people={personSuggestions}
+                prefill={manualPrefill}
+                prefillKey={manualPrefillKey}
+                onPrefillConsumed={() => {
+                  setManualPrefillKey(null);
+                  setManualPrefill(null);
+                }}
+              />
               <ReconcileZeffyButton />
-              <ChaiTable rows={sortedChai} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+              <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard label="Chai partners" value={chaiSummary.count} />
+                <StatCard
+                  label="Total monthly"
+                  value={formatUsd(chaiSummary.monthlyTotal)}
+                />
+                <StatCard
+                  label="Average / mo"
+                  value={formatUsd(chaiSummary.average)}
+                />
+                <StatCard
+                  label="Total / year"
+                  value={formatUsd(chaiSummary.yearlyTotal)}
+                />
+              </div>
+              <ChaiTable
+                rows={sortedChai}
+                snapshot={snapshot}
+                expandedId={expandedId}
+                onToggle={setExpandedId}
+                {...sortProps}
+              />
             </>
           )}
-          {view === 'events' && (
-            <EventsTable
-              rows={sortedEvents}
-              onSelect={setDrawerEvent}
-              {...sortProps}
-            />
+          {view === 'events' && canSeeFinance && (
+            <RecoverPaidEventRegistrationsButton />
           )}
+          {view === 'events' &&
+            (selectedEventId === 'all' ? (
+              <EventsTable
+                rows={sortedEvents}
+                onSelect={setDrawerEvent}
+                {...sortProps}
+              />
+            ) : (
+              <RsvpsTable
+                rows={sortedRsvps}
+                expandedId={expandedId}
+                onToggle={setExpandedId}
+                peopleMode={activeEvent?.peopleMode}
+                {...sortProps}
+              />
+            ))}
           {view === 'applications' && (
             <>
               <ApplicationsTable
@@ -664,9 +946,15 @@ export function CrmPanel({
             </>
           )}
           {view === 'rsvps' && (
-            <RsvpsTable rows={sortedRsvps} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+            <RsvpsTable
+              rows={sortedRsvps}
+              expandedId={expandedId}
+              onToggle={setExpandedId}
+              peopleMode={activeEvent?.peopleMode}
+              {...sortProps}
+            />
           )}
-          {view === 'payments' && canSeeFinance && (
+          {view === 'payments' && canSeePayments && (
             <PaymentsTable
               rows={sortedPayments}
               snapshot={snapshot}
@@ -675,13 +963,24 @@ export function CrmPanel({
               {...sortProps}
             />
           )}
-          {view === 'dates' && (
-            <ImportantDatesPanel
-              rows={sortedDates}
-              families={snapshot.families}
-              onAdded={() => router.refresh()}
+          {view === 'lulav' && (canSeeFinance || canSeePayments) && (
+            <LulavOrdersTable
+              rows={sortedLulavOrders}
+              onMarked={() => router.refresh()}
               {...sortProps}
             />
+          )}
+          {view === 'dates' && (
+            <>
+              <BackfillHebrewBirthdaysButton />
+              <SyncImportantDatesSheetButton />
+              <ImportantDatesPanel
+                rows={sortedDates}
+                families={snapshot.families}
+                onAdded={() => router.refresh()}
+                {...sortProps}
+              />
+            </>
           )}
           {view === 'submissions' && (
             <SubmissionsTable rows={sortedSubmissions} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
@@ -707,7 +1006,11 @@ export function CrmPanel({
         />
       )}
       {drawerEvent && (
-        <EventDetailDrawer event={drawerEvent} onClose={() => setDrawerEvent(null)} />
+        <EventDetailDrawer
+          event={drawerEvent}
+          onClose={() => setDrawerEvent(null)}
+          canManageMoney={canSeeFinance}
+        />
       )}
     </div>
   );
@@ -810,7 +1113,14 @@ function filterApplications(
     }
     const parentFields = f.parents.flatMap((p) => [p.first_name, p.last_name, p.email, p.phone]);
     const childFields = f.children.flatMap((c) => [c.first_name, c.last_name, c.grade]);
-    return matchesSearch(search, [f.familyName, f.address, ...parentFields, ...childFields]);
+    const codeFields = f.registrations.map((r) => r.fair_access_code);
+    return matchesSearch(search, [
+      f.familyName,
+      f.address,
+      ...parentFields,
+      ...childFields,
+      ...codeFields,
+    ]);
   });
 }
 
@@ -936,6 +1246,64 @@ function filterSubmissions(
   });
 }
 
+type CrmLulavOrder = {
+  id: string;
+  createdAt: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  quantity: number;
+  total: number;
+  payMethod: string;
+  status: 'paid' | 'pending';
+};
+
+function parseLulavOrder(s: CrmSnapshot['formSubmissions'][number]): CrmLulavOrder | null {
+  if (s.form_type !== 'lulav_order') return null;
+  // Prefer primary rows; older flow also wrote a duplicate with source_id set.
+  if (s.source_id) return null;
+  const payload = (s.payload ?? {}) as Record<string, unknown>;
+  const statusRaw = String(payload.status ?? '').toLowerCase();
+  const status: 'paid' | 'pending' =
+    statusRaw === 'paid' ? 'paid' : 'pending';
+  return {
+    id: s.id,
+    createdAt: s.created_at,
+    fullName: String(payload.fullName ?? '').trim() || '—',
+    email: String(s.email || payload.email || '').trim().toLowerCase(),
+    phone: String(payload.phone ?? '').trim(),
+    quantity: Number(payload.quantity) || 0,
+    total: Number(payload.total) || 0,
+    payMethod: String(payload.payMethod ?? payload.adminPaymentMethod ?? '—'),
+    status,
+  };
+}
+
+function filterLulavOrders(
+  snapshot: CrmSnapshot,
+  search: string,
+  dateRange: DateRange,
+  statusFilter: string,
+): CrmLulavOrder[] {
+  return snapshot.formSubmissions
+    .map(parseLulavOrder)
+    .filter((o): o is CrmLulavOrder => {
+      if (!o) return false;
+      if (!matchesDateRange(o.createdAt, dateRange)) return false;
+      if (statusFilter === 'paid' && o.status !== 'paid') return false;
+      if (statusFilter === 'pending' && o.status !== 'pending') return false;
+      return matchesSearch(search, [
+        o.fullName,
+        o.email,
+        o.phone,
+        o.payMethod,
+        o.status,
+        String(o.quantity),
+        String(o.total),
+      ]);
+    });
+}
+
 type SortProps = {
   sortKey: string;
   sortDir: SortDir;
@@ -943,7 +1311,7 @@ type SortProps = {
 };
 
 function StatusPill({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted">â€”</span>;
+  if (!status) return <span className="text-muted">—</span>;
   return (
     <span
       className={`inline-block px-2.5 py-0.5 rounded-full text-[0.65rem] font-bold uppercase tracking-wide ${statusBadgeClass(status)}`}
@@ -980,7 +1348,7 @@ function DetailGrid({ pairs }: { pairs: Array<[string, string | null | undefined
       {pairs.map(([label, value]) => (
         <div key={label}>
           <dt className="text-[0.65rem] uppercase tracking-wide text-muted font-bold">{label}</dt>
-          <dd className="text-navy whitespace-pre-wrap">{value || 'â€”'}</dd>
+          <dd className="text-navy whitespace-pre-wrap">{value || '—'}</dd>
         </div>
       ))}
     </dl>
@@ -993,6 +1361,8 @@ function ActivityTable({
   onToggle,
   snapshot,
   onResolve,
+  onAddDonation,
+  onAddChai,
   isPending,
   sortKey,
   sortDir,
@@ -1003,6 +1373,8 @@ function ActivityTable({
   onToggle: (id: string | null) => void;
   snapshot: CrmSnapshot;
   onResolve: (id: string, resolved: boolean) => void;
+  onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
+  onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
 } & SortProps) {
   if (!rows.length) return <EmptyState />;
@@ -1029,6 +1401,8 @@ function ActivityTable({
             onToggle={onToggle}
             snapshot={snapshot}
             onResolve={onResolve}
+            onAddDonation={onAddDonation}
+            onAddChai={onAddChai}
             isPending={isPending}
           />
         ))}
@@ -1043,6 +1417,8 @@ function ActivityRow({
   onToggle,
   snapshot,
   onResolve,
+  onAddDonation,
+  onAddChai,
   isPending,
 }: {
   row: ReturnType<typeof buildActivityFeed>[number];
@@ -1050,6 +1426,8 @@ function ActivityRow({
   onToggle: (id: string | null) => void;
   snapshot: CrmSnapshot;
   onResolve: (id: string, resolved: boolean) => void;
+  onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
+  onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
 }) {
   const open = expandedId === row.id;
@@ -1062,11 +1440,11 @@ function ActivityRow({
         <td className="px-4 py-3 whitespace-nowrap">{formatDate(row.createdAt)}</td>
         <td className="px-4 py-3">{activityTypeLabel(row.type)}</td>
         <td className="px-4 py-3 font-medium text-navy">{row.title}</td>
-        <td className="px-4 py-3">{row.email ?? 'â€”'}</td>
+        <td className="px-4 py-3">{row.email ?? '—'}</td>
         <td className="px-4 py-3">
           {row.amount != null && (row.type === 'donation' || row.type === 'chai' || row.type === 'payment')
             ? formatUsd(row.amount)
-            : 'â€”'}
+            : '—'}
         </td>
         <td className="px-4 py-3">
           <StatusPill status={row.status} />
@@ -1088,7 +1466,25 @@ function ActivityRow({
                     ['Message', contact.message],
                   ]}
                 />
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {onAddDonation ? (
+                    <button
+                      type="button"
+                      onClick={() => onAddDonation(contact)}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-[#b8902a] text-white"
+                    >
+                      Add donation
+                    </button>
+                  ) : null}
+                  {onAddChai ? (
+                    <button
+                      type="button"
+                      onClick={() => onAddChai(contact)}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#d4cfc4] bg-white text-navy"
+                    >
+                      Add Chai entry
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={isPending}
@@ -1119,6 +1515,8 @@ function ContactsTable({
   expandedId,
   onToggle,
   onResolve,
+  onAddDonation,
+  onAddChai,
   isPending,
   sortKey,
   sortDir,
@@ -1128,6 +1526,8 @@ function ContactsTable({
   expandedId: string | null;
   onToggle: (id: string | null) => void;
   onResolve: (id: string, resolved: boolean) => void;
+  onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
+  onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
 } & SortProps) {
   if (!rows.length) return <EmptyState />;
@@ -1156,7 +1556,7 @@ function ContactsTable({
                   {c.first_name} {c.last_name}
                 </td>
                 <td className="px-4 py-3">{c.email}</td>
-                <td className="px-4 py-3">{c.interest ?? 'â€”'}</td>
+                <td className="px-4 py-3">{c.interest ?? '—'}</td>
                 <td className="px-4 py-3">
                   <StatusPill status={c.is_resolved ? 'resolved' : 'open'} />
                 </td>
@@ -1174,7 +1574,25 @@ function ContactsTable({
                         ['Submitted', formatDateTime(c.created_at)],
                       ]}
                     />
-                    <div className="mt-3">
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {onAddDonation ? (
+                        <button
+                          type="button"
+                          onClick={() => onAddDonation(c)}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold bg-[#b8902a] text-white"
+                        >
+                          Add donation
+                        </button>
+                      ) : null}
+                      {onAddChai ? (
+                        <button
+                          type="button"
+                          onClick={() => onAddChai(c)}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#d4cfc4] bg-white text-navy"
+                        >
+                          Add Chai entry
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         disabled={isPending}
@@ -1257,18 +1675,25 @@ function DonationsTable({
 
 function DonationDetailRow({ d }: { d: CrmSnapshot['donations'][number] }) {
   return (
-    <DetailGrid
-      pairs={[
-        ['Phone', d.phone],
-        ['Type', d.donation_type],
-        ['Memo', d.memo],
-        ['Campaign', d.campaign],
-        ['Dedication', d.dedication_name],
-        ['Dedication type', d.dedication_type],
-        ['Stripe payment', d.stripe_payment_intent_id],
-        ['Submitted', formatDateTime(d.created_at)],
-      ]}
-    />
+    <>
+      <DetailGrid
+        pairs={[
+          ['Phone', d.phone],
+          ['Type', d.donation_type],
+          ['Memo', d.memo],
+          ['Campaign', d.campaign],
+          ['Dedication', d.dedication_name],
+          ['Dedication type', d.dedication_type],
+          ['Stripe payment', d.stripe_payment_intent_id],
+          ['Submitted', formatDateTime(d.created_at)],
+        ]}
+      />
+      <DeleteCrmEntryButton
+        kind="donation"
+        id={d.id}
+        label={`${d.first_name} ${d.last_name} · ${d.email} · ${formatUsd(Number(d.amount))}`}
+      />
+    </>
   );
 }
 
@@ -1280,6 +1705,7 @@ function DonationDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot })
 
 function ChaiTable({
   rows,
+  snapshot,
   expandedId,
   onToggle,
   sortKey,
@@ -1287,6 +1713,7 @@ function ChaiTable({
   onSort,
 }: {
   rows: CrmSnapshot['chaiPartners'];
+  snapshot: CrmSnapshot;
   expandedId: string | null;
   onToggle: (id: string | null) => void;
 } & SortProps) {
@@ -1326,7 +1753,7 @@ function ChaiTable({
               {open && (
                 <tr className="bg-soft/30">
                   <td colSpan={6} className="px-4 py-4">
-                    <ChaiDetailRow c={c} />
+                    <ChaiDetailRow c={c} snapshot={snapshot} />
                   </td>
                 </tr>
               )}
@@ -1338,8 +1765,33 @@ function ChaiTable({
   );
 }
 
-function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
+function ChaiDetailRow({
+  c,
+  snapshot,
+}: {
+  c: CrmSnapshot['chaiPartners'][number];
+  snapshot: CrmSnapshot;
+}) {
   const address = [c.street_address, c.city, c.state, c.zip].filter(Boolean).join(', ');
+  const isRecurring = Boolean(c.stripe_subscription_id);
+  const payments = snapshot.payments
+    .filter((p) => p.source_type === 'chai_partner' && p.source_id === c.id)
+    .sort(
+      (a, b) =>
+        new Date(b.paid_at || b.created_at).getTime() -
+        new Date(a.paid_at || a.created_at).getTime(),
+    );
+  const latestMethod =
+    payments.find((p) => p.payment_method)?.payment_method ||
+    (isRecurring ? 'Credit Card (Stripe)' : null);
+  const paidThrough =
+    payments.length > 0
+      ? payments.reduce((latest, p) => {
+          const end = paymentCoversThrough(p);
+          return end > latest ? end : latest;
+        }, new Date(0))
+      : null;
+
   return (
     <>
       <DetailGrid
@@ -1347,11 +1799,65 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
           ['Phone', c.phone],
           ['Address', address || null],
           ['Access code', c.access_code],
+          [
+            'Billing',
+            isRecurring ? 'Recurring (Stripe)' : 'Offline (cash / Zelle / etc.)',
+          ],
+          ['Payment method', latestMethod],
+          [
+            'Paid through',
+            !isRecurring && paidThrough && paidThrough.getTime() > 0
+              ? formatDate(paidThrough.toISOString())
+              : isRecurring
+                ? 'Auto-billed monthly'
+                : null,
+          ],
           ['Stripe customer', c.stripe_customer_id],
           ['Stripe subscription', c.stripe_subscription_id],
           ['Joined', formatDateTime(c.created_at)],
         ]}
       />
+
+      {payments.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-muted mb-2">
+            Payments
+          </p>
+          <ul className="space-y-2 text-sm text-[#172643]">
+            {payments.map((p) => {
+              const months = coverageMonthsOf(p);
+              const start = p.paid_at || p.created_at;
+              const end = paymentCoversThrough(p);
+              return (
+                <li
+                  key={p.id}
+                  className="rounded border border-line bg-[#faf8f4] px-3 py-2"
+                >
+                  <span className="font-semibold">{formatUsd(Number(p.amount))}</span>
+                  <span className="text-muted"> · </span>
+                  {p.payment_method || '—'}
+                  <span className="text-muted"> · </span>
+                  {formatDate(start)}
+                  {!isRecurring || months > 1 ? (
+                    <span className="block text-muted text-xs mt-0.5">
+                      Covers {months} month{months === 1 ? '' : 's'}
+                      {months > 1
+                        ? ` · through ${formatDate(end.toISOString())}`
+                        : ''}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted">No payments recorded yet.</p>
+      )}
+
+      {!isRecurring ? <ChaiAddPaymentForm partner={c} /> : null}
+      <ChaiUpdateMonthlyForm partner={c} />
+
       {c.stripe_customer_id && (
         <a
           href={stripeCustomerUrl(c.stripe_customer_id)}
@@ -1359,9 +1865,14 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
           rel="noopener noreferrer"
           className="inline-block mt-3 text-sm text-gold font-semibold"
         >
-          Open in Stripe â†’
+          Open in Stripe →
         </a>
       )}
+      <DeleteCrmEntryButton
+        kind="chai_partner"
+        id={c.id}
+        label={`${c.first_name} ${c.last_name} · ${c.email} · ${formatUsd(Number(c.monthly_amount))}/mo`}
+      />
     </>
   );
 }
@@ -1369,7 +1880,7 @@ function ChaiDetailRow({ c }: { c: CrmSnapshot['chaiPartners'][number] }) {
 function ChaiDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) {
   const c = snapshot.chaiPartners.find((x) => x.id === id);
   if (!c) return null;
-  return <ChaiDetailRow c={c} />;
+  return <ChaiDetailRow c={c} snapshot={snapshot} />;
 }
 
 function ApplicationsTable({
@@ -1402,6 +1913,9 @@ function ApplicationsTable({
           <SortableTh label="Contact" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Children" sortKey="children" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">
+            Event code
+          </th>
           <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Tuition</th>
         </tr>
       </thead>
@@ -1410,6 +1924,9 @@ function ApplicationsTable({
           const primary = f.parents.find((p) => p.is_primary_contact) ?? f.parents[0];
           const status = f.registrations[0]?.status ?? 'unknown';
           const total = f.registrations.reduce((s, r) => s + Number(r.tuition_total ?? 0), 0);
+          const codes = f.registrations
+            .filter((r) => r.fair_access_code)
+            .map((r) => r.fair_access_code as string);
           return (
             <tr
               key={f.id}
@@ -1418,10 +1935,26 @@ function ApplicationsTable({
             >
               <td className="px-4 py-3">{formatDate(f.createdAt)}</td>
               <td className="px-4 py-3 font-medium text-navy">{f.familyName}</td>
-              <td className="px-4 py-3">{primary?.email ?? 'â€”'}</td>
+              <td className="px-4 py-3">{primary?.email ?? '—'}</td>
               <td className="px-4 py-3">{f.children.length}</td>
               <td className="px-4 py-3">
                 <StatusPill status={status} />
+              </td>
+              <td className="px-4 py-3">
+                {codes.length ? (
+                  <div className="space-y-0.5">
+                    {f.registrations
+                      .filter((r) => r.fair_access_code)
+                      .map((r) => (
+                        <div key={r.id} className="font-mono text-xs font-semibold text-gold tracking-wide">
+                          {r.fair_access_code}
+                          <span className="text-muted font-sans font-normal"> · {r.childName.split(' ')[0]}</span>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
               </td>
               <td className="px-4 py-3 font-semibold text-navy">{formatUsd(total)}</td>
             </tr>
@@ -1465,10 +1998,10 @@ function EventsTable({
           >
             <td className="px-4 py-3 font-medium text-navy">{e.title}</td>
             <td className="px-4 py-3">{e.dateLabel ?? formatDateTime(e.startsAt)}</td>
-            <td className="px-4 py-3">{e.time ?? 'â€”'}</td>
+            <td className="px-4 py-3">{e.time ?? '—'}</td>
             <td className="px-4 py-3">{e.rsvpCount}</td>
             <td className="px-4 py-3">{e.guestTotal}</td>
-            <td className="px-4 py-3 text-muted">{e.location ?? 'â€”'}</td>
+            <td className="px-4 py-3 text-muted">{e.location ?? '—'}</td>
           </tr>
         ))}
       </tbody>
@@ -1498,8 +2031,8 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
                 {p.is_primary_contact && (
                   <span className="ml-2 text-[0.6rem] uppercase text-gold font-bold">Primary</span>
                 )}
-                <span className="text-muted"> Â· {p.email ?? 'no email'}</span>
-                {p.phone && <span className="text-muted"> Â· {p.phone}</span>}
+                <span className="text-muted"> · {p.email ?? 'no email'}</span>
+                {p.phone && <span className="text-muted"> · {p.phone}</span>}
                 {p.jewish_status && (
                   <span className="block text-muted text-xs">Jewish status: {p.jewish_status}</span>
                 )}
@@ -1512,20 +2045,35 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
         <div className="mt-4">
           <p className="text-[0.65rem] uppercase tracking-wide text-muted font-bold mb-2">Children</p>
           <ul className="space-y-2 text-sm">
-            {f.children.map((c) => (
-              <li key={c.id} className="text-navy">
-                {c.first_name} {c.last_name}
-                {c.grade && <span className="text-muted"> Â· Grade {c.grade}</span>}
-                {c.hebrew_name && <span className="text-muted"> Â· {c.hebrew_name}</span>}
-                {c.hebrew_level && <span className="text-muted"> Â· Level: {c.hebrew_level}</span>}
-                {c.attended_before && <span className="text-muted"> Â· Attended before: {c.attended_before}</span>}
-                {c.date_of_birth && <span className="text-muted"> Â· DOB: {c.date_of_birth}</span>}
-                {c.born_sunset_timing && <span className="text-muted"> Â· Birth timing: {c.born_sunset_timing}</span>}
-                {c.allergies && (
-                  <span className="block text-xs text-danger">Allergies: {c.allergies}</span>
-                )}
-              </li>
-            ))}
+            {f.children.map((c) => {
+              const reg = f.registrations.find((r) => r.child_id === c.id);
+              return (
+                <li key={c.id} className="text-navy">
+                  {c.first_name} {c.last_name}
+                  {c.grade && <span className="text-muted"> · Grade {c.grade}</span>}
+                  {c.hebrew_name && <span className="text-muted"> · {c.hebrew_name}</span>}
+                  {c.hebrew_level && <span className="text-muted"> · Level: {c.hebrew_level}</span>}
+                  {reg?.fair_access_code && (
+                    <span className="block font-mono text-xs text-gold font-semibold mt-0.5">
+                      Hebrew event code: {reg.fair_access_code}
+                    </span>
+                  )}
+                  {c.attended_before && (
+                    <span className="text-muted"> · Attended before: {c.attended_before}</span>
+                  )}
+                  {c.date_of_birth && <span className="text-muted"> · DOB: {c.date_of_birth}</span>}
+                  {c.hebrew_birthday && (
+                    <span className="text-muted"> · Hebrew birthday: {c.hebrew_birthday}</span>
+                  )}
+                  {c.born_sunset_timing && (
+                    <span className="text-muted"> · Birth timing: {c.born_sunset_timing}</span>
+                  )}
+                  {c.allergies && (
+                    <span className="block text-xs text-danger">Allergies: {c.allergies}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -1537,12 +2085,17 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
           <ul className="space-y-2 text-sm">
             {f.registrations.map((r) => (
               <li key={r.id} className="text-navy">
-                {r.childName} â€” {r.programName}
+                {r.childName} — {r.programName}
                 <StatusPill status={r.status} />
+                {r.fair_access_code && (
+                  <span className="block font-mono text-xs text-gold font-semibold">
+                    Hebrew event code: {r.fair_access_code}
+                  </span>
+                )}
                 {r.payment_plan && (
                   <span className="text-muted text-xs block">
                     Plan: {r.payment_plan}
-                    {r.tuition_total != null && ` Â· ${formatUsd(Number(r.tuition_total))}`}
+                    {r.tuition_total != null && ` · ${formatUsd(Number(r.tuition_total))}`}
                   </span>
                 )}
               </li>
@@ -1558,11 +2111,11 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
             rel="noopener noreferrer"
             className="text-sm text-gold font-semibold"
           >
-            Stripe customer â†’
+            Stripe customer →
           </a>
         )}
         <a href="/admin/registrations" className="text-sm text-gold font-semibold">
-          Billing admin â†’
+          Billing admin →
         </a>
       </div>
     </>
@@ -1613,8 +2166,8 @@ function PaymentsTable({
             <Fragment key={p.id}>
               <tr className="border-b border-line hover:bg-soft/40">
                 <td className="px-4 py-3">{formatDate(date)}</td>
-                <td className="px-4 py-3 font-medium text-navy">{party.name || 'â€”'}</td>
-                <td className="px-4 py-3">{party.email ?? 'â€”'}</td>
+                <td className="px-4 py-3 font-medium text-navy">{party.name || '—'}</td>
+                <td className="px-4 py-3">{party.email ?? '—'}</td>
                 <td className="px-4 py-3">{party.sourceLabel}</td>
                 <td className="px-4 py-3 font-semibold">{formatUsd(Number(p.amount))}</td>
                 <td className="px-4 py-3">
@@ -1667,7 +2220,7 @@ function PaymentDetailRow({
           rel="noopener noreferrer"
           className="inline-block mt-3 text-sm text-gold font-semibold"
         >
-          Open in Stripe â†’
+          Open in Stripe →
         </a>
       )}
     </>
@@ -1683,15 +2236,23 @@ function PaymentDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) 
 function RsvpDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot }) {
   const r = snapshot.rsvps.find((x) => x.id === id);
   if (!r) return null;
+  const mode = resolveEventPeopleMode(r.event_slug);
+  const people = parseEventPeople(r);
+  const money = parseEventMoney(r);
   return (
     <DetailGrid
       pairs={[
         ['Event', r.eventTitle],
         ['Phone', r.phone],
-        ['Guests', String(r.guest_count)],
+        ['People', String(people.guests)],
+        eventShowsAdults(mode) ? ['Adults', String(people.adults ?? 0)] : null,
+        eventShowsKids(mode) ? ['Kids', String(people.kids ?? 0)] : null,
+        money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
+        money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
+        money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
         ['Notes', r.notes],
         ['Submitted', formatDateTime(r.created_at)],
-      ]}
+      ].filter(Boolean) as Array<[string, string | null | undefined]>}
     />
   );
 }
@@ -1700,6 +2261,7 @@ function RsvpsTable({
   rows,
   expandedId,
   onToggle,
+  peopleMode: peopleModeProp,
   sortKey,
   sortDir,
   onSort,
@@ -1707,8 +2269,20 @@ function RsvpsTable({
   rows: CrmSnapshot['rsvps'];
   expandedId: string | null;
   onToggle: (id: string | null) => void;
+  /** When viewing one event, use its configured people mode. */
+  peopleMode?: EventPeopleMode;
 } & SortProps) {
   if (!rows.length) return <EmptyState />;
+
+  const showAdultsCol =
+    peopleModeProp != null
+      ? eventShowsAdults(peopleModeProp)
+      : rows.some((r) => eventShowsAdults(resolveEventPeopleMode(r.event_slug)));
+  const showKidsCol =
+    peopleModeProp != null
+      ? eventShowsKids(peopleModeProp)
+      : rows.some((r) => eventShowsKids(resolveEventPeopleMode(r.event_slug)));
+  const colSpan = 7 + (showAdultsCol ? 1 : 0) + (showKidsCol ? 1 : 0);
 
   return (
     <table className="w-full text-sm">
@@ -1718,13 +2292,29 @@ function RsvpsTable({
           <SortableTh label="Event" sortKey="event" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
           <SortableTh label="Email" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
-          <SortableTh label="Guests" sortKey="guests" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="People" sortKey="guests" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          {showAdultsCol ? (
+            <SortableTh label="Adults" sortKey="adults" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          ) : null}
+          {showKidsCol ? (
+            <SortableTh label="Kids" sortKey="kids" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          ) : null}
+          <SortableTh
+            label="Donation"
+            sortKey="donation"
+            activeKey={sortKey}
+            dir={sortDir}
+            onSort={onSort}
+          />
           <th className="px-4 py-3" />
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => {
           const open = expandedId === r.id;
+          const mode = peopleModeProp ?? resolveEventPeopleMode(r.event_slug);
+          const people = parseEventPeople(r);
+          const money = parseEventMoney(r);
           return (
             <Fragment key={r.id}>
               <tr className="border-b border-line hover:bg-soft/40">
@@ -1733,23 +2323,42 @@ function RsvpsTable({
                 <td className="px-4 py-3">
                   {r.first_name} {r.last_name}
                 </td>
-                <td className="px-4 py-3">{r.email ?? 'â€”'}</td>
-                <td className="px-4 py-3">{r.guest_count}</td>
+                <td className="px-4 py-3">{r.email ?? '—'}</td>
+                <td className="px-4 py-3">{people.guests}</td>
+                {showAdultsCol ? (
+                  <td className="px-4 py-3">
+                    {eventShowsAdults(mode) ? (people.adults ?? 0) : '—'}
+                  </td>
+                ) : null}
+                {showKidsCol ? (
+                  <td className="px-4 py-3">
+                    {eventShowsKids(mode) ? (people.kids ?? 0) : '—'}
+                  </td>
+                ) : null}
+                <td className="px-4 py-3 tabular-nums">
+                  {money.hasMoney ? formatUsd(money.donation) : '—'}
+                </td>
                 <td className="px-4 py-3 text-right">
                   <ExpandButton id={r.id} expandedId={expandedId} onToggle={onToggle} />
                 </td>
               </tr>
               {open && (
                 <tr className="bg-soft/30">
-                  <td colSpan={6} className="px-4 py-4">
+                  <td colSpan={colSpan} className="px-4 py-4">
                     <DetailGrid
                       pairs={[
                         ['Phone', r.phone],
+                        ['People', String(people.guests)],
+                        eventShowsAdults(mode) ? ['Adults', String(people.adults ?? 0)] : null,
+                        eventShowsKids(mode) ? ['Kids', String(people.kids ?? 0)] : null,
+                        money.hasMoney ? ['Tickets', formatUsd(money.ticket)] : null,
+                        money.hasMoney ? ['Donation', formatUsd(money.donation)] : null,
+                        money.hasMoney ? ['Total paid', formatUsd(money.total)] : null,
                         ['Notes', r.notes],
                         ['Event slug', r.event_slug],
                         ['Family linked', r.family_id ? 'Yes' : 'No'],
                         ['Submitted', formatDateTime(r.created_at)],
-                      ]}
+                      ].filter(Boolean) as Array<[string, string | null | undefined]>}
                     />
                   </td>
                 </tr>
@@ -1812,7 +2421,9 @@ function ImportantDatesPanel({
     <div className="p-4">
       <form onSubmit={handleAdd} className="mb-6 p-4 bg-soft/50 rounded-xl border border-line grid md:grid-cols-2 gap-4">
         <p className="md:col-span-2 text-sm text-muted">
-          Track birthdays, yahrzeit, and anniversaries. Hebrew dates can be added for yahrzeit.
+          Birthdays from program registrations appear here automatically. Default sort is by
+          position in the Jewish year (Tishrei → Elul). Use the filter above to show birthdays
+          only.
         </p>
         <label className="flex flex-col gap-1">
           <span className="text-[0.65rem] font-bold uppercase text-navy">Name</span>
@@ -1832,13 +2443,13 @@ function ImportantDatesPanel({
           <input type="date" value={gregorianDate} onChange={(e) => setGregorianDate(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[0.65rem] font-bold uppercase text-navy">Hebrew date (yahrzeit)</span>
-          <input value={hebrewDate} onChange={(e) => setHebrewDate(e.target.value)} placeholder="e.g. 12 Tishrei" />
+          <span className="text-[0.65rem] font-bold uppercase text-navy">Hebrew date</span>
+          <input value={hebrewDate} onChange={(e) => setHebrewDate(e.target.value)} placeholder="e.g. 12/13 Tammuz 5778" />
         </label>
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="text-[0.65rem] font-bold uppercase text-navy">Link to family (optional)</span>
           <select value={familyId} onChange={(e) => setFamilyId(e.target.value)}>
-            <option value="">â€” None â€”</option>
+            <option value="">— None —</option>
             {families.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.familyName}
@@ -1871,6 +2482,7 @@ function ImportantDatesPanel({
               <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <SortableTh label="Type" sortKey="type" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <SortableTh label="Gregorian" sortKey="date" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+              <SortableTh label="In year" sortKey="yearOrder" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <SortableTh label="Hebrew" sortKey="hebrew" activeKey={sortKey} dir={sortDir} onSort={onSort} />
               <th className="px-4 py-3 text-[0.65rem] font-bold uppercase tracking-wide text-muted">Notes</th>
             </tr>
@@ -1880,9 +2492,12 @@ function ImportantDatesPanel({
               <tr key={d.id} className="border-b border-line hover:bg-soft/40">
                 <td className="px-4 py-3 font-medium text-navy">{d.label}</td>
                 <td className="px-4 py-3 capitalize">{d.date_type}</td>
-                <td className="px-4 py-3">{d.gregorian_date ? formatDate(d.gregorian_date) : 'â€”'}</td>
-                <td className="px-4 py-3">{d.hebrew_date ?? 'â€”'}</td>
-                <td className="px-4 py-3">{d.notes ?? 'â€”'}</td>
+                <td className="px-4 py-3">{d.gregorian_date ? formatDate(d.gregorian_date) : '—'}</td>
+                <td className="px-4 py-3 font-medium text-navy">
+                  {formatHebrewAnnualLabel(d.hebrew_date) ?? '—'}
+                </td>
+                <td className="px-4 py-3">{formatHebrewDisplayDate(d.hebrew_date) ?? '—'}</td>
+                <td className="px-4 py-3">{d.notes ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -1924,7 +2539,7 @@ function SubmissionsTable({
               <tr className="border-b border-line hover:bg-soft/40">
                 <td className="px-4 py-3">{formatDateTime(s.created_at)}</td>
                 <td className="px-4 py-3 capitalize">{s.form_type.replace(/_/g, ' ')}</td>
-                <td className="px-4 py-3">{s.email ?? 'â€”'}</td>
+                <td className="px-4 py-3">{s.email ?? '—'}</td>
                 <td className="px-4 py-3 text-right">
                   <ExpandButton id={s.id} expandedId={expandedId} onToggle={onToggle} />
                 </td>
@@ -1939,6 +2554,115 @@ function SubmissionsTable({
                 </tr>
               )}
             </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function LulavOrdersTable({
+  rows,
+  onMarked,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  rows: CrmLulavOrder[];
+  onMarked: () => void;
+} & SortProps) {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [methodById, setMethodById] = useState<Record<string, string>>({});
+  const [errorById, setErrorById] = useState<Record<string, string>>({});
+  const [isPending, startTransition] = useTransition();
+
+  if (!rows.length) return <EmptyState message="No Lulav orders yet." />;
+
+  function markPaid(order: CrmLulavOrder) {
+    const paymentMethod = methodById[order.id] || 'Zelle';
+    setErrorById((prev) => ({ ...prev, [order.id]: '' }));
+    setPendingId(order.id);
+    startTransition(async () => {
+      const result = await markLulavOrderPaid({
+        submissionId: order.id,
+        paymentMethod,
+      });
+      setPendingId(null);
+      if (!result.success) {
+        setErrorById((prev) => ({
+          ...prev,
+          [order.id]: result.error ?? 'Could not mark paid.',
+        }));
+        return;
+      }
+      onMarked();
+    });
+  }
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-line">
+          <SortableTh label="Date" sortKey="date" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Email" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-left font-semibold text-navy">Phone</th>
+          <th className="px-4 py-3 text-left font-semibold text-navy">Qty</th>
+          <SortableTh label="Total" sortKey="amount" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-left font-semibold text-navy">Method</th>
+          <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3 text-left font-semibold text-navy">Mark paid</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((o) => {
+          const busy = isPending && pendingId === o.id;
+          return (
+            <tr key={o.id} className="border-b border-line hover:bg-soft/40 align-top">
+              <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
+              <td className="px-4 py-3 font-medium text-navy">{o.fullName}</td>
+              <td className="px-4 py-3">{o.email || '—'}</td>
+              <td className="px-4 py-3">{o.phone || '—'}</td>
+              <td className="px-4 py-3">{o.quantity || '—'}</td>
+              <td className="px-4 py-3 font-semibold">{formatUsd(o.total)}</td>
+              <td className="px-4 py-3 capitalize">{o.payMethod}</td>
+              <td className="px-4 py-3">
+                <StatusPill status={o.status === 'paid' ? 'Paid' : 'Not paid'} />
+              </td>
+              <td className="px-4 py-3">
+                {o.status === 'paid' ? (
+                  <span className="text-muted text-xs">—</span>
+                ) : (
+                  <div className="flex flex-col gap-1.5 min-w-[11rem]">
+                    <select
+                      value={methodById[o.id] ?? 'Zelle'}
+                      onChange={(e) =>
+                        setMethodById((prev) => ({ ...prev, [o.id]: e.target.value }))
+                      }
+                      className="border border-line rounded-lg px-2 py-1.5 text-sm bg-white"
+                      disabled={busy}
+                    >
+                      {LULAV_OFFLINE_METHODS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => markPaid(o)}
+                      disabled={busy}
+                      className="rounded-lg bg-navy text-white text-xs font-semibold px-3 py-1.5 disabled:opacity-60"
+                    >
+                      {busy ? 'Saving…' : 'Mark paid'}
+                    </button>
+                    {errorById[o.id] ? (
+                      <span className="text-xs text-danger">{errorById[o.id]}</span>
+                    ) : null}
+                  </div>
+                )}
+              </td>
+            </tr>
           );
         })}
       </tbody>

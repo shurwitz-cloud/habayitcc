@@ -1,0 +1,450 @@
+import { logFormSubmission } from '@/lib/admin/form-log';
+import { ensureCrmContact } from '@/lib/admin/ensure-contact';
+import { findFamilyIdByEmail } from '@/lib/families/lookup';
+import { ensureEventBySlug } from '@/lib/events/sync';
+import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
+import {
+  computePaidEventTotal,
+  type CouplesRegistrationData,
+  type DinnerRegistrationData,
+  type FairRegistrationData,
+  type WomensRegistrationData,
+} from '@/lib/events/paid-event-pricing';
+import {
+  getPaidEvent,
+  type PaidEventConfig,
+} from '@/lib/events/paid-events';
+import { appendPaidEventToSheet } from '@/lib/events/paid-event-sheet';
+import { buildReceiptUrl } from '@/lib/donations/receipt-url';
+import { createAdminClient } from '@/lib/supabase/server';
+import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
+import { normalizeDonorEmail } from '@/lib/donations/normalize-donor';
+
+export type PaidEventPersistInput = {
+  slug: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  coverFee: boolean;
+  sponsorAmount: number;
+  paymentIntentId?: string | null;
+  dinner?: DinnerRegistrationData;
+  fair?: FairRegistrationData;
+  womens?: WomensRegistrationData;
+  couples?: CouplesRegistrationData;
+  /** Skip confirmation email (e.g. when recovering duplicates). */
+  skipEmail?: boolean;
+  /** Skip Google Sheet append. */
+  skipSheet?: boolean;
+};
+
+export type PaidEventPersistResult =
+  | {
+      success: true;
+      registrationId: string;
+      receiptUrl?: string;
+      alreadyExisted?: boolean;
+    }
+  | { success: false; error: string };
+
+function buildDetailsSummary(
+  event: PaidEventConfig,
+  dinner?: DinnerRegistrationData,
+  fair?: FairRegistrationData,
+  womens?: WomensRegistrationData,
+  couples?: CouplesRegistrationData,
+  fairLines?: ReturnType<typeof computePaidEventTotal>['fairChildLines'],
+  coupleLines?: ReturnType<typeof computePaidEventTotal>['coupleLines'],
+): string {
+  if ((event.type === 'dinner' || event.type === 'celebration') && dinner) {
+    return `Adults: ${dinner.adults}\nChildren: ${dinner.kids}`;
+  }
+  if (event.type === 'family-fair' && fair) {
+    const lines =
+      fairLines?.map(
+        (l) =>
+          `Child ${l.index}: ${l.free ? 'HaBayit Hebrew (free)' : `$${l.price}`}${l.codeUsed ? ` — code ${l.codeUsed}` : ''}`,
+      ) ?? [];
+    return `Children: ${fair.children.length}\n${lines.join('\n')}`;
+  }
+  if (event.type === 'womens' && womens) {
+    return `Women attending: ${womens.women}`;
+  }
+  if (event.type === 'couples' && couples) {
+    const lines =
+      coupleLines?.map(
+        (l) =>
+          `Couple ${l.index}: $${l.price}${l.member ? ' — HaBayit member' : ''}`,
+      ) ?? [];
+    const code = couples.memberCode?.trim();
+    return [
+      `Couples: ${couples.couples}`,
+      ...lines,
+      code ? `Member code: ${code.toUpperCase()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
+/**
+ * Idempotent paid-event registration write.
+ * Safe to call from the form submit path and from Stripe webhooks.
+ */
+export async function persistPaidEventRegistration(
+  input: PaidEventPersistInput,
+): Promise<PaidEventPersistResult> {
+  const event = getPaidEvent(input.slug);
+  if (!event) return { success: false, error: 'Event not found.' };
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const email = normalizeDonorEmail(input.email);
+  const phone = input.phone.trim();
+  const paymentIntentId = input.paymentIntentId?.trim() || null;
+
+  if (!firstName || !lastName || !email) {
+    return { success: false, error: 'Name and email are required.' };
+  }
+
+  const supabase = createAdminClient();
+
+  const pricing = computePaidEventTotal({
+    event,
+    dinner: input.dinner,
+    fair: input.fair,
+    womens: input.womens,
+    couples: input.couples,
+    sponsorAmount: input.sponsorAmount,
+    coverFee: input.coverFee,
+  });
+
+  const receiptFor = (registrationId: string, alreadyExisted: boolean): PaidEventPersistResult => ({
+    success: true,
+    registrationId,
+    alreadyExisted,
+    receiptUrl:
+      pricing.total > 0
+        ? buildReceiptUrl({
+            name: `${firstName} ${lastName}`,
+            amount: pricing.total,
+            memo: event.title,
+            campaign: event.slug,
+          })
+        : undefined,
+  });
+
+  // Idempotency 1: same Stripe PaymentIntent → never insert twice
+  // (form submit + webhook both call this; without this they race-create doubles).
+  if (paymentIntentId) {
+    const { data: existing, error: existingErr } = await supabase
+      .from('event_registrations')
+      .select('id')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+
+    if (!existingErr && existing?.id) {
+      return receiptFor(existing.id, true);
+    }
+  }
+
+  // Idempotency 2: same email + event in the last 6 hours with no PI or same PI.
+  // Covers race where form inserts before PI column is set / webhook arrives mid-insert.
+  {
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from('event_registrations')
+      .select('id, stripe_payment_intent_id')
+      .eq('event_slug', event.slug)
+      .ilike('email', email)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    for (const row of recent ?? []) {
+      const rowPi = (row.stripe_payment_intent_id as string | null) || null;
+      if (rowPi && paymentIntentId && rowPi !== paymentIntentId) {
+        // Distinct successful payments — allow a second registration.
+        continue;
+      }
+      if (paymentIntentId && !rowPi) {
+        await supabase
+          .from('event_registrations')
+          .update({ stripe_payment_intent_id: paymentIntentId })
+          .eq('id', row.id);
+      }
+      return receiptFor(row.id as string, true);
+    }
+  }
+
+  const eventId = await ensureEventBySlug(event.slug);
+  if (!eventId) {
+    return { success: false, error: 'Could not save registration. Please contact us.' };
+  }
+
+  const detailsSummary = buildDetailsSummary(
+    event,
+    input.dinner,
+    input.fair,
+    input.womens,
+    input.couples,
+    pricing.fairChildLines,
+    pricing.coupleLines,
+  );
+
+  const guestCount =
+    event.type === 'dinner' || event.type === 'celebration'
+      ? (input.dinner?.adults ?? 0) + (input.dinner?.kids ?? 0)
+      : event.type === 'family-fair'
+        ? (input.fair?.children.length ?? 0)
+        : event.type === 'couples'
+          ? (input.couples?.couples ?? 1)
+          : (input.womens?.women ?? 1);
+
+  const familyId = await findFamilyIdByEmail(email);
+
+  const dinnerDetails =
+    event.type === 'dinner' || event.type === 'celebration'
+      ? {
+          adults: Math.max(0, Number(input.dinner?.adults) || 0),
+          kids: Math.max(0, Number(input.dinner?.kids) || 0),
+        }
+      : input.dinner;
+
+  const registrationDetails = {
+    type: event.type,
+    dinner: dinnerDetails,
+    fair: input.fair,
+    womens: input.womens,
+    couples: input.couples,
+    fairChildLines: pricing.fairChildLines,
+    coupleLines: pricing.coupleLines,
+    ticketSubtotal: pricing.ticketSubtotal,
+    coverFee: input.coverFee,
+  };
+
+  const row: Record<string, unknown> = {
+    event_id: eventId,
+    event_slug: event.slug,
+    family_id: familyId,
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    phone: phone || null,
+    guest_count: Math.max(1, guestCount),
+    notes: detailsSummary || null,
+    amount: pricing.total,
+    sponsor_amount: pricing.sponsorAmount,
+    card_fee: pricing.cardFee,
+    stripe_payment_intent_id: paymentIntentId,
+    registration_details: registrationDetails,
+  };
+
+  // IMPORTANT: select only columns that always exist. Selecting `amount` when
+  // migration 0012 is missing causes the whole insert to fail after fallback strips it.
+  const regResult = await insertWithSchemaFallback(row, async (payload) =>
+    supabase.from('event_registrations').insert(payload).select('id').single(),
+  );
+
+  if (regResult.error || !regResult.data) {
+    // Race: form + webhook both inserted — treat as success if a matching row exists.
+    if (paymentIntentId) {
+      const { data: raced } = await supabase
+        .from('event_registrations')
+        .select('id')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .maybeSingle();
+      if (raced?.id) return receiptFor(raced.id, true);
+    }
+    {
+      const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+      const { data: racedEmail } = await supabase
+        .from('event_registrations')
+        .select('id')
+        .eq('event_slug', event.slug)
+        .ilike('email', email)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (racedEmail?.id) return receiptFor(racedEmail.id, true);
+    }
+
+    console.error('[paid event] insert error:', regResult.error);
+    return { success: false, error: 'Could not save registration. Please try again.' };
+  }
+
+  const registrationId = (regResult.data as { id: string }).id;
+
+  await logFormSubmission({
+    formType: 'rsvp',
+    email,
+    sourceId: registrationId,
+    payload: {
+      slug: event.slug,
+      eventTitle: event.title,
+      firstName,
+      lastName,
+      email,
+      phone,
+      coverFee: input.coverFee,
+      sponsorAmount: input.sponsorAmount,
+      paymentIntentId,
+      dinner: input.dinner,
+      fair: input.fair,
+      womens: input.womens,
+      couples: input.couples,
+      pricing,
+      recovered: false,
+    },
+  });
+
+  await ensureCrmContact({
+    firstName,
+    lastName,
+    email,
+    phone,
+    interest: event.title,
+    note: `--- ${event.title} ---\n${detailsSummary}\nTotal: $${pricing.total.toFixed(2)}`,
+    isResolved: true,
+  });
+
+  // Best-effort payments ledger row
+  if (paymentIntentId && pricing.total > 0) {
+    try {
+      const { data: existingPay } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .maybeSingle();
+      if (!existingPay) {
+        await supabase.from('payments').insert({
+          source_type: 'event_registration',
+          source_id: registrationId,
+          amount: pricing.total,
+          stripe_payment_intent_id: paymentIntentId,
+          status: 'succeeded',
+          paid_at: new Date().toISOString(),
+        });
+      }
+    } catch (payErr) {
+      console.error('[paid event] payments ledger insert failed:', payErr);
+    }
+  }
+
+  if (!input.skipSheet) {
+    try {
+      await appendPaidEventToSheet({
+        event,
+        firstName,
+        lastName,
+        email,
+        phone,
+        dinner: input.dinner,
+        fair: input.fair,
+        womens: input.womens,
+        couples: input.couples,
+        fairChildLines: pricing.fairChildLines,
+        coupleLines: pricing.coupleLines,
+        ticketSubtotal: pricing.ticketSubtotal,
+        sponsorAmount: pricing.sponsorAmount,
+        cardFee: pricing.cardFee,
+        total: pricing.total,
+        coverFee: input.coverFee,
+        paymentMethod: paymentIntentId ? 'Card' : undefined,
+        paymentId: paymentIntentId,
+        notes: detailsSummary,
+      });
+    } catch (sheetErr) {
+      console.error('[paid event] Sheets append failed:', sheetErr);
+    }
+  }
+
+  const receiptUrl =
+    pricing.total > 0
+      ? buildReceiptUrl({
+          name: `${firstName} ${lastName}`,
+          amount: pricing.total,
+          memo: event.title,
+          campaign: event.slug,
+        })
+      : undefined;
+
+  if (!input.skipEmail) {
+    try {
+      await sendPaidEventConfirmationEmail({
+        event,
+        firstName,
+        lastName,
+        email,
+        phone,
+        pricing,
+        detailsSummary,
+        receiptUrl,
+      });
+    } catch (emailErr) {
+      console.error('[paid event] email failed:', emailErr);
+    }
+  }
+
+  return { success: true, registrationId, receiptUrl };
+}
+
+/** Rebuild persist input from Stripe PaymentIntent metadata. */
+export function paidEventInputFromPaymentIntentMetadata(
+  meta: Record<string, string>,
+  paymentIntentId: string,
+): PaidEventPersistInput | null {
+  const slug = meta.event_slug?.trim();
+  if (!slug || meta.type !== 'paid_event_registration') return null;
+
+  const email = meta.donor_email?.trim();
+  const donorName = meta.donor_name?.trim() || '';
+  const parts = donorName.split(/\s+/);
+  const firstName = meta.first_name?.trim() || parts[0] || '';
+  const lastName = meta.last_name?.trim() || parts.slice(1).join(' ') || '';
+  if (!email || !firstName) return null;
+
+  const women = Number(meta.women || meta.guest_count || 1);
+  const adults = Number(meta.adults || 0);
+  const kids = Number(meta.kids || 0);
+  const fairChildren = Number(meta.fair_children || 0);
+  const couples = Number(meta.couples || 0);
+
+  const event = getPaidEvent(slug);
+  if (!event) return null;
+
+  return {
+    slug,
+    firstName,
+    lastName,
+    email,
+    phone: meta.phone?.trim() || '',
+    coverFee: meta.cover_fee === '1' || meta.cover_fee === 'true',
+    sponsorAmount: Number(meta.sponsor_amount || 0) || 0,
+    paymentIntentId,
+    dinner:
+      event.type === 'dinner' || event.type === 'celebration'
+        ? { adults: Math.max(0, adults), kids: Math.max(0, kids) }
+        : undefined,
+    fair:
+      event.type === 'family-fair'
+        ? {
+            children: Array.from({ length: Math.max(1, fairChildren) }, () => ({
+              hebrewCode: '',
+            })),
+          }
+        : undefined,
+    womens: event.type === 'womens' ? { women: Math.max(1, women) } : undefined,
+    couples:
+      event.type === 'couples'
+        ? {
+            couples: Math.max(1, couples),
+            memberCode: meta.member_code?.trim() || undefined,
+            memberDiscount: meta.member_discount === '1' || meta.member_discount === 'true',
+          }
+        : undefined,
+  };
+}

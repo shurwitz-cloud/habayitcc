@@ -4,6 +4,7 @@ import { logFormSubmission } from '@/lib/admin/form-log';
 import { createAdminClient } from '@/lib/supabase/server';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
+import { applyHebrewBirthdayForChild } from '@/lib/hebrew-birthday/apply-child-hebrew-birthday';
 import { bmxRegistrationRow } from '@/lib/google/sheets';
 import { BMX_NAME, BMX_PATH, BMX_SLUG } from '@/lib/programs/names';
 import { stripe } from '@/lib/stripe/server';
@@ -377,6 +378,22 @@ export async function submitBmxRegistration(
           success: false,
           error: `Could not save information for ${child.firstName}. Please contact us.`,
         };
+      }
+
+      if (child.dateOfBirth) {
+        try {
+          await applyHebrewBirthdayForChild({
+            childId: childRowData.id,
+            familyId: family.id,
+            firstName: child.firstName,
+            lastName: child.lastName,
+            dateOfBirth: child.dateOfBirth,
+            bornSunsetTiming: child.bornBeforeSunset || null,
+            bornBeforeSunset: child.bornBeforeSunset === 'before',
+          });
+        } catch (err) {
+          console.error('[registration] hebrew birthday lookup failed:', err);
+        }
       }
 
       const tuitionTotal = getBmxSessionTuition(

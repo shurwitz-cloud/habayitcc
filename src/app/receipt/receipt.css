@@ -390,3 +390,84 @@
 .pay-thanks {
   font-size: 11pt;
 }
+
+/* Payment receipt mobile fit — screen-only, scoped to .pay-scope; donation receipt, desktop and print untouched */
+@media screen and (max-width: 860px) {
+  .pay-scope {
+    padding: 16px 8px 40px;
+    overflow-x: hidden;
+  }
+
+  .pay-scope .receipt-print-bar,
+  .pay-scope .receipt-page {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pay-scope .receipt-page {
+    min-height: 0;
+  }
+
+  .pay-scope .receipt-letterhead {
+    padding-top: 28px;
+  }
+
+  .pay-scope .receipt-bh {
+    top: 28px;
+    right: 16px;
+  }
+
+  .pay-scope .receipt-letterhead-inner {
+    margin: 0 16px;
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+
+  .pay-scope .receipt-letterhead-inner img {
+    width: 56px;
+  }
+
+  .pay-scope .receipt-letterhead-name {
+    font-size: 12.5pt;
+    white-space: normal;
+  }
+
+  .pay-scope .receipt-letterhead-rule {
+    margin: 0 16px;
+  }
+
+  .pay-scope .receipt-body {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding-top: 22px;
+  }
+
+  .pay-scope .receipt-bottom {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding-top: 0.2in;
+    padding-bottom: 28px;
+  }
+
+  .pay-scope .pay-head {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .pay-scope .pay-title {
+    font-size: 14pt;
+  }
+
+  .pay-scope .pay-table {
+    font-size: 10.5pt;
+  }
+
+  .pay-scope .pay-table th {
+    padding: 0 4px 4px;
+  }
+
+  .pay-scope .pay-table td {
+    padding: 6px 4px;
+  }
+}

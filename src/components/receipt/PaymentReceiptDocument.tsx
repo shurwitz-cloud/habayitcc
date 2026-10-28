@@ -36,7 +36,7 @@ export function PaymentReceiptDocument({
   note,
 }: PaymentReceiptDocumentProps) {
   return (
-    <div className="receipt-root">
+    <div className="receipt-root pay-scope">
       <div className="receipt-print-bar">
         <ReceiptPrintButton />
       </div>

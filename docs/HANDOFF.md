@@ -31,3 +31,11 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 - Admin CRM/attendance//app GET loaders WRITE to the production DB. Never
   load them from a preview that shares production env. Test allowlist:
   /, /events, /donate, /invoice/*, /payment-receipt. No form submissions.
+
+## Sync plan (prepared, pending go-live approval)
+- Preferred: single squash commit atop `main` bringing it to the integrated-preview-clean tree.
+- Reviewed in two layers: (1) origin/main -> restored-live tree = the code production already runs
+  (public pages verified byte-identical vs live); (2) restored tree -> integrated branch = the small
+  reviewed delta (receipt feature, invoice env relocation, privacy scrubs, EXIF-stripped photos,
+  gate, docs, mobile fit).
+- Cursor handoff after push: `git pull` on main; working tree then matches live + feature; commit normally.

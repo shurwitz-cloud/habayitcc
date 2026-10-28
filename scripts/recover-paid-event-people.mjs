@@ -2,7 +2,7 @@
  * Recover one or more paid-event people into CRM (one row each) + confirmation + apology.
  *
  *   npx vercel env run -e production -- node scripts/recover-paid-event-people.mjs \
- *     adi_sagie@hotmail.com rebecca.greenberg3@gmail.com
+ *     person1@example.com person2@example.com
  */
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';

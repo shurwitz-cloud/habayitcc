@@ -7,7 +7,17 @@
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
-const EMAIL = 'adi_sagie@hotmail.com';
+const EMAIL = (
+  process.argv.slice(2).find((a) => a.includes('@')) ||
+  process.env.RECOVER_EMAIL ||
+  ''
+)
+  .trim()
+  .toLowerCase();
+if (!EMAIL) {
+  console.error('Usage: node scripts/recover-adi-sagie.mjs <email>');
+  process.exit(1);
+}
 const EVENT_SLUG = 'pre-rosh-hashana-womens';
 const DRY_RUN = process.argv.includes('--dry-run');
 const SEND_EMAIL = !process.argv.includes('--no-email');

@@ -7,19 +7,6 @@ import { repairUnknownContactNames } from '@/lib/admin/repair-unknown-contacts';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const SAMPLE = [
-  'scdalmao@gmail.com',
-  'chayale93@gmail.com',
-  'adrian@amgad.com',
-  'yakovbren@gmail.com',
-  'gurshrenker@gmail.com',
-  'etaitarazi@yahoo.com',
-  'adir@adiry.com',
-  'zev@renegadefurniture.com',
-  'pessyr@gmail.com',
-  'tamir@noetic.io',
-];
-
 async function runRepair() {
   const [partners, orphans] = await Promise.all([
     repairChaiPartnerNames(),
@@ -33,7 +20,8 @@ async function runRepair() {
   };
 }
 
-/** GET — diagnose; pass ?apply=1 to run name repair (admin session). */
+/** GET — diagnose; pass ?apply=1 to run name repair (admin session).
+ *  Optional ?emails=a@x.com,b@y.com limits the per-address lookup rows. */
 export async function GET(req: NextRequest) {
   const denied = await requireCapabilityApi('stripe_tools');
   if (denied) return denied;
@@ -53,7 +41,12 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const rows = [];
 
-  for (const email of SAMPLE) {
+  const emails = (req.nextUrl.searchParams.get('emails') || '')
+    .split(/[,;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.includes('@'));
+
+  for (const email of emails) {
     const { data: partners } = await supabase
       .from('chai_partners')
       .select('id, first_name, last_name, email, status, created_at')

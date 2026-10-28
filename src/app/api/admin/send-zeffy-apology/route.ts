@@ -4,30 +4,12 @@ import { buildEmailHtml, getFromEmail, sendEmail } from '@/lib/email/client';
 
 export const dynamic = 'force-dynamic';
 
-/** Everyone who got the false welcome email. */
-const ALL_AFFECTED = [
-  'jackshamah@gmail.com',
-  'scdalmao@gmail.com',
-  'chayale93@gmail.com',
-  'devoraraitman@gmail.com',
-  'slavyhur@gmail.com',
-  'adrian@amgad.com',
-  'yakovbren@gmail.com',
-  'jordyn.tarazi@gmail.com',
-  'gurshrenker@gmail.com',
-  'etaitarazi@yahoo.com',
-  'adir@adiry.com',
-  'zev@renegadefurniture.com',
-  'tamir@noetic.io',
-  'pessyr@gmail.com',
-];
-
 /**
  * One-shot apology for the false Chai Partner welcome emails.
  * POST /api/admin/send-zeffy-apology
- * Body: { confirm: true, only?: "email@..." | ["email@...", ...] }
+ * Body: { confirm: true, only: "email@..." | ["email@...", ...] } (required)
  *
- * Bulk (no `only`) skips tamir/pessyr. Explicit `only` can include them.
+ * No recipient list is stored in the repo; pass the affected addresses explicitly.
  */
 export async function POST(req: Request) {
   const denied = await requireCapabilityApi('crm_finance');
@@ -52,24 +34,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Pass { confirm: true }.' }, { status: 400 });
   }
 
-  const allowed = new Set(ALL_AFFECTED.map((e) => e.toLowerCase()));
-  let targets: string[];
-
-  if (onlyList.length > 0) {
-    const invalid = onlyList.filter((e) => !allowed.has(e));
-    if (invalid.length) {
-      return NextResponse.json(
-        { error: `Address(es) not on affected list: ${invalid.join(', ')}` },
-        { status: 400 }
-      );
-    }
-    targets = onlyList;
-  } else {
-    // Bulk: historical default — omit the two held back earlier
-    targets = ALL_AFFECTED.filter(
-      (e) => e !== 'tamir@noetic.io' && e !== 'pessyr@gmail.com'
+  if (onlyList.length === 0) {
+    return NextResponse.json(
+      { error: 'Pass { confirm: true, only: [...] } with the affected addresses.' },
+      { status: 400 }
     );
   }
+  const targets = onlyList;
 
   const subject = 'Re: Thank you for becoming a HaBayit Chai Partner';
   const html = buildEmailHtml(`

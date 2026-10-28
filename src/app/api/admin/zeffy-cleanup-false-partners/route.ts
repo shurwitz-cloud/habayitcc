@@ -4,29 +4,14 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-/** Exact emails from the Jul 20 Zeffy import glitch. */
-const FALSE_IMPORT_EMAILS = [
-  'jackshamah@gmail.com',
-  'scdalmao@gmail.com',
-  'chayale93@gmail.com',
-  'devoraraitman@gmail.com',
-  'slavyhur@gmail.com',
-  'adrian@amgad.com',
-  'yakovbren@gmail.com',
-  'jordyn.tarazi@gmail.com',
-  'gurshrenker@gmail.com',
-  'etaitarazi@yahoo.com',
-  'adir@adiry.com',
-  'zev@renegadefurniture.com',
-  'tamir@noetic.io',
-  'pessyr@gmail.com',
-];
-
 /**
  * Remove false Chai Partners created by the Zeffy import glitch.
  *
  * POST /api/admin/zeffy-cleanup-false-partners
- * Body: { confirm: true, dryRun?: boolean, hardDelete?: boolean }
+ * Body: { confirm: true, dryRun?: boolean, hardDelete?: boolean, emails?: string[] }
+ *
+ * Matches placeholder "Friend Partner" rows by name pattern; `emails` narrows the
+ * search to specific addresses. No addresses are stored in the repo.
  *
  * Default: cancel status. hardDelete: true removes partner + zeffy: payment rows.
  */
@@ -37,15 +22,20 @@ export async function POST(req: NextRequest) {
   let confirm = false;
   let dryRun = true;
   let hardDelete = false;
+  let emailFilter: string[] = [];
   try {
     const body = (await req.json()) as {
       confirm?: boolean;
       dryRun?: boolean;
       hardDelete?: boolean;
+      emails?: string[];
     };
     confirm = body.confirm === true;
     dryRun = body.dryRun !== false;
     hardDelete = body.hardDelete === true;
+    emailFilter = Array.isArray(body.emails)
+      ? body.emails.filter((e): e is string => typeof e === 'string' && e.includes('@')).map((e) => e.trim().toLowerCase())
+      : [];
   } catch {
     // defaults
   }
@@ -72,15 +62,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errName.message }, { status: 500 });
   }
 
-  const { data: byEmail, error: errEmail } = await supabase
-    .from('chai_partners')
-    .select('id, email, first_name, last_name, monthly_amount, status, created_at')
-    .in('email', FALSE_IMPORT_EMAILS)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false });
-
-  if (errEmail) {
-    return NextResponse.json({ error: errEmail.message }, { status: 500 });
+  let byEmail: typeof byName = [];
+  if (emailFilter.length > 0) {
+    const { data, error: errEmail } = await supabase
+      .from('chai_partners')
+      .select('id, email, first_name, last_name, monthly_amount, status, created_at')
+      .in('email', emailFilter)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false });
+    if (errEmail) {
+      return NextResponse.json({ error: errEmail.message }, { status: 500 });
+    }
+    byEmail = data;
   }
 
   const byId = new Map<string, (typeof byName extends (infer T)[] | null ? T : never)>();

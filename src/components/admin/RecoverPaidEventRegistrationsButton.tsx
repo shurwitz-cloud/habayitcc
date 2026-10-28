@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
-const DEFAULT_EMAILS = ['adi_sagie@hotmail.com', 'rebecca.greenberg3@gmail.com'];
+const DEFAULT_EMAILS: string[] = [];
 
 /**
  * CRM tools for paid-event Stripe recovery and duplicate cleanup.

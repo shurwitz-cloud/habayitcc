@@ -42,29 +42,36 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   gate, docs, mobile fit).
 - Cursor handoff: `git pull` on main; working tree then matches live; commit normally.
 - Rollback: Vercel Instant Rollback to dpl_B2qJZ4BcSASyVAgbbYYNjcjWHGbg (retained, READY).
-## Pending review (branch receipt-dates-et, not yet pushed)
-- Receipt date timezone fix: all donor-facing receipt dates now format in
-  America/New_York via `src/lib/donations/receipt-date.ts` (was runtime-local;
-  UTC runtimes rolled evening gifts to the next day). Receipt page/link
-  builders use it; legacy signed links render byte-identical dates.
-- Exact-link receipt corrections: a new `receipt_corrections` table
-  (migration 0020; sig + donation UUID only, no donor PII, service-role only)
-  lets an admin make ONE already-sent signed link render its payment's real
-  ET date. The receipt page checks the verified signature against that table
-  and fails closed to the original rendering on any miss, error, or
-  link/donation mismatch; every other link is untouched.
-- New admin route `/api/admin/receipt-corrections`: GET dry-run reconstructs
-  the original (UTC-dated) link params + signature for a donation so the
-  reconstruction can be proven against the actually-sent link first; POST
-  records the mapping, refuses when a provided expectedSig does not match,
-  and never overwrites a mapping bound to a different donation. No email is
-  sent anywhere in this flow.
-- Admin `correct-donation-paid-at` now keeps the donation memo on corrected
+## Receipt date fix + exact-link corrections (SHIPPED 2026-10-29)
+- main = f57dd4b (squash of reviewed branch receipt-dates-et; squash tree
+  byte-identical to the tested branch tree). Production rebuilt on merge and
+  serves it (Vercel auto-promote, deploy Ready).
+- All donor-facing receipt dates format in America/New_York via
+  `src/lib/donations/receipt-date.ts` (was runtime-local; UTC runtimes rolled
+  evening gifts to the next day). Receipt page and link builders use it;
+  legacy signed links render byte-identical dates.
+- Exact-link receipt corrections: `receipt_corrections` table (migration 0020,
+  applied to production 2026-10-29; sig + donation UUID only, no donor PII,
+  service-role only, RLS enabled, anon/authenticated revoked). Lets an admin
+  make ONE already-sent signed link render its payment's real ET date. The
+  receipt page checks the verified signature against that table and fails
+  closed to the original rendering on any miss, error, or link/donation
+  mismatch; every other link is untouched. No email is sent in this flow.
+- Admin route `/api/admin/receipt-corrections`: GET dry-run reconstructs the
+  original link params + signature for a donation so reconstruction is proven
+  against the actually-sent link first; POST records the mapping, refuses a
+  mismatched expectedSig, and never rebinds a mapping to another donation.
+- First production correction recorded 2026-10-29 for one evening gift:
+  dry-run matched the sent link's signature, then a single confirm POST.
+  The donor's existing link (unchanged URL) now renders the true ET date;
+  admin sent-mail log confirms no new email.
+- Admin `correct-donation-paid-at` keeps the donation memo on corrected
   receipt links (shared `bareDonationMemo` helper). No email behavior changed.
-- Apply order at deploy: run migration 0020, deploy, then record any
-  correction via the admin route (dry-run first against the sent link's sig).
-- Verify: `npx tsc --noEmit`; date/parse/sig/memo/correction behavior tests
-  (see PR notes).
+- Test state at ship: `npx tsc --noEmit` clean; 37 date/parse/sig/memo unit
+  checks pass across UTC/ET/Asia runtime zones; 30 e2e route/table checks
+  pass in an isolated mock DB (incl. idempotency, conflict, unauthorized,
+  missing-table fail-closed); corrected receipt verified visually on preview
+  and again on production after deploy.
 
 - Known pending items: /zeffy redirect restoration (PR #4, offline since the Oct 23 rollback);
   teacher login Hebrew-Adventure-only scoping + office@habayitcc.org all-programs login (not yet

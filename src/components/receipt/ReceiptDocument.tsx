@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { ReceiptPrintButton } from '@/app/receipt/ReceiptPrintButton';
 import { getAnnualReceiptDensity } from '@/lib/donations/receipt-layout';
 import { formatReceiptMethod } from '@/lib/donations/receipt-method';
+import { formatReceiptDateLong } from '@/lib/donations/receipt-date';
 import {
   formatReceiptAmount,
   sumReceiptLines,
@@ -13,11 +14,7 @@ function defaultLetterDate(variant: 'single' | 'annual', taxYear?: number): stri
   if (variant === 'annual' && taxYear) {
     return `December 31, ${taxYear}`;
   }
-  return new Date().toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatReceiptDateLong(new Date());
 }
 
 function bodyCopy(variant: 'single' | 'annual', taxYear?: number): string {

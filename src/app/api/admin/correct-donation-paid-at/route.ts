@@ -6,6 +6,7 @@ import {
   buildChaiPartnerReceiptUrl,
 } from '@/lib/email/donation-receipt';
 import { receiptMethodFromDonationType } from '@/lib/donations/receipt-method';
+import { bareDonationMemo } from '@/lib/donations/receipt-correction';
 
 export const dynamic = 'force-dynamic';
 
@@ -282,12 +283,14 @@ export async function POST(req: NextRequest) {
         donation.donation_type === 'Monthly' ? 'Monthly' : 'One-Time',
       ));
 
+  const memo = bareDonationMemo(donation.memo);
   const receiptUrl = buildAbsoluteReceiptUrl({
     name: `${donation.first_name} ${donation.last_name}`.trim(),
     amount: Number(donation.amount),
     date: paidAtDate,
     campaign: donation.campaign,
     method,
+    memo,
   });
 
   return NextResponse.json({

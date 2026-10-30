@@ -7,6 +7,11 @@ import {
   verifyReceiptSearchParams,
 } from '@/lib/donations/receipt-url';
 import { resolveChaiPartnerReceiptPaidAt } from '@/lib/donations/resolve-chai-receipt-date';
+import {
+  formatReceiptDate,
+  parseReceiptLinkDates,
+} from '@/lib/donations/receipt-date';
+import { resolveReceiptCorrection } from '@/lib/donations/receipt-correction';
 import type { ReceiptLine } from '@/lib/donations/receipt-types';
 
 export const metadata: Metadata = {
@@ -53,12 +58,28 @@ export default async function ReceiptPage({
     method,
   });
 
-  const crmPaidAt = await resolveChaiPartnerReceiptPaidAt({
-    name,
-    amount: Number.isNaN(amount) ? 0 : amount,
-    campaign,
-  });
-  const dates = parseDates(crmPaidAt ? formatReceiptDate(crmPaidAt) : dateRaw);
+  // An admin-recorded correction binds this exact signed link (by verified
+  // signature) to one payment. When present, render that payment's real ET
+  // date; everything else about the link is untouched.
+  const sig = readReceiptParam(params.sig);
+  const correction =
+    sig && !Number.isNaN(amount)
+      ? await resolveReceiptCorrection({ sig, name, amount, method, campaign })
+      : null;
+
+  const crmPaidAt = correction
+    ? null
+    : await resolveChaiPartnerReceiptPaidAt({
+        name,
+        amount: Number.isNaN(amount) ? 0 : amount,
+        campaign,
+      });
+  const dateForReceipt = correction
+    ? formatReceiptDate(correction.paidAt)
+    : crmPaidAt
+      ? formatReceiptDate(crmPaidAt)
+      : dateRaw;
+  const dates = parseReceiptLinkDates(dateForReceipt);
   const line: ReceiptLine = {
     date: dates.short,
     memo,
@@ -74,63 +95,4 @@ export default async function ReceiptPage({
       variant="single"
     />
   );
-}
-
-function formatReceiptDate(date: Date): string {
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
-}
-
-function parseDates(raw: string | undefined): { long: string; short: string } {
-  const fallback = new Date();
-  if (!raw?.trim()) {
-    return {
-      long: fallback.toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-      short: formatReceiptDate(fallback),
-    };
-  }
-
-  // Prefer explicit MM/DD/YYYY from receipt links (avoid locale parse quirks).
-  const mdy = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdy) {
-    const month = Number(mdy[1]);
-    const day = Number(mdy[2]);
-    const year = Number(mdy[3]);
-    const parsed = new Date(year, month - 1, day);
-    if (
-      !Number.isNaN(parsed.getTime()) &&
-      parsed.getFullYear() === year &&
-      parsed.getMonth() === month - 1 &&
-      parsed.getDate() === day
-    ) {
-      return {
-        long: parsed.toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
-        }),
-        short: formatReceiptDate(parsed),
-      };
-    }
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return { long: raw, short: raw };
-  }
-
-  return {
-    long: parsed.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    }),
-    short: formatReceiptDate(parsed),
-  };
 }

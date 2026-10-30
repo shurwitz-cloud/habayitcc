@@ -159,6 +159,13 @@ export interface ChaiEventCodeRedemption {
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export type DedicationType = 'honor' | 'memory';
 
+export interface ReceiptCorrection {
+  id: string;
+  original_sig: string;
+  donation_id: string;
+  created_at: string;
+}
+
 export interface Donation {
   [key: string]: unknown;
   id: string;
@@ -444,6 +451,11 @@ export interface Database {
         Update: Partial<ChaiEventCodeRedemption>;
       };
       donations: { Row: Donation; Insert: Insertable<Donation>; Update: Partial<Insertable<Donation>> };
+      receipt_corrections: {
+        Row: ReceiptCorrection;
+        Insert: Insertable<ReceiptCorrection>;
+        Update: Partial<Insertable<ReceiptCorrection>>;
+      };
       chai_partners: {
         Row: ChaiPartner;
         Insert: Insertable<ChaiPartner>;
@@ -514,4 +526,4 @@ export interface Database {
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
-}
+  }

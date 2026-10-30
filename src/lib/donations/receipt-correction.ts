@@ -136,4 +136,4 @@ export async function resolveReceiptCorrection(input: {
     console.warn('[receipt] correction lookup failed; rendering original link', err);
     return null;
   }
-      }
+}

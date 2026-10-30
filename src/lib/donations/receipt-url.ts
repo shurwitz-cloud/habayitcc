@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { DedicationType } from '@/types/database';
+import { formatReceiptDate } from './receipt-date';
 import {
   DEFAULT_DONATION_MEMO,
   formatReceiptMemo,
@@ -60,13 +61,6 @@ function signReceiptPayloadWithSecret(payload: string, secret: string): string {
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-}
-
-function formatReceiptDate(date: Date): string {
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
 }
 
 function canonicalReceiptPayload(params: {
@@ -195,6 +189,22 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
   }
 
   return `/receipt?${search.toString()}`;
+}
+
+/**
+ * Compute the signature for one explicit, already-formatted parameter set.
+ * Used by admin correction tooling to reproduce the exact signature of a link
+ * that was already sent. `amount`/`date` must be the final string values.
+ */
+export function computeReceiptSig(params: {
+  name: string;
+  amount: string;
+  date: string;
+  method: string;
+  campaign?: string;
+  memo?: string;
+}): string {
+  return signReceiptPayload(canonicalReceiptPayload(params));
 }
 
 export function verifyReceiptSearchParams(

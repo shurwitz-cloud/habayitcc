@@ -254,6 +254,7 @@ export interface Contact {
   interest: string | null;
   message: string | null;
   is_resolved: boolean;
+  spouse_contact_id?: string | null;
   created_at: string;
 }
 

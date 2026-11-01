@@ -666,6 +666,53 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
   return snapshot;
 }
 
+/**
+ * Link or unlink two existing contacts as spouses. Both directions are
+ * written atomically in the database (see migration 0021); linking refuses
+ * when either contact is already linked, so no link is ever replaced
+ * silently. Relationship marker only - no effect on donations, emails,
+ * receipts, or any sync/dedupe flow.
+ */
+export async function setContactSpouse(
+  contactId: string,
+  spouseId: string | null,
+): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+
+  const supabase = createAdminClient();
+  if (spouseId === null) {
+    const { error } = await supabase.rpc('clear_contact_spouse', {
+      p_contact: contactId,
+    });
+    if (error) {
+      console.error('setContactSpouse(clear):', error);
+      return { success: false, error: 'Could not remove the spouse link.' };
+    }
+  } else {
+    const { error } = await supabase.rpc('set_contact_spouse', {
+      p_contact: contactId,
+      p_spouse: spouseId,
+    });
+    if (error) {
+      console.error('setContactSpouse(link):', error);
+      const msg = error.message || '';
+      if (msg.includes('already linked')) {
+        return {
+          success: false,
+          error: 'One of these contacts is already linked to someone else. Unlink that first.',
+        };
+      }
+      if (msg.includes('itself')) {
+        return { success: false, error: 'Cannot link a contact to itself.' };
+      }
+      return { success: false, error: 'Could not save the spouse link.' };
+    }
+  }
+
+  revalidatePath('/admin/crm');
+  return { success: true };
+}
+
 export async function setContactResolved(
   contactId: string,
   resolved: boolean,

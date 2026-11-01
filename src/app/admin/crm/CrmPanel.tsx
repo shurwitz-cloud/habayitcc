@@ -55,7 +55,8 @@ import {
   stripeCustomerUrl,
   stripePaymentUrl,
 } from '@/lib/admin/crm/utils';
-import { setContactResolved, addImportantDate, markLulavOrderPaid } from './actions';
+import { setContactResolved, setContactSpouse, addImportantDate, markLulavOrderPaid } from './actions';
+import { ContactSuggestInput } from '@/components/admin/ContactSuggestInput';
 import { LULAV_OFFLINE_METHODS } from '@/lib/lulav/offline-methods';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
@@ -75,7 +76,10 @@ import {
   parseEventMoney,
   parseEventPeople,
 } from '@/lib/admin/crm/event-registration-stats';
-import { buildPersonSuggestions } from '@/lib/admin/crm/person-suggestions';
+import {
+  buildPersonSuggestions,
+  type CrmPersonSuggestion,
+} from '@/lib/admin/crm/person-suggestions';
 import {
   coverageMonthsOf,
   paymentCoversThrough,
@@ -454,6 +458,24 @@ export function CrmPanel({
       kind,
     });
     setManualPrefillKey(Date.now());
+  }
+
+  const [spousePickerFor, setSpousePickerFor] = useState<string | null>(null);
+  const [spouseQuery, setSpouseQuery] = useState('');
+
+  function handleSpouseLink(contactId: string, spouseId: string | null) {
+    setMessage('');
+    startTransition(async () => {
+      const result = await setContactSpouse(contactId, spouseId);
+      if (result.success) {
+        setMessage(spouseId ? 'Spouse linked.' : 'Spouse link removed.');
+        setSpousePickerFor(null);
+        setSpouseQuery('');
+        router.refresh();
+      } else {
+        setMessage(result.error ?? 'Update failed.');
+      }
+    });
   }
 
   function handleResolve(contactId: string, resolved: boolean) {
@@ -848,6 +870,15 @@ export function CrmPanel({
               expandedId={expandedId}
               onToggle={setExpandedId}
               onResolve={handleResolve}
+              personSuggestions={personSuggestions}
+              spousePickerFor={spousePickerFor}
+              spouseQuery={spouseQuery}
+              onSpousePickerToggle={(id) => {
+                setSpousePickerFor((cur) => (cur === id ? null : id));
+                setSpouseQuery('');
+              }}
+              onSpouseQueryChange={setSpouseQuery}
+              onSpouseLink={handleSpouseLink}
               onAddDonation={
                 canSeeFinance
                   ? (c) => startManualEntryFromContact(c, 'one_time')
@@ -1518,6 +1549,12 @@ function ContactsTable({
   onAddDonation,
   onAddChai,
   isPending,
+  personSuggestions,
+  spousePickerFor,
+  spouseQuery,
+  onSpousePickerToggle,
+  onSpouseQueryChange,
+  onSpouseLink,
   sortKey,
   sortDir,
   onSort,
@@ -1529,7 +1566,18 @@ function ContactsTable({
   onAddDonation?: (contact: CrmSnapshot['contacts'][number]) => void;
   onAddChai?: (contact: CrmSnapshot['contacts'][number]) => void;
   isPending: boolean;
+  personSuggestions: CrmPersonSuggestion[];
+  spousePickerFor: string | null;
+  spouseQuery: string;
+  onSpousePickerToggle: (id: string) => void;
+  onSpouseQueryChange: (value: string) => void;
+  onSpouseLink: (contactId: string, spouseId: string | null) => void;
 } & SortProps) {
+  const spouseNameOf = (c: CrmSnapshot['contacts'][number]): string | null => {
+    if (!c.spouse_contact_id) return null;
+    const spouse = rows.find((r) => r.id === c.spouse_contact_id);
+    return spouse ? `${spouse.first_name} ${spouse.last_name}`.trim() : null;
+  };
   if (!rows.length) return <EmptyState />;
 
   return (
@@ -1570,11 +1618,50 @@ function ContactsTable({
                     <DetailGrid
                       pairs={[
                         ['Phone', c.phone],
+                        ['Spouse', spouseNameOf(c)],
                         ['Message', c.message],
                         ['Submitted', formatDateTime(c.created_at)],
                       ]}
                     />
+                    {spousePickerFor === c.id ? (
+                      <div className="mt-3 max-w-sm">
+                        <ContactSuggestInput
+                          people={personSuggestions.filter(
+                            (p) => p.id.startsWith('contact:') && p.id !== `contact:${c.id}`,
+                          )}
+                          value={spouseQuery}
+                          onChange={onSpouseQueryChange}
+                          onSelect={(person) =>
+                            onSpouseLink(c.id, person.id.replace(/^contact:/, ''))
+                          }
+                          label="Link spouse - search contacts"
+                          placeholder="Name, email or phone"
+                        />
+                      </div>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => onSpousePickerToggle(c.id)}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#d4cfc4] bg-white text-navy disabled:opacity-60"
+                      >
+                        {spousePickerFor === c.id
+                          ? 'Cancel'
+                          : c.spouse_contact_id
+                            ? 'Change spouse'
+                            : 'Link spouse'}
+                      </button>
+                      {c.spouse_contact_id ? (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => onSpouseLink(c.id, null)}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold border border-[#d4cfc4] bg-white text-navy disabled:opacity-60"
+                        >
+                          Unlink spouse
+                        </button>
+                      ) : null}
                       {onAddDonation ? (
                         <button
                           type="button"

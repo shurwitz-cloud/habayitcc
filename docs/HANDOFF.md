@@ -77,3 +77,17 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   teacher login Hebrew-Adventure-only scoping + office@habayitcc.org all-programs login (not yet
   implemented - /app still lists all four programs); GitHub Actions privacy gate activation
   (paste docs/privacy-gate.workflow.yml via web UI + branch protection; token lacks workflow scope).
+
+
+
+
+## Optional reciprocal spouse link between contacts (SHIPPED 2026-11-01)
+
+- main = squash of reviewed branch spouse-link (PR #9). Production rebuilt on merge and serves it (Vercel auto-promote, deploy Active).
+- Adds contacts.spouse_contact_id plus reciprocal link/unlink RPCs. CRM contact details show a SPOUSE row with Link spouse / Change / Unlink.
+- Manual linking only: no auto-matching, no backfill, and no effect on donations, emails, or receipts. Linking refuses to replace an existing link silently (banner tells you to unlink first).
+- Verified end to end on synthetic contacts in the PR preview (link, reciprocal view, refusal, unlink), test data removed before merge, then production spot-checked after promotion (contacts panel, donations tab, donation form, homepage).
+- Rollback: Vercel Instant Rollback to the pre-merge production deployment; SQL: drop the two RPC functions, then drop column spouse_contact_id.
+
+
+

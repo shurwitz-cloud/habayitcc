@@ -138,3 +138,9 @@ Simple Server Action writing to the `contacts` table. No email sent yet (that's 
 - Real photography placeholders throughout (gradient + "Photography Coming Soon" label) — site owner will provide real photos later
 - Logo: `הבית` (Hebrew) stacked above "JEWISH CENTER" in the header brand mark
 - Every Chai Partner link site-wide should go directly to `/chai-partner` — no intermediate landing pages
+
+---
+
+## Ops log
+
+- 2026-11-01: Applied migrations 0022-0025 (goods payments, quid-pro-quo columns, company tracking, chai partner company) to production via the Supabase SQL editor. Also applied 0015 (`payments.payment_method`, `payments.coverage_months`) the same day — it had never been applied to prod, which broke the manual-entry route until fixed. Note: prod does not track applied migrations in `supabase_migrations`; verify actual columns via `information_schema` before assuming a repo migration is live.

@@ -52,7 +52,14 @@ export async function sendDonationTaxReceiptEmail(
   }
 ): Promise<boolean> {
   const includeReceipt = input.includeReceiptLink !== false;
-  const receiptUrl = includeReceipt ? buildAbsoluteReceiptUrl(input) : null;
+  const receiptUrl = includeReceipt
+    ? buildAbsoluteReceiptUrl({
+        ...input,
+        goodsDescription: input.goodsDescription ?? undefined,
+        goodsFmv: input.goodsFmv ?? undefined,
+        deductibleAmount: input.deductibleAmount ?? undefined,
+      })
+    : null;
   const receiptName = input.name.trim() || `${input.firstName}`.trim();
   const greeting = (input.greetingName || receiptName).trim();
   const amount = `$${input.amount.toFixed(2)}`;
@@ -137,6 +144,10 @@ export async function sendDonationReceiptEmailFromRecord(input: {
   /** Partner monthly rate when amountDollars is a prepaid / multi-month payment. */
   monthlyAmount?: number;
   coverageMonths?: number;
+  /** Quid pro quo disclosure for the signed receipt link (all three or none). */
+  goodsDescription?: string | null;
+  goodsFmv?: number | null;
+  deductibleAmount?: number | null;
 }): Promise<boolean> {
   const paidDate =
     input.paidAt && !Number.isNaN(new Date(input.paidAt).getTime())
@@ -173,5 +184,8 @@ export async function sendDonationReceiptEmailFromRecord(input: {
     includeReceiptLink: input.includeReceiptLink,
     monthlyAmount: input.monthlyAmount,
     coverageMonths: input.coverageMonths,
+    goodsDescription: input.goodsDescription,
+    goodsFmv: input.goodsFmv,
+    deductibleAmount: input.deductibleAmount,
   });
 }

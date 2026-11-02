@@ -14,6 +14,8 @@ export interface PersistDonationInput {
   donationType: 'One-Time' | 'Monthly';
   memo?: string | null;
   campaign?: string | null;
+  /** Company / organization as donor of record. Receipts use this name when set. */
+  company?: string | null;
   dedicationName?: string | null;
   dedicationType?: DedicationType | null;
   stripeChargeId?: string | null;
@@ -71,6 +73,7 @@ export async function persistDonation(
     dedication_type: input.dedicationType ?? null,
     memo: input.memo?.trim() || null,
     campaign: input.campaign?.trim() || null,
+    company: input.company?.trim() || null,
     donation_type: input.donationType,
   };
 

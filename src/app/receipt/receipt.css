@@ -471,3 +471,20 @@
     padding: 6px 4px;
   }
 }
+
+/* Annual summary: non-deductible goods & services section */
+.receipt-goods-section {
+  margin-top: 28px;
+}
+.receipt-goods-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #172643;
+  margin-bottom: 8px;
+}
+.receipt-goods-note {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6f6a60;
+}

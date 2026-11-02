@@ -137,3 +137,23 @@ export async function resolveReceiptCorrection(input: {
     return null;
   }
 }
+
+/**
+ * True when an admin explicitly superseded THIS exact signed link (by
+ * signature). Fail-closed: lookup errors return false so a database hiccup
+ * never blanks a valid receipt; only a recorded supersede does.
+ */
+export async function isReceiptSuperseded(sig: string): Promise<boolean> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('receipt_corrections')
+      .select('superseded_at')
+      .eq('original_sig', sig)
+      .maybeSingle();
+    if (error || !data) return false;
+    return data.superseded_at != null;
+  } catch {
+    return false;
+  }
+}

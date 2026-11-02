@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
-import { ensureCrmContact } from '@/lib/admin/ensure-contact';
+import { ensureCrmContact, linkSpouseContacts } from '@/lib/admin/ensure-contact';
 import { formatCoupleNames } from '@/lib/donations/couple-names';
 import { persistDonation } from '@/lib/donations/persist-donation';
 import {
@@ -8,6 +8,12 @@ import {
   buildChaiPartnerReceiptUrl,
   sendDonationReceiptEmailFromRecord,
 } from '@/lib/email/donation-receipt';
+import { getSiteUrl } from '@/lib/email/client';
+import { sendGoodsPaymentEmail } from '@/lib/email/goods-payment';
+import { resolveGoodsItemLabel } from '@/lib/goods/items';
+import { recordGoodsPayment } from '@/lib/goods/record-goods-payment';
+import { buildPaymentReceiptUrl } from '@/lib/payments/payment-receipt-url';
+import { createAdminClient } from '@/lib/supabase/server';
 import { formatCheckPaymentMethod } from '@/lib/donations/receipt-method';
 import {
   chaiMonthlyFromUpfront,
@@ -28,7 +34,7 @@ const METHODS = [
   'Other',
 ] as const;
 type PaymentMethod = (typeof METHODS)[number];
-type EntryKind = 'one_time' | 'monthly' | 'chai_partner';
+type EntryKind = 'one_time' | 'monthly' | 'chai_partner' | 'goods_services';
 
 function resolveMethodLabel(
   method: PaymentMethod,
@@ -78,6 +84,10 @@ export async function POST(req: NextRequest) {
     spouseFirstName?: string;
     spouseLastName?: string;
     spouseEmail?: string;
+    alsoEmailSpouse?: boolean;
+    contactId?: string | null;
+    spouseContactId?: string | null;
+    company?: string | null;
     spousePhone?: string;
     /** Chai: amount is full prepaid gift; CRM monthly = monthlyAmount or amount÷12. */
     paidUpfront?: boolean;
@@ -87,6 +97,18 @@ export async function POST(req: NextRequest) {
     coverageMonths?: number;
     /** Tax receipt “Name” line override (e.g. business / donor of record). */
     receiptName?: string;
+    /** Goods/services: preset item label or GOODS_OTHER_ITEM. */
+    item?: string;
+    /** Goods/services: custom label when item is "Other". */
+    customItem?: string;
+    /** Goods/services: quantity (default 1). */
+    quantity?: number;
+    /** Goods/services: unit price; total = quantity x unitAmount. */
+    unitAmount?: number;
+    /** Goods/services: opt-in to year-end statement (non-deductible section). Default off. */
+    includeInYearEnd?: boolean;
+    includeAsDonation?: boolean;
+    goodsFmv?: number;
   };
 
   try {
@@ -104,7 +126,9 @@ export async function POST(req: NextRequest) {
       ? 'chai_partner'
       : body.kind === 'monthly'
         ? 'monthly'
-        : 'one_time';
+        : body.kind === 'goods_services'
+          ? 'goods_services'
+          : 'one_time';
 
   const email = (body.email ?? '').trim().toLowerCase();
   const firstName = (body.firstName ?? '').trim();
@@ -135,7 +159,60 @@ export async function POST(req: NextRequest) {
   if (spouseFirstName && spouseEmail && !spouseEmail.includes('@')) {
     return NextResponse.json({ error: 'Spouse email is invalid.' }, { status: 400 });
   }
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const qtyRaw = Number(body.quantity);
+  const goodsQuantity =
+    Number.isFinite(qtyRaw) && qtyRaw >= 1 ? Math.floor(qtyRaw) : 1;
+  const unitRaw = Number(body.unitAmount);
+  const goodsUnitAmount =
+    Number.isFinite(unitRaw) && unitRaw > 0
+      ? Math.round(unitRaw * 100) / 100
+      : Number.isFinite(amount) && amount > 0
+        ? Math.round((amount / goodsQuantity) * 100) / 100
+        : NaN;
+
+  const sendEmailFlag = body.sendEmail === true;
+  const includeReceiptLink = body.includeReceiptLink === true;
+  // Spouse is copied on the confirmation email ONLY on explicit opt-in.
+  // Linking a spouse is never permission to email them.
+  const spouseEmailCopy =
+    body.alsoEmailSpouse === true && spouseEmail.includes('@') ? spouseEmail : null;
+  // Present only when the admin explicitly picked the spouse from Contacts.
+  const spouseContactIdSelected = (body.spouseContactId ?? '').trim() || null;
+  const payerContactIdSelected = (body.contactId ?? '').trim() || null;
+  let spouseLinkWarning: string | null = null;
+
+  const paidAtRaw = (body.paidAt ?? '').trim();
+  const paidAt =
+    paidAtRaw && !Number.isNaN(new Date(paidAtRaw).getTime())
+      ? new Date(paidAtRaw).toISOString()
+      : undefined;
+  const receiptDate = paidAt ? new Date(paidAt) : new Date();
+
+  const coupleNames = formatCoupleNames({
+    firstName,
+    lastName,
+    spouseFirstName,
+    spouseLastName,
+  });
+  const company = (body.company ?? '').trim() || null;
+  // Receipt/donor-of-record name: a company takes precedence, then an
+  // explicit receipt-name override, then joint couple names.
+  const receiptDisplayName =
+    company ?? ((body.receiptName ?? '').trim() || coupleNames.receiptName);
+
+  // Always uniquify generated keys so repeat Zelle/cash amounts aren't treated as duplicates.
+  const keyBase =
+    (body.paymentKey ?? '').trim() ||
+    `manual-${kind}-${methodLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}-${Date.now()}`;
+
+  if (kind === 'goods_services') {
+    if (!Number.isFinite(goodsUnitAmount) || goodsUnitAmount <= 0) {
+      return NextResponse.json(
+        { error: 'unitAmount (or amount) must be a positive number.' },
+        { status: 400 },
+      );
+    }
+  } else if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ error: 'amount must be a positive number.' }, { status: 400 });
   }
   const memo = (body.memo ?? '').trim();
@@ -174,30 +251,161 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const sendEmailFlag = body.sendEmail === true;
-  const includeReceiptLink = body.includeReceiptLink === true;
+  if (kind === 'goods_services') {
+    const itemLabel = resolveGoodsItemLabel(body.item, body.customItem);
+    if (!itemLabel) {
+      return NextResponse.json(
+        { error: 'item is required (pick a preset or enter a custom one).' },
+        { status: 400 },
+      );
+    }
+    const includeAsDonation = body.includeAsDonation === true;
+    const goodsFmvRaw = Number(body.goodsFmv);
+    const goodsFmv =
+      Number.isFinite(goodsFmvRaw) && goodsFmvRaw >= 0
+        ? Math.round(goodsFmvRaw * 100) / 100
+        : NaN;
+    if (includeAsDonation) {
+      // "Add as a donation": the record form always sends 0 (full amount as
+      // a donation, no goods disclosure). A real partial-benefit value only
+      // ever arrives through the separate edit/reclassify path. We never
+      // decide eligibility or value ourselves.
+      if (!Number.isFinite(goodsFmv)) {
+        return NextResponse.json(
+          {
+            error:
+              'goodsFmv is required when including as a donation (value of anything the payer received; 0 when nothing was received).',
+          },
+          { status: 400 },
+        );
+      }
+      if (goodsFmv > Math.round(goodsQuantity * goodsUnitAmount * 100) / 100) {
+        return NextResponse.json(
+          { error: 'goodsFmv cannot exceed the payment total.' },
+          { status: 400 },
+        );
+      }
+    }
+    const total = Math.round(goodsQuantity * goodsUnitAmount * 100) / 100;
+    const goodsKeyBase = keyBase.startsWith('manual:') ? keyBase : `manual:${keyBase}`;
+    const goodsPaidAt = paidAt ?? new Date().toISOString();
+    const goodsDate = new Date(goodsPaidAt);
+    const dateLong = goodsDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const includeInYearEnd = body.includeInYearEnd === true;
 
-  const paidAtRaw = (body.paidAt ?? '').trim();
-  const paidAt =
-    paidAtRaw && !Number.isNaN(new Date(paidAtRaw).getTime())
-      ? new Date(paidAtRaw).toISOString()
-      : undefined;
-  const receiptDate = paidAt ? new Date(paidAt) : new Date();
+    const goodsMemo =
+      [memo || null, coupleNames.hasSpouse ? `Spouse: ${coupleNames.receiptName}` : null]
+        .filter(Boolean)
+        .join(' · ') || null;
+    const result = await recordGoodsPayment({
+      firstName,
+      lastName,
+      email,
+      phone: body.phone,
+      itemLabel,
+      quantity: goodsQuantity,
+      unitAmount: goodsUnitAmount,
+      amount: total,
+      paymentMethod: methodLabel,
+      memo: goodsMemo,
+      paymentKey: goodsKeyBase,
+      paidAt,
+      includeInYearEnd,
+      includeAsDonation,
+      goodsFmv: includeAsDonation ? goodsFmv : null,
+      company,
+      contactId: payerContactIdSelected,
+    });
 
-  const coupleNames = formatCoupleNames({
-    firstName,
-    lastName,
-    spouseFirstName,
-    spouseLastName,
-  });
-  const receiptDisplayName =
-    (body.receiptName ?? '').trim() || coupleNames.receiptName;
+    // Spouse contact, same pattern as donations: own contact with a
+    // cross-reference note. Never a substitute identity for the payer.
+    if (result.ok && !result.duplicate && spouseFirstName && spouseEmail.includes('@')) {
+      await ensureCrmContact({
+        firstName: spouseFirstName,
+        lastName: spouseLastName || lastName,
+        email: spouseEmail,
+        phone: spousePhone || null,
+        interest: 'Goods/Services',
+        note: `--- Spouse of customer ---\nPartner: ${firstName} ${lastName} (${email})`,
+        createdAt: paidAt,
+        isResolved: true,
+      });
+      if (spouseContactIdSelected) {
+        const link = await linkSpouseContacts(email, spouseContactIdSelected, payerContactIdSelected);
+        if (!link.ok) spouseLinkWarning = `Spouse link failed: ${link.error ?? 'unknown error'}`;
+      }
+    }
 
-  // Always uniquify generated keys so repeat Zelle/cash amounts aren't treated as duplicates.
-  const keyBase =
-    (body.paymentKey ?? '').trim() ||
-    `manual-${kind}-${methodLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}-${Date.now()}`;
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? 'Failed to save goods/services payment.' },
+        { status: 500 },
+      );
+    }
 
+    const receiptPath = result.duplicate
+      ? null
+      : buildPaymentReceiptUrl({
+          name: receiptDisplayName,
+          date: goodsDate,
+          method: methodLabel,
+          items: [{ label: itemLabel, qty: goodsQuantity, unit: goodsUnitAmount }],
+          note: memo || undefined,
+        });
+    const receiptUrl = receiptPath ? `${getSiteUrl()}${receiptPath}` : null;
+
+    let emailed = false;
+    if (sendEmailFlag && !result.duplicate) {
+      emailed = await sendGoodsPaymentEmail({
+        firstName,
+        email,
+        spouseEmail: spouseEmailCopy,
+        items: [{ label: itemLabel, qty: goodsQuantity, unit: goodsUnitAmount }],
+        total,
+        method: methodLabel,
+        dateLong,
+        receiptUrl: includeReceiptLink ? receiptUrl : null,
+      });
+      if (emailed && result.goodsPaymentId) {
+        try {
+          const supabase = createAdminClient();
+          await supabase
+            .from('goods_payments')
+            .update({ receipt_emailed_at: new Date().toISOString() })
+            .eq('id', result.goodsPaymentId);
+        } catch (err) {
+          console.error('[manual-entry] goods receipt_emailed_at update failed:', err);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      kind,
+      spouseLinkWarning,
+      goodsPaymentId: result.goodsPaymentId,
+      duplicate: Boolean(result.duplicate),
+      emailed,
+      includeReceiptLink: includeReceiptLink && sendEmailFlag,
+      paymentMethod: methodLabel,
+      paidAt,
+      itemLabel,
+      quantity: goodsQuantity,
+      unitAmount: goodsUnitAmount,
+      amount: total,
+      includeInYearEnd,
+      includeAsDonation,
+      goodsFmv: includeAsDonation ? goodsFmv : null,
+      deductibleAmount: includeAsDonation
+        ? Math.max(0, Math.round((Math.round(goodsQuantity * goodsUnitAmount * 100) / 100 - goodsFmv) * 100) / 100)
+        : null,
+      receiptUrl,
+    });
+  }
   if (kind === 'chai_partner') {
     const paymentId = keyBase.startsWith('manual-') ? keyBase : `manual-${keyBase}`;
     const parsed: ParsedZeffyPayment = {
@@ -227,10 +435,13 @@ export async function POST(req: NextRequest) {
       spouseLastName,
       spouseEmail,
       spousePhone,
+      emailSpouse: spouseEmailCopy != null,
       paidUpfront,
       monthlyAmount,
       coverageMonths,
       receiptName: receiptDisplayName !== coupleNames.receiptName ? receiptDisplayName : undefined,
+      company,
+      contactId: payerContactIdSelected,
       note: memo || undefined,
     });
 
@@ -238,6 +449,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to record Chai Partner.' }, { status: 500 });
     }
 
+    if (!result.duplicate && spouseFirstName && spouseEmail.includes('@') && spouseContactIdSelected) {
+      const link = await linkSpouseContacts(email, spouseContactIdSelected, payerContactIdSelected);
+      if (!link.ok) spouseLinkWarning = `Spouse link failed: ${link.error ?? 'unknown error'}`;
+    }
+
+    // Prefer the lib's receipt name: it carries the stored partner company
+    // fallback for renewals (company stays unless explicitly changed).
+    const chaiReceiptName = result.receiptName ?? receiptDisplayName;
     const receiptUrl = result.duplicate
       ? null
       : buildChaiPartnerReceiptUrl({
@@ -246,12 +465,13 @@ export async function POST(req: NextRequest) {
           amount,
           date: receiptDate,
           method: methodLabel,
-          name: receiptDisplayName,
+          name: chaiReceiptName,
         });
 
     return NextResponse.json({
       ok: true,
       kind,
+      spouseLinkWarning,
       partnerId: result.partnerId,
       accessCode: result.accessCode,
       duplicate: Boolean(result.duplicate),
@@ -262,7 +482,7 @@ export async function POST(req: NextRequest) {
       paidUpfront,
       monthlyAmount: paidUpfront ? monthlyAmount : amount,
       receiptUrl,
-      receiptName: receiptDisplayName,
+      receiptName: chaiReceiptName,
       greeting: coupleNames.greeting,
     });
   }
@@ -292,6 +512,7 @@ export async function POST(req: NextRequest) {
     donationType,
     memo: memoParts.join(' · '),
     campaign,
+    company,
     paidAt,
   });
 
@@ -309,6 +530,8 @@ export async function POST(req: NextRequest) {
       email,
       phone: body.phone,
       interest: kind === 'monthly' ? 'Monthly donor' : 'Donor',
+      company,
+      contactId: payerContactIdSelected,
       note: coupleNames.hasSpouse
         ? `--- Manual donation ---\nSpouse: ${coupleNames.receiptName}`
         : '--- Manual donation ---',
@@ -327,6 +550,10 @@ export async function POST(req: NextRequest) {
         createdAt: paidAt,
         isResolved: true,
       });
+      if (spouseContactIdSelected) {
+        const link = await linkSpouseContacts(email, spouseContactIdSelected, payerContactIdSelected);
+        if (!link.ok) spouseLinkWarning = `Spouse link failed: ${link.error ?? 'unknown error'}`;
+      }
     }
   }
 
@@ -347,14 +574,14 @@ export async function POST(req: NextRequest) {
       includeReceiptLink,
       spouseFirstName,
       spouseLastName,
-      spouseEmail,
+      spouseEmail: spouseEmailCopy,
     });
   }
 
   const receiptUrl = persisted.alreadyExisted
     ? null
     : buildAbsoluteReceiptUrl({
-        name: coupleNames.receiptName,
+        name: receiptDisplayName,
         amount,
         date: receiptDate,
         campaign,
@@ -365,6 +592,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     kind,
+    spouseLinkWarning,
     donationId: persisted.donationId,
     duplicate: persisted.alreadyExisted,
     emailed,
@@ -372,7 +600,7 @@ export async function POST(req: NextRequest) {
     paymentMethod: methodLabel,
     paidAt: paidAt ?? null,
     receiptUrl,
-    receiptName: coupleNames.receiptName,
+    receiptName: receiptDisplayName,
     greeting: coupleNames.greeting,
   });
 }

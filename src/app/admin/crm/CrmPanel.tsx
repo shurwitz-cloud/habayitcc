@@ -57,6 +57,7 @@ import {
 } from '@/lib/admin/crm/utils';
 import { setContactResolved, setContactSpouse, addImportantDate, markLulavOrderPaid } from './actions';
 import { ContactSuggestInput } from '@/components/admin/ContactSuggestInput';
+import EditEntryPanel from '@/components/admin/EditEntryPanel';
 import { LULAV_OFFLINE_METHODS } from '@/lib/lulav/offline-methods';
 import { ReconcileStripeButton } from '@/components/admin/ReconcileStripeButton';
 import { ReconcileZeffyButton } from '@/components/admin/ReconcileZeffyButton';
@@ -104,6 +105,7 @@ const VIEWS: { id: CrmView; label: string }[] = [
   { id: 'rsvps', label: 'RSVPs' },
   { id: 'applications', label: 'Applications' },
   { id: 'donations', label: 'Donations' },
+  { id: 'goods', label: 'Goods / Services' },
   { id: 'chai', label: 'Chai partners' },
   { id: 'payments', label: 'Payments' },
   { id: 'lulav', label: 'Lulav orders' },
@@ -312,6 +314,31 @@ export function CrmPanel({
       }, sortDir),
     [filteredDonations, sortKey, sortDir],
   );
+  const filteredGoods = useMemo(
+    () =>
+      snapshot.goodsPayments.filter((g) => {
+        if (!matchesDateRange(g.paid_at ?? g.created_at, dateRange)) return false;
+        return matchesSearch(search, [
+          g.first_name,
+          g.last_name,
+          g.email,
+          g.item_label,
+          g.memo ?? '',
+        ]);
+      }),
+    [snapshot, search, dateRange],
+  );
+  const sortedGoods = useMemo(
+    () =>
+      sortRows(filteredGoods, (g) => {
+        if (sortKey === 'name') return `${g.last_name} ${g.first_name}`;
+        if (sortKey === 'email') return g.email;
+        if (sortKey === 'amount') return Number(g.amount);
+        if (sortKey === 'item') return g.item_label;
+        return new Date(g.paid_at ?? g.created_at).getTime();
+      }, sortDir),
+    [filteredGoods, sortKey, sortDir],
+  );
   const sortedChai = useMemo(
     () =>
       sortRows(filteredChai, (c) => {
@@ -444,13 +471,14 @@ export function CrmPanel({
   );
 
   function startManualEntryFromContact(
-    contact: { first_name: string; last_name: string; email: string; phone?: string | null },
+    contact: { id?: string; first_name: string; last_name: string; email: string; phone?: string | null },
     kind: ManualEntryPrefill['kind'] = 'one_time',
   ) {
     if (!canSeeFinance) return;
     const targetView: CrmView = kind === 'chai_partner' ? 'chai' : 'donations';
     switchView(targetView);
     setManualPrefill({
+      contactId: contact.id,
       firstName: contact.first_name,
       lastName: contact.last_name,
       email: contact.email,
@@ -720,6 +748,8 @@ export function CrmPanel({
               ? filteredApplications.length + filteredLeads.length
               : view === 'donations'
                 ? filteredDonations.length
+                : view === 'goods'
+                  ? filteredGoods.length
                 : view === 'chai'
                   ? filteredChai.length
                   : view === 'dates'
@@ -907,6 +937,21 @@ export function CrmPanel({
                 }}
               />
               <DonationsTable rows={sortedDonations} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
+            </>
+          )}
+          {view === 'goods' && canSeeFinance && (
+            <>
+              <ManualEntryForm
+                defaultKind="goods_services"
+                people={personSuggestions}
+                prefill={manualPrefill}
+                prefillKey={manualPrefillKey}
+                onPrefillConsumed={() => {
+                  setManualPrefillKey(null);
+                  setManualPrefill(null);
+                }}
+              />
+              <GoodsTable rows={sortedGoods} expandedId={expandedId} onToggle={setExpandedId} {...sortProps} />
             </>
           )}
           {view === 'chai' && canSeeFinance && (
@@ -1775,6 +1820,24 @@ function DonationDetailRow({ d }: { d: CrmSnapshot['donations'][number] }) {
           ['Submitted', formatDateTime(d.created_at)],
         ]}
       />
+      {d.stripe_payment_intent_id && (
+        <EditEntryPanel
+          kind="donation"
+          paymentKey={d.stripe_payment_intent_id}
+          donationType={d.donation_type}
+          initial={{
+            firstName: d.first_name,
+            lastName: d.last_name,
+            email: d.email,
+            phone: d.phone ?? '',
+            amount: String(d.amount),
+            memo: d.memo ?? '',
+            paidAt: d.created_at.slice(0, 10),
+            paymentMethod: '',
+            campaign: d.campaign ?? '',
+          }}
+        />
+      )}
       <DeleteCrmEntryButton
         kind="donation"
         id={d.id}
@@ -1788,6 +1851,100 @@ function DonationDetail({ id, snapshot }: { id: string; snapshot: CrmSnapshot })
   const d = snapshot.donations.find((x) => x.id === id);
   if (!d) return null;
   return <DonationDetailRow d={d} />;
+}
+
+function GoodsTable({
+  rows,
+  expandedId,
+  onToggle,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  rows: CrmSnapshot['goodsPayments'];
+  expandedId: string | null;
+  onToggle: (id: string | null) => void;
+} & SortProps) {
+  if (!rows.length) return <EmptyState />;
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-line">
+          <SortableTh label="Date" sortKey="date" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Email" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Item" sortKey="item" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <SortableTh label="Amount" sortKey="amount" activeKey={sortKey} dir={sortDir} onSort={onSort} />
+          <th className="px-4 py-3" />
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((g) => {
+          const open = expandedId === g.id;
+          return (
+            <Fragment key={g.id}>
+              <tr className="border-b border-line hover:bg-soft/40">
+                <td className="px-4 py-3">{formatDate(g.paid_at ?? g.created_at)}</td>
+                <td className="px-4 py-3 font-medium text-navy">
+                  {g.first_name} {g.last_name}
+                </td>
+                <td className="px-4 py-3">{g.email}</td>
+                <td className="px-4 py-3">
+                  {g.item_label}
+                  {g.quantity > 1 ? ` x${g.quantity}` : ''}
+                </td>
+                <td className="px-4 py-3 font-semibold">{formatUsd(Number(g.amount))}</td>
+                <td className="px-4 py-3 text-right">
+                  <ExpandButton id={g.id} expandedId={expandedId} onToggle={onToggle} />
+                </td>
+              </tr>
+              {open && (
+                <tr className="bg-soft/30">
+                  <td colSpan={6} className="px-4 py-4">
+                    <DetailGrid
+                      pairs={[
+                        ['Phone', g.phone],
+                        ['Method', g.payment_method],
+                        ['Memo', g.memo],
+                        ['Unit amount', formatUsd(Number(g.unit_amount))],
+                        ['Year-end goods receipt', g.include_in_year_end ? 'Yes' : 'No'],
+                        ['Also a donation', g.include_as_donation ? 'Yes' : 'No'],
+                        ['Receipt emailed', g.receipt_emailed_at ? formatDateTime(g.receipt_emailed_at) : null],
+                        ['Submitted', formatDateTime(g.created_at)],
+                      ]}
+                    />
+                    {g.payment_key && (
+                      <EditEntryPanel
+                        kind="goods"
+                        paymentKey={g.payment_key}
+                        goodsInfo={{
+                          itemLabel: g.item_label,
+                          includeInYearEnd: g.include_in_year_end,
+                          includeAsDonation: g.include_as_donation,
+                        }}
+                        initial={{
+                          firstName: g.first_name,
+                          lastName: g.last_name,
+                          email: g.email,
+                          phone: g.phone ?? '',
+                          amount: String(g.amount),
+                          memo: g.memo ?? '',
+                          paidAt: (g.paid_at ?? g.created_at).slice(0, 10),
+                          paymentMethod: g.payment_method ?? '',
+                          campaign: '',
+                        }}
+                      />
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 }
 
 function ChaiTable({

@@ -17,6 +17,8 @@ export function paymentSourceLabel(sourceType: string): string {
       return 'Program registration';
     case 'event_registration':
       return 'Event registration';
+    case 'goods_payment':
+      return 'Goods / Services';
     default:
       return sourceType.replace(/_/g, ' ');
   }
@@ -139,6 +141,17 @@ export function resolvePaymentParty(p: Payment, snapshot: CrmSnapshot): PaymentP
   if (p.source_type === 'event_registration') {
     const rsvp = findEventRsvpForPayment(p, snapshot);
     if (rsvp) return partyFromRsvp(rsvp, sourceLabel);
+  }
+
+  if (p.source_type === 'goods_payment') {
+    const g = snapshot.goodsPayments.find((x) => x.id === p.source_id);
+    if (g) {
+      return {
+        name: `${g.first_name} ${g.last_name}`.trim(),
+        email: g.email,
+        sourceLabel: g.item_label ? `Goods / Services · ${g.item_label}` : sourceLabel,
+      };
+    }
   }
 
   return { name: '', email: null, sourceLabel };

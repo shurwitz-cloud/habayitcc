@@ -11,7 +11,10 @@ import {
   formatReceiptDate,
   parseReceiptLinkDates,
 } from '@/lib/donations/receipt-date';
-import { resolveReceiptCorrection } from '@/lib/donations/receipt-correction';
+import {
+  isReceiptSuperseded,
+  resolveReceiptCorrection,
+} from '@/lib/donations/receipt-correction';
 import type { ReceiptLine } from '@/lib/donations/receipt-types';
 
 export const metadata: Metadata = {
@@ -40,6 +43,24 @@ export default async function ReceiptPage({
           <Link href="/donate" className="text-gold hover:underline">
             Make a donation
           </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // An admin can supersede one exact signed link after an edit made its
+  // numbers stale. Only the recorded signature stops rendering.
+  const linkSig = readReceiptParam(params.sig);
+  if (linkSig && (await isReceiptSuperseded(linkSig))) {
+    return (
+      <main className="flex-1 flex items-center justify-center px-6 py-24">
+        <div className="max-w-md text-center">
+          <h1 className="text-navy font-display text-2xl mb-3">Receipt replaced</h1>
+          <p className="text-muted mb-6">
+            This receipt was replaced by an updated version. Please use the newest
+            receipt link we sent you, or reply to your receipt email and we will
+            send it again.
+          </p>
         </div>
       </main>
     );
@@ -80,11 +101,20 @@ export default async function ReceiptPage({
       ? formatReceiptDate(crmPaidAt)
       : dateRaw;
   const dates = parseReceiptLinkDates(dateForReceipt);
+  // Quid pro quo (signed gd/gf/da params): the line shows the DEDUCTIBLE
+  // portion; the disclosure block names the goods and their good-faith value.
+  const qpqDescription = readReceiptParam(params.gd);
+  const qpqFmv = parseFloat(readReceiptParam(params.gf) ?? '');
+  const qpqDeductible = parseFloat(readReceiptParam(params.da) ?? '');
+  const hasQpq =
+    !!qpqDescription && !Number.isNaN(qpqFmv) && !Number.isNaN(qpqDeductible);
   const line: ReceiptLine = {
     date: dates.short,
     memo,
     method,
-    amount: Number.isNaN(amount) ? 0 : amount,
+    amount: hasQpq ? qpqDeductible : Number.isNaN(amount) ? 0 : amount,
+    goodsDescription: hasQpq ? qpqDescription : undefined,
+    goodsFmv: hasQpq ? qpqFmv : undefined,
   };
 
   return (

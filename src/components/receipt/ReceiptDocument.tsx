@@ -17,9 +17,16 @@ function defaultLetterDate(variant: 'single' | 'annual', taxYear?: number): stri
   return formatReceiptDateLong(new Date());
 }
 
-function bodyCopy(variant: 'single' | 'annual', taxYear?: number): string {
+function bodyCopy(
+  variant: 'single' | 'annual',
+  taxYear: number | undefined,
+  hasQuidProQuo: boolean,
+): string {
   if (variant === 'annual' && taxYear) {
-    return `Thank you for your generous support throughout ${taxYear}. Below is a summary of your tax-deductible gifts to HaBayit Israeli Jewish Center during the calendar year. No goods or services were provided in exchange for these donations.`;
+    const noGoods = hasQuidProQuo
+      ? 'Except where disclosed below, no goods or services were provided in exchange for these donations.'
+      : 'No goods or services were provided in exchange for these donations.';
+    return `Thank you for your generous support throughout ${taxYear}. Below is a summary of your tax-deductible gifts to HaBayit Israeli Jewish Center during the calendar year. ${noGoods}`;
   }
 
   return `Thank you for your ongoing generous support!
@@ -35,7 +42,8 @@ export function ReceiptDocument({
 }: ReceiptDocumentProps) {
   const resolvedDate = letterDate ?? defaultLetterDate(variant, taxYear);
   const total = sumReceiptLines(lines);
-  const copy = bodyCopy(variant, taxYear);
+  const quidProQuoLines = lines.filter((line) => line.goodsDescription);
+  const copy = bodyCopy(variant, taxYear, quidProQuoLines.length > 0);
   const isAnnual = variant === 'annual';
   const density = isAnnual ? getAnnualReceiptDensity(lines.length) : null;
   const pageClass = [
@@ -122,6 +130,24 @@ export function ReceiptDocument({
               )}
             </tbody>
           </table>
+          {quidProQuoLines.length > 0 && (
+            <div className="receipt-goods-section">
+              <div className="receipt-goods-title">
+                Goods or services received in exchange (quid pro quo disclosure)
+              </div>
+              <div className="receipt-goods-note">
+                {quidProQuoLines.map((line, index) => (
+                  <p key={`qpq-${index}`} style={{ margin: '6px 0' }}>
+                    {line.date}: {line.goodsDescription} (good-faith estimated
+                    value {formatReceiptAmount(line.goodsFmv ?? 0)}). Under IRS
+                    quid pro quo rules, the potentially deductible amount is
+                    limited to the excess paid over that value; the line above
+                    lists only that portion.
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isAnnual && (
             <div className="receipt-signoff receipt-signoff--annual">
@@ -138,7 +164,9 @@ export function ReceiptDocument({
             <br />
             a nonprofit organization. Tax ID# 301287488.
             <br />
-            No goods or services were provided in exchange for this donation.
+            {quidProQuoLines.length > 0
+              ? 'Except where disclosed above, no goods or services were provided in exchange for this donation.'
+              : 'No goods or services were provided in exchange for this donation.'}
             <br />
             Thank you for your support!
           </div>

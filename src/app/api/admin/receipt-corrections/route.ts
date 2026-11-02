@@ -105,7 +105,13 @@ export async function POST(req: NextRequest) {
   const denied = await requireCapabilityApi('crm_finance');
   if (denied) return denied;
 
-  let body: { confirm?: boolean; donationId?: string; expectedSig?: string };
+  let body: {
+    confirm?: boolean;
+    donationId?: string;
+    expectedSig?: string;
+    supersede?: boolean;
+    sig?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -117,6 +123,68 @@ export async function POST(req: NextRequest) {
   const donationId = (body.donationId || '').trim();
   if (!donationId) {
     return NextResponse.json({ error: 'donationId required' }, { status: 400 });
+  }
+
+  // Supersede: mark one EXACT stale signed link (sig from the actually-sent
+  // email) as replaced. Never reconstructs - the admin must supply the sig
+  // from the stale link itself, so only that link stops rendering.
+  if (body.supersede === true) {
+    const sig = (body.sig || '').trim();
+    if (!sig) {
+      return NextResponse.json(
+        { error: 'sig of the stale link required to supersede' },
+        { status: 400 },
+      );
+    }
+    const supabase = createAdminClient();
+    const { data: donation } = await supabase
+      .from('donations')
+      .select('id, status')
+      .eq('id', donationId)
+      .maybeSingle();
+    if (!donation) {
+      return NextResponse.json({ error: 'Donation not found' }, { status: 404 });
+    }
+    const { data: existing } = await supabase
+      .from('receipt_corrections')
+      .select('donation_id, superseded_at')
+      .eq('original_sig', sig)
+      .maybeSingle();
+    if (existing && existing.donation_id !== donationId) {
+      return NextResponse.json(
+        { error: 'This link is recorded against a different donation; refusing' },
+        { status: 409 },
+      );
+    }
+    if (existing) {
+      if (existing.superseded_at == null) {
+        await supabase
+          .from('receipt_corrections')
+          .update({ superseded_at: new Date().toISOString() })
+          .eq('original_sig', sig);
+      }
+      return NextResponse.json({
+        success: true,
+        superseded: true,
+        alreadyExisted: true,
+        donationId,
+        sig,
+        emailsSent: false,
+      });
+    }
+    const { error: insertError } = await supabase
+      .from('receipt_corrections')
+      .insert({ original_sig: sig, donation_id: donationId, superseded_at: new Date().toISOString() });
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+    return NextResponse.json({
+      success: true,
+      superseded: true,
+      donationId,
+      sig,
+      emailsSent: false,
+    });
   }
 
   const result = await reconstruct(donationId);

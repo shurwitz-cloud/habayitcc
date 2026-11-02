@@ -1,5 +1,6 @@
 import type {
   ChaiPartner,
+  GoodsPayment,
   Contact,
   Donation,
   EventRegistration,
@@ -19,6 +20,7 @@ export type CrmView =
   | 'applications'
   | 'rsvps'
   | 'donations'
+  | 'goods'
   | 'chai'
   | 'payments'
   | 'dates'
@@ -159,6 +161,7 @@ export type CrmSnapshot = {
   events: CrmEventRecord[];
   rsvps: CrmRsvpRecord[];
   payments: Payment[];
+  goodsPayments: GoodsPayment[];
   importantDates: ImportantDate[];
   formSubmissions: FormSubmission[];
   waiversByFamily: Record<string, Waiver[]>;

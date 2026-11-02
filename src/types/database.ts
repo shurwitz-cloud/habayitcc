@@ -179,6 +179,7 @@ export interface Donation {
   dedication_type: DedicationType | null;
   memo: string | null;
   campaign: string | null;
+  company?: string | null;
   donation_type: string | null;
   stripe_payment_intent_id: string | null;
   status: PaymentStatus;
@@ -212,7 +213,8 @@ export type PaymentSourceType =
   | 'donation'
   | 'chai_partner'
   | 'program_registration'
-  | 'event_registration';
+  | 'event_registration'
+  | 'goods_payment';
 
 export interface Payment {
   [key: string]: unknown;
@@ -227,6 +229,29 @@ export interface Payment {
   /** Chai months this payment covers (default 1). */
   coverage_months?: number | null;
   status: PaymentStatus;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export interface GoodsPayment {
+  [key: string]: unknown;
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  item_label: string;
+  quantity: number;
+  unit_amount: number;
+  amount: number;
+  payment_method: string | null;
+  memo: string | null;
+  payment_key: string | null;
+  company?: string | null;
+  include_in_year_end: boolean;
+  include_as_donation: boolean;
+  donation_id: string | null;
+  receipt_emailed_at: string | null;
   paid_at: string | null;
   created_at: string;
 }
@@ -253,6 +278,7 @@ export interface Contact {
   phone: string | null;
   interest: string | null;
   message: string | null;
+  company?: string | null;
   is_resolved: boolean;
   spouse_contact_id?: string | null;
   created_at: string;

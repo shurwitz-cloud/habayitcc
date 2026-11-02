@@ -20,6 +20,14 @@ export interface ReceiptUrlParams {
   dedicationName?: string | null;
   dedicationType?: DedicationType | null;
   method?: string;
+  /**
+   * Quid pro quo (IRS): when the payment included goods/services, all
+   * three are required and are SIGNED into the link - stripping or
+   * adding them invalidates the signature (fail-closed both ways).
+   */
+  goodsDescription?: string | null;
+  goodsFmv?: number | null;
+  deductibleAmount?: number | null;
 }
 
 const RECEIPT_SIG_PARAM = 'sig';
@@ -72,6 +80,9 @@ function canonicalReceiptPayload(params: {
   dedication?: string;
   dedicationType?: string;
   memo?: string;
+  goodsDescription?: string;
+  goodsFmv?: string;
+  deductibleAmount?: string;
 }): string {
   const parts = [
     `amount=${params.amount}`,
@@ -83,6 +94,17 @@ function canonicalReceiptPayload(params: {
     `method=${params.method}`,
     `name=${params.name}`,
   ];
+  // Quid pro quo links sign a strictly longer payload; a link without
+  // these params can never verify against a qpq signature and vice versa.
+  if (
+    params.goodsDescription != null ||
+    params.goodsFmv != null ||
+    params.deductibleAmount != null
+  ) {
+    parts.push(`goodsDescription=${params.goodsDescription ?? ''}`);
+    parts.push(`goodsFmv=${params.goodsFmv ?? ''}`);
+    parts.push(`deductibleAmount=${params.deductibleAmount ?? ''}`);
+  }
   return parts.join('\n');
 }
 
@@ -172,6 +194,24 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
     }
   }
 
+  const goodsDescription = params.goodsDescription?.trim();
+  const qpq =
+    goodsDescription != null && goodsDescription.length > 0 &&
+    params.goodsFmv != null && Number.isFinite(params.goodsFmv) &&
+    params.deductibleAmount != null && Number.isFinite(params.deductibleAmount);
+  if (goodsDescription && !qpq) {
+    throw new Error(
+      'buildReceiptUrl: goodsDescription requires goodsFmv and deductibleAmount.',
+    );
+  }
+  const goodsFmvStr = qpq ? Number(params.goodsFmv).toFixed(2) : undefined;
+  const deductibleStr = qpq ? Number(params.deductibleAmount).toFixed(2) : undefined;
+  if (qpq) {
+    search.set('gd', goodsDescription);
+    search.set('gf', goodsFmvStr!);
+    search.set('da', deductibleStr!);
+  }
+
   const payload = canonicalReceiptPayload({
     name: params.name,
     amount: amountStr,
@@ -181,6 +221,9 @@ export function buildReceiptUrl(params: ReceiptUrlParams): string {
     dedication: dedicationName,
     dedicationType: params.dedicationType ?? undefined,
     memo,
+    goodsDescription: qpq ? goodsDescription : undefined,
+    goodsFmv: qpq ? goodsFmvStr : undefined,
+    deductibleAmount: qpq ? deductibleStr : undefined,
   });
 
   const sig = signReceiptPayload(payload);
@@ -203,6 +246,11 @@ export function computeReceiptSig(params: {
   method: string;
   campaign?: string;
   memo?: string;
+  dedication?: string;
+  dedicationType?: string;
+  goodsDescription?: string;
+  goodsFmv?: string;
+  deductibleAmount?: string;
 }): string {
   return signReceiptPayload(canonicalReceiptPayload(params));
 }
@@ -223,6 +271,11 @@ export function verifyReceiptSearchParams(
 
   if (!name || !amount || !date) return false;
 
+  const gd = readReceiptParam(params.gd);
+  const gf = readReceiptParam(params.gf);
+  const da = readReceiptParam(params.da);
+  // Fail closed: a qpq link verifies ONLY against the extended payload,
+  // and a plain link only against the legacy one.
   const payload = canonicalReceiptPayload({
     name,
     amount,
@@ -232,6 +285,9 @@ export function verifyReceiptSearchParams(
     dedication: readReceiptParam(params.dedication),
     dedicationType: readReceiptParam(params.dedicationType),
     memo: readReceiptParam(params.memo),
+    goodsDescription: gd,
+    goodsFmv: gf,
+    deductibleAmount: da,
   });
 
   return secrets.some((secret) =>

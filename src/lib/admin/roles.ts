@@ -12,13 +12,13 @@ export type AdminCapability =
   | 'attendance';
 
 /** CRM tabs volunteers must never see (money). */
-export const VOLUNTEER_HIDDEN_CRM_VIEWS = ['donations', 'chai', 'payments', 'lulav'] as const;
+export const VOLUNTEER_HIDDEN_CRM_VIEWS = ['donations', 'goods', 'chai', 'payments', 'lulav'] as const;
 
 /** CRM tabs office staff must never see (general donate + Chai). */
-export const OFFICE_HIDDEN_CRM_VIEWS = ['donations', 'chai'] as const;
+export const OFFICE_HIDDEN_CRM_VIEWS = ['donations', 'goods', 'chai'] as const;
 
 /** Payment source types office may not see. */
-export const OFFICE_HIDDEN_PAYMENT_SOURCES = ['donation', 'chai_partner'] as const;
+export const OFFICE_HIDDEN_PAYMENT_SOURCES = ['donation', 'chai_partner', 'goods_payment'] as const;
 
 const ROLE_CAPABILITIES: Record<AdminRole, readonly AdminCapability[]> = {
   admin: [

@@ -8,6 +8,8 @@ export type EnsureContactInput = {
   email: string;
   phone?: string | null;
   interest?: string | null;
+  /** Company / organization the person pays or gives for */
+  company?: string | null;
   /** Appended to message if not already present */
   note?: string | null;
   /** Prefer older of existing vs this when set */
@@ -16,6 +18,8 @@ export type EnsureContactInput = {
   isResolved?: boolean;
   /** Overwrite placeholder names (Unknown / Friend / Partner) */
   forceName?: boolean;
+  /** Existing contact explicitly picked in the CRM picker; wins over email dedupe */
+  contactId?: string | null;
 };
 
 const PLACEHOLDER_FIRST = new Set(['unknown', 'friend', 'n/a', 'na', 'none', '']);
@@ -32,6 +36,46 @@ function isPlaceholderLast(v: string): boolean {
  * Upsert a CRM contact by email. Every person-producing flow should call this
  * so Contacts stays the unified people directory.
  */
+/**
+ * Link two existing contacts as spouses (reciprocal), best-effort.
+ * Used when the admin explicitly picked the spouse from existing contacts;
+ * never creates or overwrites identities beyond the spouse link.
+ */
+export async function linkSpouseContacts(
+  payerEmail: string,
+  spouseContactId: string,
+  payerContactId?: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const email = payerEmail.trim().toLowerCase();
+  if (!spouseContactId) return { ok: false, error: 'no spouse contact selected' };
+
+  const supabase = createAdminClient();
+  let payerId = payerContactId?.trim() || null;
+  if (!payerId) {
+    if (!email.includes('@')) return { ok: false, error: 'no payer email to link from' };
+    const { data: payer } = await supabase
+      .from('contacts')
+      .select('id')
+      .ilike('email', email)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    payerId = payer?.id ?? null;
+  }
+  if (!payerId) return { ok: false, error: 'payer contact not found' };
+  if (payerId === spouseContactId) return { ok: false, error: 'cannot link a contact to itself' };
+
+  const { error } = await supabase.rpc('set_contact_spouse', {
+    p_contact: payerId,
+    p_spouse: spouseContactId,
+  });
+  if (error) {
+    console.error('[ensureCrmContact] spouse link', error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
 export async function ensureCrmContact(
   input: EnsureContactInput,
 ): Promise<{ id: string; created: boolean } | null> {
@@ -49,13 +93,26 @@ export async function ensureCrmContact(
 
   const supabase = createAdminClient();
 
-  const { data: existing } = await supabase
-    .from('contacts')
-    .select('id, first_name, last_name, phone, interest, message, created_at, is_resolved')
-    .ilike('email', email)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  let existing: any = null;
+  // An explicitly picked contact wins over email dedupe (shared/blank emails).
+  if (input.contactId) {
+    const { data: byId } = await supabase
+      .from('contacts')
+      .select('id, first_name, last_name, phone, interest, message, created_at, is_resolved, company')
+      .eq('id', input.contactId)
+      .maybeSingle();
+    existing = byId ?? null;
+  }
+  if (!existing) {
+    const { data: byEmail } = await supabase
+      .from('contacts')
+      .select('id, first_name, last_name, phone, interest, message, created_at, is_resolved, company')
+      .ilike('email', email)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    existing = byEmail ?? null;
+  }
 
   if (existing?.id) {
     const patch: Record<string, unknown> = {};
@@ -74,6 +131,8 @@ export async function ensureCrmContact(
     }
     if (phone && !existing.phone) patch.phone = phone;
     if (interest && !existing.interest) patch.interest = interest;
+    const company = input.company?.trim() || null;
+    if (company && !existing.company) patch.company = company;
     if (note) {
       const base = (existing.message || '').trim();
       if (!base) patch.message = note;
@@ -111,6 +170,7 @@ export async function ensureCrmContact(
       email,
       phone,
       interest,
+      company: input.company?.trim() || null,
       message: note,
       is_resolved: input.isResolved ?? true,
       ...(input.createdAt ? { created_at: input.createdAt } : {}),

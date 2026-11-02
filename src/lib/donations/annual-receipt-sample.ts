@@ -46,16 +46,35 @@ function buildPreviewLines(count: number): ReceiptLine[] {
 export const ANNUAL_RECEIPT_PREVIEW_COUNT = 25;
 
 export const ANNUAL_RECEIPT_PREVIEW: ReceiptDocumentProps = {
-  name: 'Shmuel Hurwitz',
+  name: 'Demo Donor',
   taxYear: 2025,
   variant: 'annual',
   letterDate: 'December 31, 2025',
   lines: buildPreviewLines(ANNUAL_RECEIPT_PREVIEW_COUNT),
 };
 
-export function buildAnnualReceiptPreview(count: number): ReceiptDocumentProps {
+/**
+ * Sample quid-pro-quo line for the annual preview (?goods=1): a payment
+ * partly for goods, listed at its deductible portion with the IRS
+ * disclosure instead of the blanket no-goods sentence.
+ */
+export const ANNUAL_RECEIPT_PREVIEW_QPQ: ReceiptDocumentProps['lines'] = [
+  {
+    date: '11/01/2025',
+    memo: 'Tefillin (paid $800)',
+    method: 'Zelle',
+    amount: 0,
+    goodsDescription: 'Tefillin x1 (paid $800.00)',
+    goodsFmv: 800,
+  },
+];
+
+export function buildAnnualReceiptPreview(
+  count: number,
+  withGoods = false,
+): ReceiptDocumentProps {
   return {
     ...ANNUAL_RECEIPT_PREVIEW,
-    lines: buildPreviewLines(count),
+    lines: [...buildPreviewLines(count), ...(withGoods ? ANNUAL_RECEIPT_PREVIEW_QPQ : [])],
   };
 }

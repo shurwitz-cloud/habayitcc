@@ -13,6 +13,7 @@ export type FormType =
   | 'rsvp'
   | 'senior_home_permission'
   | 'lulav_order'
+  | 'goods_payment'
   | 'other';
 
 /**

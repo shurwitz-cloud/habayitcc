@@ -2,7 +2,15 @@ export interface ReceiptLine {
   date: string;
   memo: string;
   method: string;
+  /** For quid-pro-quo lines this is the DEDUCTIBLE portion (amount paid minus goods value). */
   amount: number;
+  /**
+   * Quid pro quo (IRS): set when the payer received goods/services in
+   * exchange. The receipt discloses these instead of claiming no goods
+   * were provided, and totals use the deductible portion above.
+   */
+  goodsDescription?: string;
+  goodsFmv?: number;
 }
 
 export interface ReceiptDocumentProps {

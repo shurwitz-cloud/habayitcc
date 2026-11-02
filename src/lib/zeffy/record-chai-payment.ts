@@ -58,6 +58,13 @@ export type RecordZeffyOptions = {
   spouseEmail?: string | null;
   spousePhone?: string | null;
   /**
+   * Copy the spouse on the welcome/receipt email. Default true preserves
+   * existing callers (public signup). Manual entry passes the admin's
+   * explicit "also email spouse" choice; linking a spouse alone never
+   * adds them as a recipient.
+   */
+  emailSpouse?: boolean;
+  /**
    * Amount paid is the full prepaid gift (email/receipt show this).
    * CRM `monthly_amount` uses monthlyAmount or paid÷12.
    */
@@ -68,6 +75,10 @@ export type RecordZeffyOptions = {
   coverageMonths?: number;
   /** Optional override for tax receipt “Name” line (e.g. business name). */
   receiptName?: string | null;
+  /** Company/organization as donor of record; stored on the partner at first entry. */
+  company?: string | null;
+  /** Existing contact explicitly picked as the payer; wins over email dedupe */
+  contactId?: string | null;
   /** Optional admin note (e.g. memo "prepaid"). */
   note?: string | null;
 };
@@ -79,7 +90,7 @@ export type RecordZeffyOptions = {
 export async function recordZeffyChaiPartnerPayment(
   parsed: ParsedZeffyPayment,
   options: RecordZeffyOptions = {}
-): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean }> {
+): Promise<{ ok: boolean; partnerId?: string; accessCode?: string; duplicate?: boolean; receiptName?: string }> {
   // Default OFF — never email unless caller explicitly opts in.
   const sendEmails = options.sendEmails === true;
   const includeReceiptLink = options.includeReceiptLink !== false;
@@ -89,8 +100,10 @@ export async function recordZeffyChaiPartnerPayment(
   const spouseLastName = options.spouseLastName?.trim() || '';
   const spouseEmail = options.spouseEmail?.trim().toLowerCase() || '';
   const spousePhone = options.spousePhone?.trim() || '';
+  const emailSpouse = options.emailSpouse !== false;
   const noteText = (options.note ?? '').trim();
   const receiptNameOverride = (options.receiptName ?? '').trim();
+  const companyOption = (options.company ?? '').trim() || null;
   const paidUpfront =
     options.paidUpfront === true || isChaiPaidUpfrontNote(noteText);
   const paidAmount = parsed.amountDollars;
@@ -117,7 +130,7 @@ export async function recordZeffyChaiPartnerPayment(
     spouseFirstName,
     spouseLastName,
   });
-  const receiptDisplayName = receiptNameOverride || coupleNames.receiptName;
+  let receiptDisplayName = receiptNameOverride || coupleNames.receiptName;
   const supabase = createAdminClient();
   const paymentKey = zeffyPaymentKey(parsed.paymentId);
 
@@ -128,17 +141,37 @@ export async function recordZeffyChaiPartnerPayment(
     .maybeSingle();
 
   if (existingPayment) {
-    return { ok: true, partnerId: existingPayment.source_id, duplicate: true };
+    return { ok: true, partnerId: existingPayment.source_id, duplicate: true, receiptName: receiptDisplayName };
   }
 
   const { data: existingPartner } = await supabase
     .from('chai_partners')
-    .select('id, access_code, first_name, last_name, email, monthly_amount')
+    .select('id, access_code, first_name, last_name, email, monthly_amount, company')
     .eq('email', parsed.email)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
+  // Renewal receipts keep the partner's stored company as donor of record
+  // (partnership started as a company stays a company unless changed later).
+  if (!receiptNameOverride) {
+    const partnerCompany = (existingPartner?.company ?? '').trim() || companyOption;
+    if (partnerCompany) receiptDisplayName = partnerCompany;
+  }
+  // An explicitly entered company on a later payment is a deliberate change:
+  // update the stored donor-of-record so later renewals keep it. Never done
+  // silently - only when a company was actually entered for this payment.
+  if (
+    existingPartner?.id &&
+    companyOption &&
+    companyOption !== (existingPartner.company ?? '').trim()
+  ) {
+    const { error: companyError } = await supabase
+      .from('chai_partners')
+      .update({ company: companyOption })
+      .eq('id', existingPartner.id);
+    if (companyError) console.error('[recordZeffyChaiPartnerPayment] company update', companyError.message);
+  }
   let partnerId = existingPartner?.id;
   let accessCode = existingPartner?.access_code ?? undefined;
   const isNewPartner = !partnerId;
@@ -151,6 +184,7 @@ export async function recordZeffyChaiPartnerPayment(
         first_name: parsed.firstName || 'Member',
         last_name: parsed.lastName || '',
         email: parsed.email,
+        company: companyOption,
         phone: parsed.phone || null,
         street_address: parsed.street || null,
         city: parsed.city || null,
@@ -239,6 +273,7 @@ export async function recordZeffyChaiPartnerPayment(
     firstName: parsed.firstName,
     lastName: parsed.lastName,
     email: parsed.email,
+    contactId: options.contactId ?? null,
     phone: parsed.phone,
     interest: 'Chai Partner',
     note: `--- Synced from Zeffy Chai ---\n${amountNote}${
@@ -312,7 +347,7 @@ export async function recordZeffyChaiPartnerPayment(
           accessCode,
           spouseFirstName,
           spouseLastName,
-          spouseEmail,
+          spouseEmail: emailSpouse ? spouseEmail : undefined,
           receiptUrl: includeReceiptLink
             ? buildChaiPartnerReceiptUrl({
                 firstName: parsed.firstName,
@@ -348,7 +383,7 @@ export async function recordZeffyChaiPartnerPayment(
         includeReceiptLink,
         spouseFirstName,
         spouseLastName,
-        spouseEmail,
+        spouseEmail: emailSpouse ? spouseEmail : undefined,
         monthlyAmount: rateForEmail,
         coverageMonths,
       });
@@ -357,5 +392,5 @@ export async function recordZeffyChaiPartnerPayment(
     }
   }
 
-  return { ok: true, partnerId, accessCode };
+  return { ok: true, partnerId, accessCode, receiptName: receiptDisplayName };
 }

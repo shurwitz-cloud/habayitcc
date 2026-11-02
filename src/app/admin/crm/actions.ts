@@ -20,6 +20,7 @@ import {
 import { enrichEventRegistrationsFromFormSubmissions } from '@/lib/admin/crm/enrich-event-money';
 import { collapseDuplicateEventRegistrations } from '@/lib/admin/crm/collapse-duplicate-event-registrations';
 import { enrichPaymentsForCrm } from '@/lib/admin/crm/enrich-payments';
+import type { GoodsPayment } from '@/types/database';
 import { relinkOrphanedEventPayments } from '@/lib/admin/crm/payment-party';
 import {
   eventShowsAdults,
@@ -79,6 +80,7 @@ function redactCrmSnapshotForVolunteer(snapshot: CrmSnapshot): CrmSnapshot {
     donations: [],
     chaiPartners: [],
     payments: [],
+    goodsPayments: [],
     formSubmissions,
     stats: {
       ...snapshot.stats,
@@ -109,6 +111,7 @@ function redactCrmSnapshotForOffice(snapshot: CrmSnapshot): CrmSnapshot {
     donations: [],
     chaiPartners: [],
     payments,
+    goodsPayments: [],
     formSubmissions,
     stats: {
       ...snapshot.stats,
@@ -284,6 +287,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     registrationsResInitial,
     programsRes,
     paymentsRes,
+    goodsRes,
     rsvpsRes,
     eventsRes,
     datesRes,
@@ -299,6 +303,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     supabase.from('program_registrations').select('*').order('created_at', { ascending: false }),
     supabase.from('programs').select('id, name, slug, is_active'),
     supabase.from('payments').select('*').order('created_at', { ascending: false }),
+    supabase.from('goods_payments').select('*').order('created_at', { ascending: false }),
     supabase.from('event_registrations').select('*').order('created_at', { ascending: false }),
     supabase.from('events').select('*').order('starts_at', { ascending: false }),
     supabase.from('important_dates').select('*').order('gregorian_date', { ascending: true }),
@@ -355,6 +360,8 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
   const children = (childrenRes.data ?? []) as Child[];
   const registrations = (registrationsRes.data ?? []) as ProgramRegistration[];
   const payments = (paymentsRes.data ?? []) as Payment[];
+  if (goodsRes.error) console.error('[CRM] goods_payments:', goodsRes.error.message);
+  const goodsPayments = (goodsRes.error ? [] : (goodsRes.data ?? [])) as GoodsPayment[];
   const rsvpRowsRaw = (rsvpsRes.data ?? []) as EventRegistration[];
   const dbEvents = (eventsRes.data ?? []) as Event[];
   const importantDates = (datesRes.data ?? []) as ImportantDate[];
@@ -655,6 +662,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
     events,
     rsvps,
     payments: paymentsEnriched,
+    goodsPayments,
     importantDates,
     formSubmissions,
     waiversByFamily,

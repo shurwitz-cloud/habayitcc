@@ -2817,6 +2817,7 @@ function LulavOrdersTable({
 } & SortProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [methodById, setMethodById] = useState<Record<string, string>>({});
+  const [sendEmailById, setSendEmailById] = useState<Record<string, boolean>>({});
   const [errorById, setErrorById] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
@@ -2830,6 +2831,7 @@ function LulavOrdersTable({
       const result = await markLulavOrderPaid({
         submissionId: order.id,
         paymentMethod,
+        sendEmails: sendEmailById[order.id] === true,
       });
       setPendingId(null);
       if (!result.success) {
@@ -2892,6 +2894,21 @@ function LulavOrdersTable({
                         </option>
                       ))}
                     </select>
+                    <label className="flex items-start gap-1.5 text-xs text-muted">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={sendEmailById[o.id] === true}
+                        onChange={(e) =>
+                          setSendEmailById((prev) => ({ ...prev, [o.id]: e.target.checked }))
+                        }
+                        disabled={busy}
+                      />
+                      <span>
+                        Send confirmation emails (customer + office). Off by default
+                        for manual entries.
+                      </span>
+                    </label>
                     <button
                       type="button"
                       onClick={() => markPaid(o)}

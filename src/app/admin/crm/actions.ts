@@ -813,6 +813,9 @@ export async function addOfflineEventRegistration(input: {
 export async function markLulavOrderPaid(input: {
   submissionId: string;
   paymentMethod: string;
+  // Manual/offline payments default to NO emails. Pass true only when the
+  // admin explicitly asks to send the customer confirmation + office copy.
+  sendEmails?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
   const canFinance = await requireCapability('crm_finance');
   const canEvents = await requireCapability('crm_event_payments');
@@ -881,20 +884,22 @@ export async function markLulavOrderPaid(input: {
     console.error('[lulav] sheet mark paid failed:', sheet.error);
   }
 
-  void sendLulavOrderEmails({
-    fullName: fullName || 'Customer',
-    email,
-    phone,
-    payMethod: input.paymentMethod.toLowerCase() === 'zelle' ? 'zelle' : 'card',
-    pricing: {
-      quantity,
-      subtotal: Number(payload.subtotal) || total,
-      cardFee: Number(payload.cardFee) || 0,
-      total,
-      totalCents: Math.round(total * 100),
-    },
-    status: 'paid',
-  });
+  if (input.sendEmails === true) {
+    void sendLulavOrderEmails({
+      fullName: fullName || 'Customer',
+      email,
+      phone,
+      payMethod: input.paymentMethod.toLowerCase() === 'zelle' ? 'zelle' : 'card',
+      pricing: {
+        quantity,
+        subtotal: Number(payload.subtotal) || total,
+        cardFee: Number(payload.cardFee) || 0,
+        total,
+        totalCents: Math.round(total * 100),
+      },
+      status: 'paid',
+    });
+  }
 
   revalidatePath('/admin/crm');
   return { success: true };

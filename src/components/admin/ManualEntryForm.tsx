@@ -174,6 +174,13 @@ export function ManualEntryForm({
     }
   }
 
+  // Email is optional for one-time donation entries only (one-time
+  // override). While it is empty, receipt and email options are disabled
+  // and forced off.
+  // Email is optional for one-time donations and goods/services entries.
+  const emailRequired = kind === 'monthly' || kind === 'chai_partner';
+  const emailMissing = !form.email.trim();
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setStatus('saving');
@@ -237,8 +244,8 @@ export function ManualEntryForm({
               ? form.checkNumber.trim()
               : undefined,
           paidAt,
-          sendEmail,
-          includeReceiptLink,
+          sendEmail: emailMissing ? false : sendEmail,
+          includeReceiptLink: emailMissing ? false : includeReceiptLink,
           item: kind === 'goods_services' ? goodsItem : undefined,
           customItem:
             kind === 'goods_services' && goodsItem === GOODS_OTHER_ITEM
@@ -531,7 +538,7 @@ export function ManualEntryForm({
               onChange={(v) => setField('email', v)}
               onSelect={applyPerson}
               matchContext={`${form.firstName} ${form.lastName}`}
-              required
+              required={emailRequired}
               className="sm:col-span-2"
             />
             <Field label="Phone" value={form.phone} onChange={(v) => setField('phone', v)} />
@@ -821,10 +828,11 @@ export function ManualEntryForm({
                 </span>
               </label>
             ) : null}
-            <label className="flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
+            <label className={`flex items-start gap-3 text-sm text-[#172643] ${emailMissing ? 'opacity-60' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
-                checked={sendEmail}
+                checked={sendEmail && !emailMissing}
+                disabled={emailMissing}
                 onChange={(e) => {
                   const next = e.target.checked;
                   setSendEmail(next);
@@ -840,13 +848,17 @@ export function ManualEntryForm({
                     : kind === 'goods_services'
                       ? "Payment confirmation email to the payer's email. Off by default."
                       : "Thank-you email from HaBayit, to the payer's email."}
+                  {emailMissing
+                    ? ' No payer email yet: no email will be generated or sent.'
+                    : ''}
                 </span>
               </span>
             </label>
             <label className="flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
               <input
                 type="checkbox"
-                checked={includeReceiptLink}
+                checked={includeReceiptLink && !emailMissing}
+                disabled={emailMissing}
                 onChange={(e) => {
                   const next = e.target.checked;
                   setIncludeReceiptLink(next);

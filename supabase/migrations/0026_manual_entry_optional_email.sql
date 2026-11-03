@@ -1,12 +1,12 @@
 -- ============================================================
--- OPTIONAL EMAIL FOR ADMIN MANUAL ENTRY (one-time donations only)
+-- OPTIONAL EMAIL FOR ADMIN MANUAL ENTRY (one-time donations and goods/services)
 -- Offline gifts (Zelle/cash/check) sometimes arrive with no payer email.
 -- Dropping NOT NULL lets the admin manual-entry flow record them with a
 -- NULL email. Online flows (Stripe/Zeffy checkout) always supply an email,
 -- and every receipt/email path stays blocked while email IS NULL.
--- App-level guards (manual-entry route) still REQUIRE email for monthly,
--- Chai Partner and Goods/Services entries; only one-time donations may be
--- saved email-less.
+-- App-level guards (manual-entry route) still REQUIRE email for monthly and
+-- Chai Partner entries; one-time donations and goods/services may be saved
+-- email-less.
 -- ROLLBACK (additive-compatible, no payment deletion): fill or remove the
 -- NULL email values first, then:
 --   alter table donations alter column email set not null;

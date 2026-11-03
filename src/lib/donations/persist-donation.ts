@@ -9,7 +9,8 @@ export interface PersistDonationInput {
   amountDollars: number;
   firstName: string;
   lastName: string;
-  email: string;
+  /** NULL only for admin manual entry of offline gifts with no payer email. */
+  email: string | null;
   phone?: string | null;
   donationType: 'One-Time' | 'Monthly';
   memo?: string | null;
@@ -127,7 +128,8 @@ export async function persistDonation(
   void donationRow({
     firstName: input.firstName,
     lastName: input.lastName,
-    email: input.email,
+    // Sheet log column is non-nullable text; empty cell for email-less entries.
+    email: input.email ?? '',
     phone: input.phone ?? undefined,
     amount: input.amountDollars,
     paymentIntentId: input.paymentIntentId ?? '',

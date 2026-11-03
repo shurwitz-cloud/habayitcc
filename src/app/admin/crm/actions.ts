@@ -575,7 +575,7 @@ export async function getCrmSnapshot(): Promise<CrmSnapshot> {
         id: c.id,
         firstName: c.first_name,
         lastName: c.last_name,
-        email: c.email,
+        email: c.email ?? '',
         phone: c.phone,
         interest: c.interest,
         message: c.message,
@@ -903,4 +903,4 @@ export async function markLulavOrderPaid(input: {
 
   revalidatePath('/admin/crm');
   return { success: true };
-}
+                                   }

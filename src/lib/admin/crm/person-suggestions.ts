@@ -45,8 +45,24 @@ function pushUnique(
 /** Unique people for CRM name autocomplete (contacts + donors + chai + parents). */
 export function buildPersonSuggestions(snapshot: CrmSnapshot): CrmPersonSuggestion[] {
   const map = new Map<string, CrmPersonSuggestion>();
+  // Email-less contacts (email-less manual entry) can't live in the
+  // email-keyed map, but the picker MUST still surface them: selecting one
+  // passes its explicit contactId, which is the only way a repeat email-less
+  // payment reuses the same contact instead of creating a duplicate.
+  const emailless: CrmPersonSuggestion[] = [];
 
   for (const c of snapshot.contacts) {
+    if (!c.email) {
+      emailless.push({
+        id: `contact:${c.id}`,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        email: '',
+        phone: c.phone,
+        meta: `${c.interest ?? 'Contact'} · no email`,
+      });
+      continue;
+    }
     pushUnique(map, {
       id: `contact:${c.id}`,
       firstName: c.first_name,
@@ -62,7 +78,7 @@ export function buildPersonSuggestions(snapshot: CrmSnapshot): CrmPersonSuggesti
       id: `donation:${d.id}`,
       firstName: d.first_name,
       lastName: d.last_name,
-      email: d.email,
+      email: d.email ?? '',
       phone: d.phone,
       meta: 'Donor',
     });
@@ -93,7 +109,7 @@ export function buildPersonSuggestions(snapshot: CrmSnapshot): CrmPersonSuggesti
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => {
+  return [...Array.from(map.values()), ...emailless].sort((a, b) => {
     const ln = a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' });
     if (ln !== 0) return ln;
     return a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' });

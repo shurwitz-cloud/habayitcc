@@ -67,7 +67,7 @@ export async function recordGoodsPayment(
     {
       p_first_name: input.firstName,
       p_last_name: input.lastName,
-      p_email: email,
+      p_email: email || null,
       p_phone: input.phone?.trim() ?? null,
       p_item_label: input.itemLabel,
       p_quantity: input.quantity,

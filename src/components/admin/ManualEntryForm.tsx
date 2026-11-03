@@ -177,10 +177,8 @@ export function ManualEntryForm({
     }
   }
 
-  // Email is optional for one-time donation entries only (one-time
-  // override). While it is empty, receipt and email options are disabled
-  // and forced off.
-  // Email is optional for one-time donations and goods/services entries.
+  // Email is optional for one-time donation and goods/services entries.
+  // While it is empty, receipt and email options are disabled and forced off.
   const emailRequired = kind === 'monthly' || kind === 'chai_partner';
   const emailMissing = !form.email.trim();
 

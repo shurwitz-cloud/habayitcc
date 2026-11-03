@@ -81,6 +81,12 @@ export async function POST(req: NextRequest) {
     memo?: string;
     sendEmail?: boolean;
     includeReceiptLink?: boolean;
+    /**
+     * Explicit opt-in to GENERATE a signed receipt link (shown in the admin
+     * panel after save). Off by default: saving never creates a receipt
+     * artifact unless the admin asks, or a receipt link is emailed.
+     */
+    generateReceipt?: boolean;
     spouseFirstName?: string;
     spouseLastName?: string;
     spouseEmail?: string;
@@ -189,6 +195,11 @@ export async function POST(req: NextRequest) {
   // matter what the client asked for.
   const sendEmailFlag = hasEmail && body.sendEmail === true;
   const includeReceiptLink = hasEmail && body.includeReceiptLink === true;
+  // Receipt links are generated only on explicit opt-in, or when one is
+  // actually emailed (includeReceiptLink inside a sent email). Saving alone
+  // never produces a receipt artifact.
+  const wantReceiptLink =
+    hasEmail && (body.generateReceipt === true || (sendEmailFlag && includeReceiptLink));
   // Spouse is copied on the confirmation email ONLY on explicit opt-in.
   // Linking a spouse is never permission to email them.
   const spouseEmailCopy =
@@ -373,7 +384,8 @@ export async function POST(req: NextRequest) {
           items: [{ label: itemLabel, qty: goodsQuantity, unit: goodsUnitAmount }],
           note: memo || undefined,
         });
-    const receiptUrl = receiptPath && hasEmail ? `${getSiteUrl()}${receiptPath}` : null;
+    const receiptUrl =
+      receiptPath && wantReceiptLink ? `${getSiteUrl()}${receiptPath}` : null;
 
     let emailed = false;
     if (sendEmailFlag && !result.duplicate) {
@@ -474,7 +486,7 @@ export async function POST(req: NextRequest) {
     // Prefer the lib's receipt name: it carries the stored partner company
     // fallback for renewals (company stays unless explicitly changed).
     const chaiReceiptName = result.receiptName ?? receiptDisplayName;
-    const receiptUrl = result.duplicate
+    const receiptUrl = result.duplicate || !wantReceiptLink
       ? null
       : buildChaiPartnerReceiptUrl({
           firstName,
@@ -595,9 +607,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // No payer email: the receipt URL is not produced at all (receipts are
-  // blocked until a real email is on file).
-  const receiptUrl = persisted.alreadyExisted || !hasEmail
+  // Receipt links are opt-in: no payer email (existing guard), duplicate,
+  // or no explicit generate request means no receipt URL is produced at all.
+  const receiptUrl = persisted.alreadyExisted || !wantReceiptLink
     ? null
     : buildAbsoluteReceiptUrl({
         name: receiptDisplayName,

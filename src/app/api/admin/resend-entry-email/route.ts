@@ -44,6 +44,13 @@ export async function POST(req: NextRequest) {
 
   if (donation) {
     kind = 'donation';
+    // Email-less manual entries have no address to resend to.
+    if (!donation.email || !String(donation.email).includes('@')) {
+      return NextResponse.json(
+        { error: 'This entry has no payer email on file. Add one via Edit first.' },
+        { status: 400 },
+      );
+    }
     const { data: ledger } = await supabase
       .from('payments')
       .select('payment_method, paid_at')

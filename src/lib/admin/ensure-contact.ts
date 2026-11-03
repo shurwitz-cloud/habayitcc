@@ -80,7 +80,11 @@ export async function ensureCrmContact(
   input: EnsureContactInput,
 ): Promise<{ id: string; created: boolean } | null> {
   const email = input.email.trim().toLowerCase();
-  if (!email || !email.includes('@') || SKIP_EMAILS.has(email)) return null;
+  if (email && (!email.includes('@') || SKIP_EMAILS.has(email))) return null;
+  // Email-less manual entry: a NULL email is allowed, but identity is never
+  // inferred from a name. Only an explicitly picked contact is reused;
+  // otherwise a new distinct contact row with NULL email is created.
+  const hasEmail = Boolean(email);
 
   let first = input.firstName.trim();
   let last = input.lastName.trim();
@@ -103,7 +107,7 @@ export async function ensureCrmContact(
       .maybeSingle();
     existing = byId ?? null;
   }
-  if (!existing) {
+  if (!existing && hasEmail) {
     const { data: byEmail } = await supabase
       .from('contacts')
       .select('id, first_name, last_name, phone, interest, message, created_at, is_resolved, company')
@@ -167,7 +171,7 @@ export async function ensureCrmContact(
     .insert({
       first_name: insertFirst,
       last_name: insertLast,
-      email,
+      email: hasEmail ? email : null,
       phone,
       interest,
       company: input.company?.trim() || null,
@@ -481,4 +485,4 @@ export async function syncContactsFromCrmPeople(): Promise<SyncContactsStats> {
   }
 
   return stats;
-}
+        }

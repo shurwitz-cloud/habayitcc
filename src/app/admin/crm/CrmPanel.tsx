@@ -296,7 +296,7 @@ export function CrmPanel({
     () =>
       sortRows(filteredContacts, (c) => {
         if (sortKey === 'name') return `${c.last_name} ${c.first_name}`;
-        if (sortKey === 'email') return c.email;
+        if (sortKey === 'email') return c.email ?? '';
         if (sortKey === 'interest') return c.interest ?? '';
         if (sortKey === 'status') return c.is_resolved ? 'resolved' : 'open';
         return new Date(c.created_at).getTime();
@@ -307,7 +307,7 @@ export function CrmPanel({
     () =>
       sortRows(filteredDonations, (d) => {
         if (sortKey === 'name') return `${d.last_name} ${d.first_name}`;
-        if (sortKey === 'email') return d.email;
+        if (sortKey === 'email') return d.email ?? '';
         if (sortKey === 'amount') return Number(d.amount);
         if (sortKey === 'status') return d.status;
         return new Date(d.created_at).getTime();
@@ -332,7 +332,7 @@ export function CrmPanel({
     () =>
       sortRows(filteredGoods, (g) => {
         if (sortKey === 'name') return `${g.last_name} ${g.first_name}`;
-        if (sortKey === 'email') return g.email;
+        if (sortKey === 'email') return g.email ?? '';
         if (sortKey === 'amount') return Number(g.amount);
         if (sortKey === 'item') return g.item_label;
         return new Date(g.paid_at ?? g.created_at).getTime();
@@ -343,7 +343,7 @@ export function CrmPanel({
     () =>
       sortRows(filteredChai, (c) => {
         if (sortKey === 'name') return `${c.last_name} ${c.first_name}`;
-        if (sortKey === 'email') return c.email;
+        if (sortKey === 'email') return c.email ?? '';
         if (sortKey === 'monthly') return Number(c.monthly_amount);
         if (sortKey === 'status') return c.status;
         return new Date(c.created_at).getTime();
@@ -471,7 +471,7 @@ export function CrmPanel({
   );
 
   function startManualEntryFromContact(
-    contact: { id?: string; first_name: string; last_name: string; email: string; phone?: string | null },
+    contact: { id?: string; first_name: string; last_name: string; email: string | null; phone?: string | null },
     kind: ManualEntryPrefill['kind'] = 'one_time',
   ) {
     if (!canSeeFinance) return;
@@ -481,7 +481,7 @@ export function CrmPanel({
       contactId: contact.id,
       firstName: contact.first_name,
       lastName: contact.last_name,
-      email: contact.email,
+      email: contact.email ?? '',
       phone: contact.phone ?? '',
       kind,
     });
@@ -527,7 +527,7 @@ export function CrmPanel({
         filteredContacts.map((c) => [
           formatDate(c.created_at),
           `${c.first_name} ${c.last_name}`,
-          c.email,
+          c.email ?? '',
           c.phone ?? '',
           c.interest ?? '',
           c.is_resolved ? 'Resolved' : 'Open',
@@ -559,7 +559,7 @@ export function CrmPanel({
         filteredDonations.map((d) => [
           formatDate(d.created_at),
           `${d.first_name} ${d.last_name}`,
-          d.email,
+          d.email ?? '',
           String(d.amount),
           d.status,
           d.dedication_name ?? '',
@@ -1828,7 +1828,7 @@ function DonationDetailRow({ d }: { d: CrmSnapshot['donations'][number] }) {
           initial={{
             firstName: d.first_name,
             lastName: d.last_name,
-            email: d.email,
+            email: d.email ?? '',
             phone: d.phone ?? '',
             amount: String(d.amount),
             memo: d.memo ?? '',
@@ -1841,7 +1841,7 @@ function DonationDetailRow({ d }: { d: CrmSnapshot['donations'][number] }) {
       <DeleteCrmEntryButton
         kind="donation"
         id={d.id}
-        label={`${d.first_name} ${d.last_name} · ${d.email} · ${formatUsd(Number(d.amount))}`}
+        label={`${d.first_name} ${d.last_name} · ${d.email ?? 'no email'} · ${formatUsd(Number(d.amount))}`}
       />
     </>
   );
@@ -1926,7 +1926,7 @@ function GoodsTable({
                         initial={{
                           firstName: g.first_name,
                           lastName: g.last_name,
-                          email: g.email,
+                          email: g.email ?? '',
                           phone: g.phone ?? '',
                           amount: String(g.amount),
                           memo: g.memo ?? '',
@@ -2115,7 +2115,7 @@ function ChaiDetailRow({
       <DeleteCrmEntryButton
         kind="chai_partner"
         id={c.id}
-        label={`${c.first_name} ${c.last_name} · ${c.email} · ${formatUsd(Number(c.monthly_amount))}/mo`}
+        label={`${c.first_name} ${c.last_name} · ${c.email ?? 'no email'} · ${formatUsd(Number(c.monthly_amount))}/mo`}
       />
     </>
   );

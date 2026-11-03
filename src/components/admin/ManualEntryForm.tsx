@@ -78,6 +78,9 @@ export function ManualEntryForm({
   const [coverageMonths, setCoverageMonths] = useState(1);
   const [sendEmail, setSendEmail] = useState(false);
   const [includeReceiptLink, setIncludeReceiptLink] = useState(false);
+  // Receipt generation is opt-in: no receipt link is created on save unless
+  // the admin explicitly asks (or emails one). Default off.
+  const [generateReceipt, setGenerateReceipt] = useState(false);
   const [goodsItem, setGoodsItem] = useState<string>(GOODS_ITEM_PRESETS[0]);
   const [goodsCustomItem, setGoodsCustomItem] = useState('');
   const [goodsQty, setGoodsQty] = useState(1);
@@ -174,6 +177,11 @@ export function ManualEntryForm({
     }
   }
 
+  // Email is optional for one-time donation and goods/services entries.
+  // While it is empty, receipt and email options are disabled and forced off.
+  const emailRequired = kind === 'monthly' || kind === 'chai_partner';
+  const emailMissing = !form.email.trim();
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setStatus('saving');
@@ -237,8 +245,9 @@ export function ManualEntryForm({
               ? form.checkNumber.trim()
               : undefined,
           paidAt,
-          sendEmail,
-          includeReceiptLink,
+          sendEmail: emailMissing ? false : sendEmail,
+          includeReceiptLink: emailMissing ? false : includeReceiptLink,
+          generateReceipt: emailMissing ? false : generateReceipt,
           item: kind === 'goods_services' ? goodsItem : undefined,
           customItem:
             kind === 'goods_services' && goodsItem === GOODS_OTHER_ITEM
@@ -531,7 +540,7 @@ export function ManualEntryForm({
               onChange={(v) => setField('email', v)}
               onSelect={applyPerson}
               matchContext={`${form.firstName} ${form.lastName}`}
-              required
+              required={emailRequired}
               className="sm:col-span-2"
             />
             <Field label="Phone" value={form.phone} onChange={(v) => setField('phone', v)} />
@@ -821,10 +830,11 @@ export function ManualEntryForm({
                 </span>
               </label>
             ) : null}
-            <label className="flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
+            <label className={`flex items-start gap-3 text-sm text-[#172643] ${emailMissing ? 'opacity-60' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
-                checked={sendEmail}
+                checked={sendEmail && !emailMissing}
+                disabled={emailMissing}
                 onChange={(e) => {
                   const next = e.target.checked;
                   setSendEmail(next);
@@ -840,13 +850,17 @@ export function ManualEntryForm({
                     : kind === 'goods_services'
                       ? "Payment confirmation email to the payer's email. Off by default."
                       : "Thank-you email from HaBayit, to the payer's email."}
+                  {emailMissing
+                    ? ' No payer email yet: no email will be generated or sent.'
+                    : ''}
                 </span>
               </span>
             </label>
             <label className="flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
               <input
                 type="checkbox"
-                checked={includeReceiptLink}
+                checked={includeReceiptLink && !emailMissing}
+                disabled={emailMissing}
                 onChange={(e) => {
                   const next = e.target.checked;
                   setIncludeReceiptLink(next);
@@ -868,6 +882,28 @@ export function ManualEntryForm({
                       : paymentMethod === 'HaBayit donation link'
                         ? 'Usually leave off — Stripe already receipts the card charge.'
                         : 'Includes a View & Print Tax Receipt button.'}
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={generateReceipt && !emailMissing}
+                disabled={emailMissing}
+                onChange={(e) => setGenerateReceipt(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-semibold">
+                  {kind === 'goods_services'
+                    ? 'Generate payment receipt link'
+                    : 'Generate tax receipt link'}
+                </span>
+                <span className="mt-0.5 block text-[#6f6a60]">
+                  Off by default: saving records the payment only, with no
+                  receipt created. Turn on only when a receipt link is needed
+                  - it appears here after saving, nothing is emailed.
+                  {emailMissing ? ' Needs a payer email.' : ''}
                 </span>
               </span>
             </label>

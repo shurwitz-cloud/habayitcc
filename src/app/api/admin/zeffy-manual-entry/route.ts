@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
     sendEmail?: boolean;
     campaign?: string;
     memo?: string;
+    /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+    payerNote?: string;
   };
 
   try {
@@ -144,6 +146,7 @@ export async function POST(req: NextRequest) {
     phone: body.phone,
     donationType: 'One-Time',
     memo: body.memo?.trim() || 'Zeffy (manual CRM entry)',
+    payerNote: body.payerNote?.trim() || null,
     campaign,
     paidAt,
   });

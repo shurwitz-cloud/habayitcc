@@ -14,6 +14,8 @@ export interface RecordGoodsPaymentInput {
   amount: number;
   paymentMethod: string;
   memo?: string | null;
+  /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+  payerNote?: string | null;
   /** Dedupe key (stored on goods_payments.payment_key and the ledger intent column). */
   paymentKey: string;
   paidAt?: string | null;
@@ -62,9 +64,7 @@ export async function recordGoodsPayment(
   // One transaction: goods row + single ledger row + optional linked
   // donation row. A payment_key conflict comes back as duplicate, never
   // a second record. (Function lives in migration 0023.)
-  const { data: rpcResult, error: rpcError } = await supabase.rpc(
-    'record_goods_payment_tx',
-    {
+  const rpcParams: Record<string, unknown> = {
       p_first_name: input.firstName,
       p_last_name: input.lastName,
       p_email: email || null,
@@ -84,8 +84,22 @@ export async function recordGoodsPayment(
           ? Number(input.goodsFmv)
           : null,
       p_company: input.company?.trim() || null,
-    },
+      p_payer_note: input.payerNote?.trim() || null,
+  };
+
+  let { data: rpcResult, error: rpcError } = await supabase.rpc(
+    'record_goods_payment_tx',
+    rpcParams,
   );
+
+  if (rpcError && /p_payer_note|record_goods_payment_tx/i.test(rpcError.message)) {
+    // Database without migration 0027: retry without the new parameter.
+    delete rpcParams.p_payer_note;
+    ({ data: rpcResult, error: rpcError } = await supabase.rpc(
+      'record_goods_payment_tx',
+      rpcParams,
+    ));
+  }
 
   if (rpcError) {
     console.error('[recordGoodsPayment] tx failed:', rpcError.message);

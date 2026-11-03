@@ -79,6 +79,8 @@ export async function POST(req: NextRequest) {
     paymentKey?: string;
     campaign?: string;
     memo?: string;
+    /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+    payerNote?: string;
     sendEmail?: boolean;
     includeReceiptLink?: boolean;
     /**
@@ -242,6 +244,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'amount must be a positive number.' }, { status: 400 });
   }
   const memo = (body.memo ?? '').trim();
+  const payerNote = (body.payerNote ?? '').trim() || null;
   const paidUpfront =
     kind === 'chai_partner' &&
     (body.paidUpfront === true || isChaiPaidUpfrontNote(memo));
@@ -338,6 +341,7 @@ export async function POST(req: NextRequest) {
       amount: total,
       paymentMethod: methodLabel,
       memo: goodsMemo,
+      payerNote,
       paymentKey: goodsKeyBase,
       paidAt,
       includeInYearEnd,
@@ -466,6 +470,7 @@ export async function POST(req: NextRequest) {
       paidUpfront,
       monthlyAmount,
       coverageMonths,
+      payerNote,
       receiptName: receiptDisplayName !== coupleNames.receiptName ? receiptDisplayName : undefined,
       company,
       contactId: payerContactIdSelected,
@@ -538,6 +543,7 @@ export async function POST(req: NextRequest) {
     phone: body.phone,
     donationType,
     memo: memoParts.join(' · '),
+    payerNote,
     campaign,
     company,
     paidAt,

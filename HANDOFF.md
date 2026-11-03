@@ -146,3 +146,28 @@ Simple Server Action writing to the `contacts` table. No email sent yet (that's 
 - 2026-11-01: Applied migrations 0022-0025 (goods payments, quid-pro-quo columns, company tracking, chai partner company) to production via the Supabase SQL editor. Also applied 0015 (`payments.payment_method`, `payments.coverage_months`) the same day — it had never been applied to prod, which broke the manual-entry route until fixed. Note: prod does not track applied migrations in `supabase_migrations`; verify actual columns via `information_schema` before assuming a repo migration is live.
 
 - 2026-11-01 (later): Vercel production deploy of the ops-log commit above failed inside `next build` while fetching Google Fonts (`inter` module-not-found cascade) - a transient build-environment font-fetch failure, not the privacy gate and not app code (the gate was run locally against the exact committed tree and passed). The live site stayed on the previous Ready deployment throughout. The dashboard redeploy dialog repeatedly hung without queuing a build, so this follow-up ops note doubles as the retrigger commit.
+
+---
+
+## 2026-11-03 - Original payer notes (branch payer-original-notes, PREP ONLY - not deployed)
+
+New internal field `payer_note` on donations, goods_payments, and the payments
+ledger: the payer's verbatim original note (check memo line, Zelle memo, Zeffy
+comment, website note), stored SEPARATELY from `memo` (the admin's receipt
+wording). Internal/admin-only - never rendered on receipts, never emailed.
+Receipt rendering is untouched.
+
+- Migration: `supabase/migrations/0027_payer_note.sql` (columns + updated
+  `record_goods_payment_tx` + `edit_payment` whitelist). Apply before deploy.
+- Admin entry: ManualEntryForm "Original payer note (optional)" for all kinds;
+  manual-entry + zeffy-manual-entry accept `payerNote`.
+- Admin edit: EditEntryPanel field + edit-entry whitelist `payer_note`.
+- CRM details: donation and goods detail rows show "Original payer note".
+- Backwards compatible pre-migration: donation insert drops the column via
+  insertWithSchemaFallback; goods RPC retries without p_payer_note; chai
+  ledger insert falls back without payer_note (existing pattern).
+- Historical backfill (Zelle memos from bank emails, Zeffy comments, check
+  memos) is a separate reviewed step, not part of this branch.
+
+If Cursor touches entry/recording code, keep payer_note intact and out of
+receipts and emails.

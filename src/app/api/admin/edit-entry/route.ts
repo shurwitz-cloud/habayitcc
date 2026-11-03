@@ -20,6 +20,7 @@ const EDITABLE = [
   'phone',
   'amount',
   'memo',
+  'payer_note',
   'paid_at',
   'payment_method',
   'campaign',

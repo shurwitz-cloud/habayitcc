@@ -178,6 +178,8 @@ export interface Donation {
   dedication_name: string | null;
   dedication_type: DedicationType | null;
   memo: string | null;
+  /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+  payer_note?: string | null;
   campaign: string | null;
   company?: string | null;
   donation_type: string | null;
@@ -228,6 +230,8 @@ export interface Payment {
   payment_method?: string | null;
   /** Chai months this payment covers (default 1). */
   coverage_months?: number | null;
+  /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+  payer_note?: string | null;
   status: PaymentStatus;
   paid_at: string | null;
   created_at: string;
@@ -246,6 +250,8 @@ export interface GoodsPayment {
   amount: number;
   payment_method: string | null;
   memo: string | null;
+  /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+  payer_note?: string | null;
   payment_key: string | null;
   company?: string | null;
   include_in_year_end: boolean;

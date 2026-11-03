@@ -156,12 +156,10 @@ export async function POST(req: NextRequest) {
     paymentMethod === 'Check' ? body.checkNumber : undefined,
   );
 
-  // Email is optional ONLY for one-time donation entries (offline
-  // Zelle/cash/check gifts with no payer email) — a one-time override for
-  // that specific case. Monthly, Chai Partner, and Goods/Services entries
-  // still require it: receipts and login codes can only be delivered by email.
-  // Email is optional for one-time donations and goods/services entries;
-  // monthly and chai flows always need an address on file.
+  // Email is optional for one-time donation and goods/services entries
+  // (offline Zelle/cash/check gifts with no payer email). Monthly and Chai
+  // Partner entries still require it: receipts and login codes can only be
+  // delivered by email.
   const emailRequired = kind === 'monthly' || kind === 'chai_partner';
   const hasEmail = email.includes('@');
   if (!firstName || !lastName || (emailRequired && !hasEmail)) {

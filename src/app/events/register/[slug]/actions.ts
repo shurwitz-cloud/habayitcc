@@ -6,6 +6,7 @@ import {
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
+  type SkateRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { getPaidEvent } from '@/lib/events/paid-events';
@@ -45,6 +46,7 @@ export interface PaidEventRegistrationInput {
   fair?: FairRegistrationData;
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
+  skate?: SkateRegistrationData;
 }
 
 export interface PaidEventRegistrationResult {
@@ -111,6 +113,7 @@ export async function submitPaidEventRegistration(
         dinner: input.dinner,
         fair: input.fair,
         womens: input.womens,
+        skate: input.skate,
       }),
     );
     if (!room.ok) return { success: false, error: room.error };
@@ -196,6 +199,7 @@ export async function submitPaidEventRegistration(
     }
 
     let couplesData = input.couples;
+    let skateData = input.skate;
     let memberRedemption: { partnerId: string; code: string } | null = null;
     if (event.type === 'couples') {
       const coupleCount = Math.max(0, Math.round(input.couples?.couples || 0));
@@ -225,6 +229,34 @@ export async function submitPaidEventRegistration(
       }
     }
 
+    if (event.type === 'skate') {
+      const skaterCount = Math.max(0, Math.round(input.skate?.skaters || 0));
+      if (skaterCount < 1) {
+        return { success: false, error: 'Please add at least one skater.' };
+      }
+      const rawCode = input.skate?.memberCode?.trim() || '';
+      if (rawCode) {
+        const lookup = await verifyHaBayitMemberCode(rawCode, { eventSlug: event.slug });
+        if (!lookup.valid || !lookup.partnerId || !lookup.code) {
+          const reasonMsg =
+            lookup.reason === 'already_used'
+              ? 'This HaBayit member code was already used for this event.'
+              : lookup.reason === 'not_eligible'
+                ? 'This HaBayit member code is not active.'
+                : 'This HaBayit member code is not valid.';
+          return { success: false, error: reasonMsg };
+        }
+        memberRedemption = { partnerId: lookup.partnerId, code: lookup.code };
+        skateData = {
+          skaters: skaterCount,
+          memberCode: lookup.code,
+          memberDiscount: true,
+        };
+      } else {
+        skateData = { skaters: skaterCount, memberDiscount: false };
+      }
+    }
+
     const pricing = computePaidEventTotal({
       event,
       dinner: input.dinner,
@@ -232,6 +264,7 @@ export async function submitPaidEventRegistration(
       fairFreeChildIndices,
       womens: input.womens,
       couples: couplesData,
+      skate: skateData,
       sponsorAmount: input.sponsorAmount,
       coverFee: input.coverFee,
     });
@@ -292,6 +325,7 @@ export async function submitPaidEventRegistration(
       fair: input.fair,
       womens: input.womens,
       couples: couplesData,
+      skate: skateData,
     });
 
     if (!result.success) {

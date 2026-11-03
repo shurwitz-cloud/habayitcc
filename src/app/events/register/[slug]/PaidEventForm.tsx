@@ -10,6 +10,8 @@ import {
   computePaidEventTotal,
   COUPLES_MEMBER_TICKET_PRICE,
   COUPLES_TICKET_PRICE,
+  SKATE_MEMBER_TICKET_PRICE,
+  SKATE_TICKET_PRICE,
   DINNER_ADULT_PRICE,
   DINNER_CHILD_PRICE,
   FAIR_CHILD_PRICE,
@@ -75,6 +77,7 @@ function PaidEventFormInner({
   const [kids, setKids] = useState(0);
   const [women, setWomen] = useState(1);
   const [couples, setCouples] = useState(1);
+  const [skaters, setSkaters] = useState(1);
   const [habayitMember, setHabayitMember] = useState(false);
   const [memberCode, setMemberCode] = useState('');
   const [memberCodeStatus, setMemberCodeStatus] = useState<'valid' | 'invalid' | 'checking' | null>(
@@ -131,6 +134,18 @@ function PaidEventFormInner({
     [event.type, couples, habayitMember, memberCode, memberCodeStatus],
   );
 
+  const skateData = useMemo(
+    () =>
+      event.type === 'skate'
+        ? {
+            skaters,
+            memberCode: habayitMember ? memberCode : '',
+            memberDiscount: habayitMember && memberCodeStatus === 'valid',
+          }
+        : undefined,
+    [event.type, skaters, habayitMember, memberCode, memberCodeStatus],
+  );
+
   const pricing = useMemo(
     () =>
       computePaidEventTotal({
@@ -140,6 +155,7 @@ function PaidEventFormInner({
         fairFreeChildIndices,
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
+        skate: skateData,
         sponsorAmount,
         coverFee,
       }),
@@ -151,6 +167,7 @@ function PaidEventFormInner({
       fairChildren,
       fairFreeChildIndices,
       couplesData,
+      skateData,
       sponsorAmount,
       coverFee,
     ]
@@ -245,7 +262,10 @@ function PaidEventFormInner({
     if (event.type === 'couples' && couples < 1) {
       return 'Please add at least one couple.';
     }
-    if (event.type === 'couples' && habayitMember) {
+    if (event.type === 'skate' && skaters < 1) {
+      return 'Please add at least one skater.';
+    }
+    if ((event.type === 'couples' || event.type === 'skate') && habayitMember) {
       if (!memberCode.trim()) {
         return 'Please enter your Chai Partner code.';
       }
@@ -292,6 +312,7 @@ function PaidEventFormInner({
     fairChildCount,
     women,
     couples,
+    skaters,
     habayitMember,
     memberCode,
     memberCodeStatus,
@@ -331,6 +352,7 @@ function PaidEventFormInner({
         fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
+        skate: skateData,
       }),
     });
 
@@ -359,6 +381,7 @@ function PaidEventFormInner({
     fairChildren,
     women,
     couplesData,
+    skateData,
     fairChildCount,
     hebrewStudent,
     hebrewCodes,
@@ -385,6 +408,7 @@ function PaidEventFormInner({
           fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
           womens: event.type === 'womens' ? { women } : undefined,
           couples: couplesData,
+          skate: skateData,
         });
 
         if (!result.success) {
@@ -411,6 +435,7 @@ function PaidEventFormInner({
       fairChildren,
       women,
       couplesData,
+      skateData,
     ]
   );
 
@@ -464,6 +489,7 @@ function PaidEventFormInner({
               fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
               womens: event.type === 'womens' ? { women } : undefined,
               couples: couplesData,
+              skate: skateData,
             }),
           });
 
@@ -520,6 +546,7 @@ function PaidEventFormInner({
         fair: event.type === 'family-fair' ? { children: fairChildren } : undefined,
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
+        skate: skateData,
       });
 
       if (!result.success) {
@@ -717,6 +744,67 @@ function PaidEventFormInner({
             }`}
           >
             ${COUPLES_MEMBER_TICKET_PRICE} for HaBayit Chai Partners
+          </button>
+          {habayitMember && (
+            <div className="space-y-1.5">
+              <Field label="Chai Partner code">
+                <input
+                  value={memberCode}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setMemberCode(value);
+                    void verifyMemberCode(value);
+                  }}
+                  placeholder="HABAYIT-XXXXXX"
+                  className="uppercase"
+                />
+              </Field>
+              {memberCodeStatus === 'checking' && (
+                <p className="text-[0.8rem] text-muted">Checking code…</p>
+              )}
+              {memberCodeStatus === 'valid' && (
+                <p className="text-[0.8rem] text-green-700 font-semibold">Code confirmed</p>
+              )}
+              {memberCodeStatus === 'invalid' && (
+                <p className="text-[0.8rem] text-red-700">
+                  Code not recognized, not active, or already used for this event.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {event.type === 'skate' && (
+        <div className="space-y-4 border-t border-line pt-5">
+          <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Tickets</p>
+          <StepperField
+            label={`$${SKATE_TICKET_PRICE} Per Skater`}
+            value={skaters}
+            onChange={setSkaters}
+            min={1}
+            required
+          />
+          <p className="text-[0.82rem] text-muted">
+            Advance online price. ${SKATE_TICKET_PRICE + 5} per skater at the door.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !habayitMember;
+              setHabayitMember(next);
+              if (!next) {
+                setMemberCode('');
+                setMemberCodeStatus(null);
+              }
+            }}
+            className={`w-full text-left px-4 py-3.5 rounded-xl border font-extrabold text-[1.02rem] transition-colors ${
+              habayitMember
+                ? 'bg-gold text-white border-gold'
+                : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
+            }`}
+          >
+            ${SKATE_MEMBER_TICKET_PRICE} per skater for HaBayit Chai Partners
           </button>
           {habayitMember && (
             <div className="space-y-1.5">

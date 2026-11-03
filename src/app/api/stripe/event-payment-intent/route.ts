@@ -12,6 +12,7 @@ import {
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
+  type SkateRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { verifyHebrewFairCode } from '@/lib/events/hebrew-fair-codes';
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
       fair?: FairRegistrationData;
       womens?: WomensRegistrationData;
       couples?: CouplesRegistrationData;
+      skate?: SkateRegistrationData;
     };
 
     const event = getPaidEvent(body.slug);
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
         dinner: body.dinner,
         fair: body.fair,
         womens: body.womens,
+        skate: body.skate,
       }),
     );
     if (!room.ok) {
@@ -105,6 +108,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let skateData = body.skate;
+    if (event.type === 'skate') {
+      const skaterCount = Math.max(0, Math.round(body.skate?.skaters || 0));
+      if (skaterCount < 1) {
+        return NextResponse.json({ error: 'Please add at least one skater.' }, { status: 400 });
+      }
+      const rawCode = body.skate?.memberCode?.trim() || '';
+      if (rawCode) {
+        const lookup = await verifyHaBayitMemberCode(rawCode, { eventSlug: event.slug });
+        if (!lookup.valid || !lookup.code) {
+          const reasonMsg =
+            lookup.reason === 'already_used'
+              ? 'This HaBayit member code was already used for this event.'
+              : lookup.reason === 'not_eligible'
+                ? 'This HaBayit member code is not active.'
+                : 'This HaBayit member code is not valid.';
+          return NextResponse.json({ error: reasonMsg }, { status: 400 });
+        }
+        skateData = {
+          skaters: skaterCount,
+          memberCode: lookup.code,
+          memberDiscount: true,
+        };
+      } else {
+        skateData = { skaters: skaterCount, memberDiscount: false };
+      }
+    }
+
     const pricing = computePaidEventTotal({
       event,
       dinner: body.dinner,
@@ -112,6 +143,7 @@ export async function POST(req: NextRequest) {
       fairFreeChildIndices,
       womens: body.womens,
       couples: couplesData,
+      skate: skateData,
       sponsorAmount: body.sponsorAmount ?? 0,
       coverFee: !!body.coverFee,
     });
@@ -157,12 +189,19 @@ export async function POST(req: NextRequest) {
         fair_children:
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
         couples: event.type === 'couples' ? String(couplesData?.couples ?? 0) : '',
+        skaters: event.type === 'skate' ? String(skateData?.skaters ?? 0) : '',
         member_code:
-          event.type === 'couples' && couplesData?.memberDiscount
-            ? String(couplesData.memberCode ?? '').slice(0, 40)
+          (event.type === 'couples' && couplesData?.memberDiscount) ||
+          (event.type === 'skate' && skateData?.memberDiscount)
+            ? String(
+                (event.type === 'skate' ? skateData?.memberCode : couplesData?.memberCode) ?? '',
+              ).slice(0, 40)
             : '',
         member_discount:
-          event.type === 'couples' && couplesData?.memberDiscount ? '1' : '0',
+          (event.type === 'couples' && couplesData?.memberDiscount) ||
+          (event.type === 'skate' && skateData?.memberDiscount)
+            ? '1'
+            : '0',
       },
     });
 

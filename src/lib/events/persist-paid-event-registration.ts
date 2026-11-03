@@ -8,6 +8,7 @@ import {
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
+  type SkateRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import {
@@ -33,6 +34,7 @@ export type PaidEventPersistInput = {
   fair?: FairRegistrationData;
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
+  skate?: SkateRegistrationData;
   /** Skip confirmation email (e.g. when recovering duplicates). */
   skipEmail?: boolean;
   /** Skip Google Sheet append. */
@@ -56,6 +58,8 @@ function buildDetailsSummary(
   couples?: CouplesRegistrationData,
   fairLines?: ReturnType<typeof computePaidEventTotal>['fairChildLines'],
   coupleLines?: ReturnType<typeof computePaidEventTotal>['coupleLines'],
+  skate?: SkateRegistrationData,
+  skateLines?: ReturnType<typeof computePaidEventTotal>['skateLines'],
 ): string {
   if ((event.type === 'dinner' || event.type === 'celebration') && dinner) {
     return `Adults: ${dinner.adults}\nChildren: ${dinner.kids}`;
@@ -70,6 +74,21 @@ function buildDetailsSummary(
   }
   if (event.type === 'womens' && womens) {
     return `Women attending: ${womens.women}`;
+  }
+  if (event.type === 'skate' && skate) {
+    const lines =
+      skateLines?.map(
+        (l) =>
+          `Skater ${l.index}: $${l.price}${l.member ? ' — HaBayit member' : ''}`,
+      ) ?? [];
+    const code = skate.memberCode?.trim();
+    return [
+      `Skaters: ${skate.skaters}`,
+      ...lines,
+      code ? `Member code: ${code.toUpperCase()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
   if (event.type === 'couples' && couples) {
     const lines =
@@ -117,6 +136,7 @@ export async function persistPaidEventRegistration(
     fair: input.fair,
     womens: input.womens,
     couples: input.couples,
+    skate: input.skate,
     sponsorAmount: input.sponsorAmount,
     coverFee: input.coverFee,
   });
@@ -192,6 +212,8 @@ export async function persistPaidEventRegistration(
     input.couples,
     pricing.fairChildLines,
     pricing.coupleLines,
+    input.skate,
+    pricing.skateLines,
   );
 
   const guestCount =
@@ -201,7 +223,9 @@ export async function persistPaidEventRegistration(
         ? (input.fair?.children.length ?? 0)
         : event.type === 'couples'
           ? (input.couples?.couples ?? 1)
-          : (input.womens?.women ?? 1);
+          : event.type === 'skate'
+            ? (input.skate?.skaters ?? 1)
+            : (input.womens?.women ?? 1);
 
   const familyId = await findFamilyIdByEmail(email);
 
@@ -219,8 +243,10 @@ export async function persistPaidEventRegistration(
     fair: input.fair,
     womens: input.womens,
     couples: input.couples,
+    skate: input.skate,
     fairChildLines: pricing.fairChildLines,
     coupleLines: pricing.coupleLines,
+    skateLines: pricing.skateLines,
     ticketSubtotal: pricing.ticketSubtotal,
     coverFee: input.coverFee,
   };
@@ -412,6 +438,7 @@ export function paidEventInputFromPaymentIntentMetadata(
   const kids = Number(meta.kids || 0);
   const fairChildren = Number(meta.fair_children || 0);
   const couples = Number(meta.couples || 0);
+  const skaters = Number(meta.skaters || 0);
 
   const event = getPaidEvent(slug);
   if (!event) return null;
@@ -442,6 +469,14 @@ export function paidEventInputFromPaymentIntentMetadata(
       event.type === 'couples'
         ? {
             couples: Math.max(1, couples),
+            memberCode: meta.member_code?.trim() || undefined,
+            memberDiscount: meta.member_discount === '1' || meta.member_discount === 'true',
+          }
+        : undefined,
+    skate:
+      event.type === 'skate'
+        ? {
+            skaters: Math.max(1, skaters),
             memberCode: meta.member_code?.trim() || undefined,
             memberDiscount: meta.member_discount === '1' || meta.member_discount === 'true',
           }

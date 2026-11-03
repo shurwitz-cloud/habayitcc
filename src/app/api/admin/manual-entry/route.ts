@@ -150,11 +150,26 @@ export async function POST(req: NextRequest) {
     paymentMethod === 'Check' ? body.checkNumber : undefined,
   );
 
-  if (!firstName || !lastName || !email.includes('@')) {
+  // Email is optional ONLY for one-time donation entries (offline
+  // Zelle/cash/check gifts with no payer email) — a one-time override for
+  // that specific case. Monthly, Chai Partner, and Goods/Services entries
+  // still require it: receipts and login codes can only be delivered by email.
+  // Email is optional for one-time donations and goods/services entries;
+  // monthly and chai flows always need an address on file.
+  const emailRequired = kind === 'monthly' || kind === 'chai_partner';
+  const hasEmail = email.includes('@');
+  if (!firstName || !lastName || (emailRequired && !hasEmail)) {
     return NextResponse.json(
-      { error: 'firstName, lastName, and email are required.' },
+      {
+        error: emailRequired
+          ? 'firstName, lastName, and email are required.'
+          : 'firstName and lastName are required.',
+      },
       { status: 400 },
     );
+  }
+  if (!hasEmail && email) {
+    return NextResponse.json({ error: 'Email is invalid.' }, { status: 400 });
   }
   if (spouseFirstName && spouseEmail && !spouseEmail.includes('@')) {
     return NextResponse.json({ error: 'Spouse email is invalid.' }, { status: 400 });
@@ -170,12 +185,14 @@ export async function POST(req: NextRequest) {
         ? Math.round((amount / goodsQuantity) * 100) / 100
         : NaN;
 
-  const sendEmailFlag = body.sendEmail === true;
-  const includeReceiptLink = body.includeReceiptLink === true;
+  // Receipts and emails are blocked while the payer email is missing, no
+  // matter what the client asked for.
+  const sendEmailFlag = hasEmail && body.sendEmail === true;
+  const includeReceiptLink = hasEmail && body.includeReceiptLink === true;
   // Spouse is copied on the confirmation email ONLY on explicit opt-in.
   // Linking a spouse is never permission to email them.
   const spouseEmailCopy =
-    body.alsoEmailSpouse === true && spouseEmail.includes('@') ? spouseEmail : null;
+    hasEmail && body.alsoEmailSpouse === true && spouseEmail.includes('@') ? spouseEmail : null;
   // Present only when the admin explicitly picked the spouse from Contacts.
   const spouseContactIdSelected = (body.spouseContactId ?? '').trim() || null;
   const payerContactIdSelected = (body.contactId ?? '').trim() || null;
@@ -203,7 +220,7 @@ export async function POST(req: NextRequest) {
   // Always uniquify generated keys so repeat Zelle/cash amounts aren't treated as duplicates.
   const keyBase =
     (body.paymentKey ?? '').trim() ||
-    `manual-${kind}-${methodLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${email.replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}-${Date.now()}`;
+    `manual-${kind}-${methodLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${(hasEmail ? email : 'no-email').replace(/[^a-z0-9]+/g, '-')}-${Math.round(amount * 100)}-${Date.now()}`;
 
   if (kind === 'goods_services') {
     if (!Number.isFinite(goodsUnitAmount) || goodsUnitAmount <= 0) {
@@ -334,7 +351,7 @@ export async function POST(req: NextRequest) {
         createdAt: paidAt,
         isResolved: true,
       });
-      if (spouseContactIdSelected) {
+      if (spouseContactIdSelected && hasEmail) {
         const link = await linkSpouseContacts(email, spouseContactIdSelected, payerContactIdSelected);
         if (!link.ok) spouseLinkWarning = `Spouse link failed: ${link.error ?? 'unknown error'}`;
       }
@@ -356,7 +373,7 @@ export async function POST(req: NextRequest) {
           items: [{ label: itemLabel, qty: goodsQuantity, unit: goodsUnitAmount }],
           note: memo || undefined,
         });
-    const receiptUrl = receiptPath ? `${getSiteUrl()}${receiptPath}` : null;
+    const receiptUrl = receiptPath && hasEmail ? `${getSiteUrl()}${receiptPath}` : null;
 
     let emailed = false;
     if (sendEmailFlag && !result.duplicate) {
@@ -507,7 +524,7 @@ export async function POST(req: NextRequest) {
     amountDollars: amount,
     firstName,
     lastName,
-    email,
+    email: hasEmail ? email : null,
     phone: body.phone,
     donationType,
     memo: memoParts.join(' · '),
@@ -527,7 +544,7 @@ export async function POST(req: NextRequest) {
     await ensureCrmContact({
       firstName,
       lastName,
-      email,
+      email: hasEmail ? email : '',
       phone: body.phone,
       interest: kind === 'monthly' ? 'Monthly donor' : 'Donor',
       company,
@@ -578,7 +595,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const receiptUrl = persisted.alreadyExisted
+  // No payer email: the receipt URL is not produced at all (receipts are
+  // blocked until a real email is on file).
+  const receiptUrl = persisted.alreadyExisted || !hasEmail
     ? null
     : buildAbsoluteReceiptUrl({
         name: receiptDisplayName,

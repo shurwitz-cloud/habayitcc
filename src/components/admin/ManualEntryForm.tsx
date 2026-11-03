@@ -78,6 +78,9 @@ export function ManualEntryForm({
   const [coverageMonths, setCoverageMonths] = useState(1);
   const [sendEmail, setSendEmail] = useState(false);
   const [includeReceiptLink, setIncludeReceiptLink] = useState(false);
+  // Receipt generation is opt-in: no receipt link is created on save unless
+  // the admin explicitly asks (or emails one). Default off.
+  const [generateReceipt, setGenerateReceipt] = useState(false);
   const [goodsItem, setGoodsItem] = useState<string>(GOODS_ITEM_PRESETS[0]);
   const [goodsCustomItem, setGoodsCustomItem] = useState('');
   const [goodsQty, setGoodsQty] = useState(1);
@@ -246,6 +249,7 @@ export function ManualEntryForm({
           paidAt,
           sendEmail: emailMissing ? false : sendEmail,
           includeReceiptLink: emailMissing ? false : includeReceiptLink,
+          generateReceipt: emailMissing ? false : generateReceipt,
           item: kind === 'goods_services' ? goodsItem : undefined,
           customItem:
             kind === 'goods_services' && goodsItem === GOODS_OTHER_ITEM
@@ -880,6 +884,28 @@ export function ManualEntryForm({
                       : paymentMethod === 'HaBayit donation link'
                         ? 'Usually leave off — Stripe already receipts the card charge.'
                         : 'Includes a View & Print Tax Receipt button.'}
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm text-[#172643] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={generateReceipt && !emailMissing}
+                disabled={emailMissing}
+                onChange={(e) => setGenerateReceipt(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-semibold">
+                  {kind === 'goods_services'
+                    ? 'Generate payment receipt link'
+                    : 'Generate tax receipt link'}
+                </span>
+                <span className="mt-0.5 block text-[#6f6a60]">
+                  Off by default: saving records the payment only, with no
+                  receipt created. Turn on only when a receipt link is needed
+                  - it appears here after saving, nothing is emailed.
+                  {emailMissing ? ' Needs a payer email.' : ''}
                 </span>
               </span>
             </label>

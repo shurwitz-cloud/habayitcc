@@ -14,6 +14,8 @@ export interface PersistDonationInput {
   phone?: string | null;
   donationType: 'One-Time' | 'Monthly';
   memo?: string | null;
+  /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+  payerNote?: string | null;
   campaign?: string | null;
   /** Company / organization as donor of record. Receipts use this name when set. */
   company?: string | null;
@@ -73,6 +75,7 @@ export async function persistDonation(
     dedication_name: input.dedicationName?.trim() || null,
     dedication_type: input.dedicationType ?? null,
     memo: input.memo?.trim() || null,
+    payer_note: input.payerNote?.trim() || null,
     campaign: input.campaign?.trim() || null,
     company: input.company?.trim() || null,
     donation_type: input.donationType,

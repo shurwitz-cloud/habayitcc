@@ -81,6 +81,8 @@ export type RecordZeffyOptions = {
   contactId?: string | null;
   /** Optional admin note (e.g. memo "prepaid"). */
   note?: string | null;
+  /** Payer's verbatim original note (check/Zelle/Zeffy/website). Internal only - never on receipts, never emailed. */
+  payerNote?: string | null;
 };
 
 /**
@@ -246,6 +248,7 @@ export async function recordZeffyChaiPartnerPayment(
     paid_at: paidAt,
     payment_method: paymentMethodLabel,
     coverage_months: coverageMonths,
+    payer_note: options.payerNote?.trim() || null,
   };
 
   let { error: paymentError } = await supabase.from('payments').insert(paymentRow);
@@ -255,6 +258,7 @@ export async function recordZeffyChaiPartnerPayment(
   ) {
     delete paymentRow.payment_method;
     delete paymentRow.coverage_months;
+    delete paymentRow.payer_note;
     ({ error: paymentError } = await supabase.from('payments').insert(paymentRow));
   }
 

@@ -31,6 +31,7 @@ const empty = {
   paidAtLocal: '',
   campaign: '',
   memo: '',
+  payerNote: '',
   methodOther: '',
   checkNumber: '',
   spouseFirstName: '',
@@ -266,6 +267,7 @@ export function ManualEntryForm({
           campaign: form.campaign || undefined,
           company: companyChecked ? form.company.trim() || undefined : undefined,
           memo: form.memo || undefined,
+          payerNote: form.payerNote.trim() || undefined,
           ...(includeSpouse
             ? {
                 spouseFirstName: form.spouseFirstName,
@@ -638,6 +640,13 @@ export function ManualEntryForm({
                   className="sm:col-span-2"
                   placeholder="Optional note"
                 />
+                <Field
+                  label="Original payer note (optional)"
+                  value={form.payerNote}
+                  onChange={(v) => setField('payerNote', v)}
+                  className="sm:col-span-2"
+                  placeholder="Exactly what the payer wrote (check, Zelle, Zeffy, website) - never shown on receipts"
+                />
                 <Field label="Street" value={form.street} onChange={(v) => setField('street', v)} className="sm:col-span-2" />
                 <Field label="City" value={form.city} onChange={(v) => setField('city', v)} />
                 <Field label="State" value={form.state} onChange={(v) => setField('state', v)} />
@@ -663,6 +672,13 @@ export function ManualEntryForm({
                       ? 'Note (also shown on the payment receipt)'
                       : 'Shown on tax receipt if filled'
                   }
+                />
+                <Field
+                  label="Original payer note (optional)"
+                  value={form.payerNote}
+                  onChange={(v) => setField('payerNote', v)}
+                  className="sm:col-span-2"
+                  placeholder="Exactly what the payer wrote (check, Zelle, Zeffy, website) - never shown on receipts"
                 />
               </>
             )}

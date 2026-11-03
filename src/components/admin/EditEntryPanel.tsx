@@ -33,6 +33,7 @@ export default function EditEntryPanel({
     phone: string;
     amount: string;
     memo: string;
+    payerNote: string;
     paidAt: string; // yyyy-mm-dd
     paymentMethod: string;
     campaign: string;
@@ -105,6 +106,8 @@ export default function EditEntryPanel({
       if (Number(fields.amount) !== Number(initial.amount))
         changes.amount = Number(fields.amount);
       if (fields.memo !== initial.memo) changes.memo = fields.memo;
+      if (fields.payerNote !== initial.payerNote)
+        changes.payer_note = fields.payerNote.trim() || null;
       if (fields.paidAt !== initial.paidAt)
         changes.paid_at = new Date(`${fields.paidAt}T12:00:00`).toISOString();
       if (fields.paymentMethod.trim() !== initial.paymentMethod)
@@ -233,6 +236,14 @@ export default function EditEntryPanel({
             className={inputCls}
             value={fields.memo}
             onChange={(e) => setFields({ ...fields, memo: e.target.value })}
+          />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className={labelCls}>Original payer note (internal, never on receipts)</span>
+          <input
+            className={inputCls}
+            value={fields.payerNote}
+            onChange={(e) => setFields({ ...fields, payerNote: e.target.value })}
           />
         </label>
         <label className="block">

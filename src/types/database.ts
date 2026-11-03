@@ -172,7 +172,7 @@ export interface Donation {
   family_id: string | null;
   first_name: string;
   last_name: string;
-  email: string;
+  email: string | null; // nullable since 0026 (email-less manual entry)
   phone: string | null;
   amount: number;
   dedication_name: string | null;
@@ -238,7 +238,7 @@ export interface GoodsPayment {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
+  email: string | null; // nullable since 0026 (email-less manual entry)
   phone: string | null;
   item_label: string;
   quantity: number;
@@ -274,7 +274,7 @@ export interface Contact {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
+  email: string | null; // nullable since 0026 (email-less manual entry)
   phone: string | null;
   interest: string | null;
   message: string | null;
@@ -553,4 +553,4 @@ export interface Database {
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
-  }
+}

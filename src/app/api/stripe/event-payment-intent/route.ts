@@ -16,7 +16,7 @@ import {
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { verifyHebrewFairCode } from '@/lib/events/hebrew-fair-codes';
-import { verifyHaBayitMemberCode } from '@/lib/events/chai-member-event-codes';
+import { verifyHaBayitMemberCode, verifySkateMemberCode } from '@/lib/events/chai-member-event-codes';
 
 export async function POST(req: NextRequest) {
   try {
@@ -116,20 +116,27 @@ export async function POST(req: NextRequest) {
       }
       const rawCode = body.skate?.memberCode?.trim() || '';
       if (rawCode) {
-        const lookup = await verifyHaBayitMemberCode(rawCode, { eventSlug: event.slug });
+        const lookup = await verifySkateMemberCode(rawCode, {
+          eventSlug: event.slug,
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email,
+          phone: body.phone,
+        });
         if (!lookup.valid || !lookup.code) {
           const reasonMsg =
-            lookup.reason === 'already_used'
-              ? 'This HaBayit member code was already used for this event.'
-              : lookup.reason === 'not_eligible'
-                ? 'This HaBayit member code is not active.'
-                : 'This HaBayit member code is not valid.';
+            lookup.reason === 'identity_mismatch'
+              ? 'This Chai code does not match these details. Correct the name, email or phone, or continue without the code at full price.'
+              : lookup.reason === 'exhausted'
+                ? 'This Chai member already used all 6 discounted skaters for this event.'
+                : 'This HaBayit member code is not valid or not active.';
           return NextResponse.json({ error: reasonMsg }, { status: 400 });
         }
         skateData = {
           skaters: skaterCount,
           memberCode: lookup.code,
           memberDiscount: true,
+          memberSkaters: lookup.remaining,
         };
       } else {
         skateData = { skaters: skaterCount, memberDiscount: false };
@@ -190,6 +197,10 @@ export async function POST(req: NextRequest) {
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
         couples: event.type === 'couples' ? String(couplesData?.couples ?? 0) : '',
         skaters: event.type === 'skate' ? String(skateData?.skaters ?? 0) : '',
+        member_skaters:
+          event.type === 'skate' && skateData?.memberDiscount
+            ? String(skateData?.memberSkaters ?? skateData?.skaters ?? 0)
+            : '',
         member_code:
           (event.type === 'couples' && couplesData?.memberDiscount) ||
           (event.type === 'skate' && skateData?.memberDiscount)

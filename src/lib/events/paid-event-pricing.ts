@@ -36,8 +36,14 @@ export interface CouplesRegistrationData {
 export interface SkateRegistrationData {
   skaters: number;
   memberCode?: string;
-  /** All skaters on this reservation at the Chai member price. */
+  /** Member price applies to the first memberSkaters of this reservation. */
   memberDiscount?: boolean;
+  /**
+   * How many skaters on this reservation get the Chai member price (remaining
+   * per-member allowance for this event). Defaults to all skaters when
+   * memberDiscount is set. Extra skaters pay the full advance price.
+   */
+  memberSkaters?: number;
 }
 
 export interface PricingBreakdown {
@@ -115,8 +121,13 @@ export function computeSkateTickets(
   const lines: NonNullable<PricingBreakdown['skateLines']> = [];
   let subtotal = 0;
 
+  const memberAllowance =
+    data.memberDiscount === true
+      ? Math.min(skaters, Math.max(0, Math.round(data.memberSkaters ?? skaters)))
+      : 0;
+
   for (let i = 0; i < skaters; i++) {
-    const member = data.memberDiscount === true;
+    const member = i < memberAllowance;
     const price = member ? SKATE_MEMBER_TICKET_PRICE : SKATE_TICKET_PRICE;
     subtotal += price;
     lines.push({ index: i + 1, price, member });

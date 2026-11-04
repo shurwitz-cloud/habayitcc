@@ -481,6 +481,10 @@ export function paidEventInputFromPaymentIntentMetadata(
             skaters: Math.max(1, skaters),
             memberCode: meta.member_code?.trim() || undefined,
             memberDiscount: meta.member_discount === '1' || meta.member_discount === 'true',
+            memberSkaters:
+              meta.member_discount === '1' || meta.member_discount === 'true'
+                ? Math.max(0, Number(meta.member_skaters || 0) || Math.max(1, skaters))
+                : undefined,
           }
         : undefined,
   };

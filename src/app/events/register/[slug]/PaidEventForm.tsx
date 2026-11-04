@@ -82,6 +82,8 @@ function PaidEventFormInner({
   const [memberCodeStatus, setMemberCodeStatus] = useState<'valid' | 'invalid' | 'checking' | null>(
     null,
   );
+  const [memberCodeReason, setMemberCodeReason] = useState<string | null>(null);
+  const [memberSkatersRemaining, setMemberSkatersRemaining] = useState<number | null>(null);
   const [fairChildCount, setFairChildCount] = useState(1);
   const [hebrewStudent, setHebrewStudent] = useState(false);
   const [hebrewCodes, setHebrewCodes] = useState<string[]>(['']);
@@ -140,9 +142,13 @@ function PaidEventFormInner({
             skaters,
             memberCode: habayitMember ? memberCode : '',
             memberDiscount: habayitMember && memberCodeStatus === 'valid',
+            memberSkaters:
+              habayitMember && memberCodeStatus === 'valid'
+                ? (memberSkatersRemaining ?? skaters)
+                : undefined,
           }
         : undefined,
-    [event.type, skaters, habayitMember, memberCode, memberCodeStatus],
+    [event.type, skaters, habayitMember, memberCode, memberCodeStatus, memberSkatersRemaining],
   );
 
   const pricing = useMemo(
@@ -211,11 +217,20 @@ function PaidEventFormInner({
   async function verifyMemberCode(code: string) {
     if (!code.trim()) {
       setMemberCodeStatus(null);
+      setMemberCodeReason(null);
       return;
     }
     setMemberCodeStatus('checking');
-    const result = await verifyHaBayitMemberCodeAction(code, event.slug);
+    setMemberCodeReason(null);
+    const result = await verifyHaBayitMemberCodeAction(code, event.slug, {
+      firstName,
+      lastName,
+      email,
+      phone,
+    });
     setMemberCodeStatus(result.valid ? 'valid' : 'invalid');
+    setMemberCodeReason(result.valid ? null : result.reason || null);
+    setMemberSkatersRemaining(result.valid ? (result.remainingSkaters ?? null) : null);
   }
 
   function addHebrewCodeField() {
@@ -766,7 +781,7 @@ function PaidEventFormInner({
               )}
               {memberCodeStatus === 'invalid' && (
                 <p className="text-[0.8rem] text-red-700">
-                  Code not recognized, not active, or already used for this event.
+                  {memberCodeReason || 'Code not recognized, not active, or already used for this event.'}
                 </p>
               )}
             </div>
@@ -827,7 +842,7 @@ function PaidEventFormInner({
               )}
               {memberCodeStatus === 'invalid' && (
                 <p className="text-[0.8rem] text-red-700">
-                  Code not recognized, not active, or already used for this event.
+                  {memberCodeReason || 'Code not recognized, not active, or already used for this event.'}
                 </p>
               )}
             </div>

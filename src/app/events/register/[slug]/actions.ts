@@ -24,9 +24,11 @@ import {
 } from '@/lib/events/hebrew-fair-codes';
 import {
   verifyHaBayitMemberCode,
+  verifySkateMemberCode,
   recordMemberCodeRedemption,
   attachMemberCodeRedemptionToEventRegistration,
   releaseMemberCodeRedemption,
+  type SkateMemberLookup,
 } from '@/lib/events/chai-member-event-codes';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
@@ -76,13 +78,34 @@ export async function verifyHebrewFairCodeAction(
   return { valid: true, childName: childName || undefined };
 }
 
+function skateMemberCodeError(lookup: SkateMemberLookup): string {
+  if (lookup.reason === 'identity_mismatch') {
+    return 'This Chai code does not match these details. Correct the name, email or phone, or continue without the code at full price.';
+  }
+  if (lookup.reason === 'exhausted') {
+    return 'This Chai member already used all 6 discounted skaters for this event.';
+  }
+  return 'This HaBayit member code is not valid or not active.';
+}
+
 export async function verifyHaBayitMemberCodeAction(
   code: string,
   eventSlug?: string,
-): Promise<{ valid: boolean; reason?: string }> {
+  identity?: { firstName?: string; lastName?: string; email?: string; phone?: string },
+): Promise<{ valid: boolean; reason?: string; remainingSkaters?: number }> {
   const limited = await enforceActionRateLimit('habayit-member-code', 12, 15 * 60 * 1000);
   if (!limited.ok) {
     return { valid: false, reason: limited.error };
+  }
+
+  const event = eventSlug ? getPaidEvent(eventSlug) : null;
+  if (event?.type === 'skate') {
+    const lookup = await verifySkateMemberCode(code, {
+      eventSlug: event.slug,
+      ...identity,
+    });
+    if (!lookup.valid) return { valid: false, reason: skateMemberCodeError(lookup) };
+    return { valid: true, remainingSkaters: lookup.remaining };
   }
 
   const lookup = await verifyHaBayitMemberCode(code, { eventSlug });
@@ -236,21 +259,22 @@ export async function submitPaidEventRegistration(
       }
       const rawCode = input.skate?.memberCode?.trim() || '';
       if (rawCode) {
-        const lookup = await verifyHaBayitMemberCode(rawCode, { eventSlug: event.slug });
+        const lookup = await verifySkateMemberCode(rawCode, {
+          eventSlug: event.slug,
+          firstName,
+          lastName,
+          email,
+          phone,
+        });
         if (!lookup.valid || !lookup.partnerId || !lookup.code) {
-          const reasonMsg =
-            lookup.reason === 'already_used'
-              ? 'This HaBayit member code was already used for this event.'
-              : lookup.reason === 'not_eligible'
-                ? 'This HaBayit member code is not active.'
-                : 'This HaBayit member code is not valid.';
-          return { success: false, error: reasonMsg };
+          return { success: false, error: skateMemberCodeError(lookup) };
         }
         memberRedemption = { partnerId: lookup.partnerId, code: lookup.code };
         skateData = {
           skaters: skaterCount,
           memberCode: lookup.code,
           memberDiscount: true,
+          memberSkaters: lookup.remaining,
         };
       } else {
         skateData = { skaters: skaterCount, memberDiscount: false };
@@ -305,6 +329,7 @@ export async function submitPaidEventRegistration(
           eventRegistrationId: null,
           partnerId: memberRedemption.partnerId,
           code: memberRedemption.code,
+          allowReuse: event.type === 'skate',
         });
         if (!reservedMember.ok) {
           return { success: false, error: reservedMember.error };

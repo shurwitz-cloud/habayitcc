@@ -19,6 +19,7 @@ import {
 import { persistLulavOrder } from '@/lib/lulav/persist-order';
 import { computeLulavPricing } from '@/lib/lulav/pricing';
 import type Stripe from 'stripe';
+import { releaseSkateAllowance } from '@/lib/events/skate-allowance';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,17 @@ export async function POST(req: NextRequest) {
       case 'invoice.payment_succeeded':
         await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
         break;
+      case 'payment_intent.payment_failed':
+      case 'payment_intent.canceled': {
+        // Free held skate discount slots for a failed/canceled checkout.
+        // Only fires if the Stripe endpoint subscribes to these events;
+        // abandoned holds also expire on their own after 24 hours.
+        const pi = event.data.object as Stripe.PaymentIntent;
+        if (pi.metadata?.type === 'paid_event_registration') {
+          await releaseSkateAllowance({ paymentIntentId: pi.id });
+        }
+        break;
+      }
       default:
         break;
     }

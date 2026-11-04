@@ -12,14 +12,19 @@
 -- longer exists, and a completed payment never has its discount
 -- rejected afterwards (its rows are already held).
 --
--- Lifecycle: reserved (held for one checkout, expires after 45 min)
--- -> consumed (payment persisted). Expired reserved rows stop
+-- Lifecycle: reserved (held for one checkout, expires after 24 hours -
+-- longer than any realistic payable Stripe checkout) -> consumed
+-- (payment persisted). Expired reserved rows stop
 -- counting automatically (no cron needed). Released rows never
 -- count. Rows are never deleted, so a slow-but-eventually-paid
 -- checkout can still be reconciled by payment_intent_id.
 --
 -- Couples events keep their existing single-use redemption flow;
 -- this table is written only by the skate path.
+--
+-- Security: the table is RLS-locked (no public policies) and EXECUTE
+-- on the functions is revoked from PUBLIC/anon/authenticated - only
+-- the service role (server code) can call them.
 --
 -- ROLLBACK:
 --   drop function if exists claim_skate_allowance(uuid, uuid, text, integer, text, integer);
@@ -41,7 +46,7 @@ create table if not exists chai_event_skate_reservations (
     check (status in ('reserved', 'consumed', 'released')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  expires_at timestamptz not null default (now() + interval '45 minutes')
+  expires_at timestamptz not null default (now() + interval '24 hours')
 );
 
 -- One claim batch per checkout attempt.
@@ -145,3 +150,10 @@ begin
 end;
 $$;
 
+-- SECURITY DEFINER functions default to EXECUTE for PUBLIC: lock down.
+revoke all on function claim_skate_allowance(uuid, uuid, text, integer, text, integer) from public, anon, authenticated;
+revoke all on function consume_skate_allowance(text) from public, anon, authenticated;
+revoke all on function release_skate_allowance(text, text) from public, anon, authenticated;
+grant execute on function claim_skate_allowance(uuid, uuid, text, integer, text, integer) to service_role;
+grant execute on function consume_skate_allowance(text) to service_role;
+grant execute on function release_skate_allowance(text, text) to service_role;

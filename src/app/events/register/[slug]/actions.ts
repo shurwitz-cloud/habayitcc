@@ -520,9 +520,14 @@ export async function submitPaidEventRegistration(
       }
       if (event.type === 'skate' && input.paymentIntentId) {
         await releaseSkateAllowance({ paymentIntentId: input.paymentIntentId });
-        // A retry with the same (unreleased) PI re-verifies the codes
-        // and re-claims, so releasing a failed persist is safe.
-        await releaseHebrewFairCodeHolds({ paymentIntentId: input.paymentIntentId });
+        // HA holds bound to this PI are deliberately NOT released here:
+        // payment was verified succeeded BEFORE persist ran, so this
+        // checkout was already charged - freeing its codes would let
+        // another checkout take them and make the paid retry fail
+        // (pay-then-reject). The retry finds the held rows as its
+        // discount proof; if the user never retries, the expired hold
+        // is reconciled against Stripe (succeeded PI -> consumed +
+        // logged for admin recovery), never freed by time alone.
       }
       return { success: false, error: result.error };
     }

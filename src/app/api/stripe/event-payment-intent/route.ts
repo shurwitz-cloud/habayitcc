@@ -20,6 +20,7 @@ import { verifyHaBayitMemberCode, verifySkateMemberCode } from '@/lib/events/cha
 import {
   bindSkateAllowancePayment,
   claimSkateAllowance,
+  reconcileExpiredSkateHolds,
   releaseSkateAllowance,
 } from '@/lib/events/skate-allowance';
 import { ensureEventBySlug } from '@/lib/events/sync';
@@ -145,9 +146,21 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: reasonMsg }, { status: 400 });
         }
         let memberSkaters = lookup.remaining;
-        // Atomic claim when the reservation schema is live.
+        // Atomic claim when the reservation schema is live. Expired
+        // holds are reconciled against Stripe first (never time-freed),
+        // and any uncertainty fails closed without granting a discount.
         const eventId = await ensureEventBySlug(event.slug);
         if (eventId && lookup.partnerId) {
+          const reconcile = await reconcileExpiredSkateHolds({
+            eventId,
+            partnerId: lookup.partnerId,
+          });
+          if (reconcile.supported && reconcile.failures > 0) {
+            return NextResponse.json(
+              { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
+              { status: 400 },
+            );
+          }
           const token = crypto.randomUUID();
           const claim = await claimSkateAllowance({
             eventId,

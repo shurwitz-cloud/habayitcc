@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { stripe } from '@/lib/stripe/server';
 
 /**
  * Race-safe Chai allowance reservations for skate events (Fire on Ice).
@@ -14,9 +15,11 @@ import { createAdminClient } from '@/lib/supabase/server';
  * Flow: claim slots before the Stripe payment intent is created (never
  * charge for an unavailable discount) -> bind the payment intent id ->
  * consume when the registration persists (submit path or webhook,
- * idempotent) -> release on failure. Expired holds stop counting on
- * their own; rows are never deleted so a late-completing payment can
- * still be reconciled by payment_intent_id.
+ * idempotent) -> release on failure. Holds NEVER free by time alone:
+ * rows past expires_at are reconciled against Stripe's live
+ * payment-intent state before their slots can be re-granted (cancel
+ * if still payable, consume if paid, release if canceled), and a
+ * paid discount is never rejected after charging.
  */
 
 export const SKATE_ALLOWANCE_LIMIT = 6;
@@ -129,7 +132,7 @@ export async function skateAllowanceUsed(input: {
     .select('id', { count: 'exact', head: true })
     .eq('event_id', input.eventId)
     .eq('partner_id', input.partnerId)
-    .or(`status.eq.consumed,and(status.eq.reserved,expires_at.gt.${new Date().toISOString()})`);
+    .in('status', ['reserved', 'consumed']);
   if (error) {
     if (isMissingSchema(error)) return null;
     console.error('[skate-allowance] usage count failed:', error.message);
@@ -165,4 +168,73 @@ export async function getHeldSkateAllowance(
     partnerId: String(rows[0].partner_id || ''),
     code: String(rows[0].code || ''),
   };
+}
+
+export interface SkateReconcileResult {
+  /** false when migration 0028 is not applied. */
+  supported: boolean;
+  /** Holds whose Stripe state could not be determined. Fail closed. */
+  failures: number;
+}
+
+/**
+ * Resolve EXPIRED holds (older than expires_at) against Stripe's live
+ * state before the allowance can re-grant their slots. A hold never
+ * frees by time alone:
+ *  - never bound to a payment intent -> nothing was payable, release;
+ *  - PI succeeded -> consume (payment exists; registration recovery is
+ *    handled by the existing admin tooling) and log loudly;
+ *  - PI canceled -> release;
+ *  - PI still payable -> CANCEL it (terminal), then release;
+ *  - PI processing / Stripe unreachable -> leave the hold (fail closed,
+ *    caller reports unverified instead of granting).
+ */
+export async function reconcileExpiredSkateHolds(input: {
+  eventId: string;
+  partnerId: string;
+}): Promise<SkateReconcileResult> {
+  const supabase = createAdminClient();
+  const { data: rows, error } = await supabase
+    .from('chai_event_skate_reservations')
+    .select('id, claim_token, payment_intent_id')
+    .eq('event_id', input.eventId)
+    .eq('partner_id', input.partnerId)
+    .eq('status', 'reserved')
+    .lt('expires_at', new Date().toISOString());
+  if (error) {
+    if (isMissingSchema(error)) return { supported: false, failures: 0 };
+    console.error('[skate-allowance] reconcile query failed:', error.message);
+    return { supported: true, failures: 1 };
+  }
+  let failures = 0;
+  for (const row of rows ?? []) {
+    const piId = (row.payment_intent_id as string | null) || null;
+    if (!piId) {
+      await releaseSkateAllowance({ claimToken: String(row.claim_token) });
+      continue;
+    }
+    try {
+      const pi = await stripe.paymentIntents.retrieve(piId);
+      if (pi.status === 'succeeded') {
+        await consumeSkateAllowance(piId);
+        console.error(
+          `[skate-allowance] paid PI ${piId} had no persisted registration; admin recovery needed`,
+        );
+      } else if (pi.status === 'canceled') {
+        await releaseSkateAllowance({ paymentIntentId: piId });
+      } else if (pi.status === 'processing' || pi.status === 'requires_capture') {
+        // Not safe to cancel/reallocate; leave the hold counting.
+        failures += 1;
+      } else {
+        // requires_payment_method / requires_confirmation / requires_action:
+        // still payable, so cancel to reach a terminal state before release.
+        await stripe.paymentIntents.cancel(piId);
+        await releaseSkateAllowance({ paymentIntentId: piId });
+      }
+    } catch (err) {
+      console.error('[skate-allowance] reconcile failed for PI', piId, err);
+      failures += 1;
+    }
+  }
+  return { supported: true, failures };
 }

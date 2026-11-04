@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Elements, useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
@@ -183,6 +183,26 @@ function PaidEventFormInner({
     onAmountCentsChange(cents > 0 ? cents : 100);
   }, [pricing.total, onAmountCentsChange]);
 
+  // Re-verify the member code (debounced) whenever the code or any
+  // identity field changes - identity matching depends on the current
+  // name/email/phone, so a result based on earlier (or empty) details
+  // must not stick. One call per typing pause, not per keystroke.
+  useEffect(() => {
+    if (!habayitMember) return;
+    if (!memberCode.trim()) {
+      memberCodeVerifySeq.current += 1;
+      setMemberCodeStatus(null);
+      setMemberCodeReason(null);
+      setMemberSkatersRemaining(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      void verifyMemberCode(memberCode);
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [habayitMember, memberCode, firstName, lastName, email, phone]);
+
   async function verifyFairCode(index: number, code: string) {
     if (!code.trim()) {
       setFairCodeStatus((s) => {
@@ -214,12 +234,18 @@ function PaidEventFormInner({
     void verifyFairCode(index, code);
   }
 
+  const memberCodeVerifySeq = useRef(0);
+
   async function verifyMemberCode(code: string) {
-    if (!code.trim()) {
+    const normalized = code.trim().toUpperCase().replace(/\s+/g, '');
+    if (normalized.length < 4) {
+      memberCodeVerifySeq.current += 1;
       setMemberCodeStatus(null);
       setMemberCodeReason(null);
+      setMemberSkatersRemaining(null);
       return;
     }
+    const seq = ++memberCodeVerifySeq.current;
     setMemberCodeStatus('checking');
     setMemberCodeReason(null);
     const result = await verifyHaBayitMemberCodeAction(code, event.slug, {
@@ -228,6 +254,8 @@ function PaidEventFormInner({
       email,
       phone,
     });
+    // A newer verification (code or identity changed) owns the state.
+    if (seq !== memberCodeVerifySeq.current) return;
     setMemberCodeStatus(result.valid ? 'valid' : 'invalid');
     setMemberCodeReason(result.valid ? null : result.reason || null);
     setMemberSkatersRemaining(result.valid ? (result.remainingSkaters ?? null) : null);
@@ -764,11 +792,7 @@ function PaidEventFormInner({
               <Field label="Chai Partner code">
                 <input
                   value={memberCode}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setMemberCode(value);
-                    void verifyMemberCode(value);
-                  }}
+                  onChange={(e) => setMemberCode(e.target.value)}
                   placeholder="HABAYIT-XXXXXX"
                   className="uppercase"
                 />
@@ -825,11 +849,7 @@ function PaidEventFormInner({
               <Field label="Chai Partner code">
                 <input
                   value={memberCode}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setMemberCode(value);
-                    void verifyMemberCode(value);
-                  }}
+                  onChange={(e) => setMemberCode(e.target.value)}
                   placeholder="HABAYIT-XXXXXX"
                   className="uppercase"
                 />

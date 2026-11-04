@@ -2,6 +2,7 @@ import { logFormSubmission } from '@/lib/admin/form-log';
 import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
+import { consumeSkateAllowance } from '@/lib/events/skate-allowance';
 import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
 import {
   computePaidEventTotal,
@@ -415,6 +416,13 @@ export async function persistPaidEventRegistration(
     } catch (emailErr) {
       console.error('[paid event] email failed:', emailErr);
     }
+  }
+
+  // Consume held skate allowance (idempotent; no-op pre-migration 0028
+  // or when this PI holds none). Runs for both the submit and webhook
+  // paths, so a paid registration's discount is always recorded.
+  if (event.type === 'skate' && input.skate?.memberDiscount && paymentIntentId) {
+    await consumeSkateAllowance(paymentIntentId);
   }
 
   return { success: true, registrationId, receiptUrl };

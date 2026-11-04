@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { skateAllowanceUsed } from '@/lib/events/skate-allowance';
 
 export function normalizeMemberCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/\s+/g, '');
@@ -226,7 +227,21 @@ export async function verifySkateMemberCode(
     return { valid: false, reason: 'identity_mismatch', partnerId: partner.id, code };
   }
 
-  const used = await skateMemberSkatersUsed(code, options.eventSlug);
+  // Allowance source of truth is the reservation table once migration
+  // 0028 is applied (includes in-flight holds); before that, count from
+  // event registrations. A real error in both means unverified.
+  let used: number | null = null;
+  const { data: eventRow } = await supabase
+    .from('events')
+    .select('id')
+    .eq('slug', options.eventSlug)
+    .maybeSingle();
+  if (eventRow?.id) {
+    used = await skateAllowanceUsed({ eventId: eventRow.id, partnerId: partner.id });
+  }
+  if (used === null) {
+    used = await skateMemberSkatersUsed(code, options.eventSlug);
+  }
   if (used === null) {
     // Allowance could not be verified: never grant the discount unverified.
     // Caller tells the registrant to retry or continue at full price.

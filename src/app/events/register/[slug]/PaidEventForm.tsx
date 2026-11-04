@@ -322,7 +322,7 @@ function PaidEventFormInner({
           ? 'This code was already used for this event.'
           : result.reason === 'not_eligible'
             ? 'This code is not active.'
-            : result.reason || 'Code not recognized.';
+            : 'Code not recognized, not active, or already used for this event.';
       setHaCodeReasons((s) => ({ ...s, [index]: reason }));
     }
   }

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { skateAllowanceUsed } from '@/lib/events/skate-allowance';
 
 export function normalizeMemberCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/\s+/g, '');
@@ -88,11 +89,178 @@ export async function verifyHaBayitMemberCode(
   return { valid: true, partnerId: partner.id, code };
 }
 
+/** Max skaters one Chai member can buy at the member price per skate event. */
+export const SKATE_MEMBER_SKATER_LIMIT = 6;
+
+export interface SkateMemberLookup {
+  valid: boolean;
+  reason?: 'invalid' | 'not_eligible' | 'exhausted' | 'identity_mismatch' | 'unverified';
+  partnerId?: string;
+  code?: string;
+  /** Discounted skaters this member has left for this event. */
+  remaining?: number;
+}
+
+function digitsOnly(v: string): string {
+  return v.replace(/\D+/g, '');
+}
+
+function normText(v: string): string {
+  return v.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * Discounted (member-priced) skaters already registered with this code for
+ * this event, counted from event registrations (source of truth; the
+ * redemptions table only marks first use). Returns null if the scan failed.
+ */
+export async function skateMemberSkatersUsed(
+  codeRaw: string,
+  eventSlug: string,
+): Promise<number | null> {
+  const code = normalizeMemberCode(codeRaw);
+  if (!code) return 0;
+  const supabase = createAdminClient();
+  const { data: rows, error } = await supabase
+    .from('event_registrations')
+    .select('id, registration_details')
+    .eq('event_slug', eventSlug);
+  if (error) {
+    console.error('[member-code] skate usage scan failed:', error.message);
+    return null;
+  }
+  let used = 0;
+  for (const row of rows ?? []) {
+    const details = asDetails(row.registration_details);
+    if (details?.type !== 'skate') continue;
+    const skate = asDetails(details.skate);
+    const stored = normalizeMemberCode(String(skate?.memberCode || ''));
+    if (!stored || stored !== code) continue;
+    const lines = Array.isArray(details.skateLines) ? details.skateLines : null;
+    if (lines) {
+      used += lines.filter(
+        (l) => asDetails(l)?.member === true,
+      ).length;
+    } else if (skate?.memberDiscount === true) {
+      used += Math.max(0, Math.round(Number(skate.skaters) || 0));
+    }
+  }
+  return used;
+}
+
+/**
+ * Verify a Chai member code for a SKATE event (Fire on Ice rules):
+ * member price for up to SKATE_MEMBER_SKATER_LIMIT skaters total per member
+ * per event, and the code must match the registrant (or their spouse) by
+ * email, phone, full name, or surname. Couples events keep single-use rules.
+ */
+export async function verifySkateMemberCode(
+  codeRaw: string,
+  options: {
+    eventSlug: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  },
+): Promise<SkateMemberLookup> {
+  const code = normalizeMemberCode(codeRaw);
+  if (code.length < 4) return { valid: false, reason: 'invalid' };
+
+  const supabase = createAdminClient();
+  const { data: partner, error } = await supabase
+    .from('chai_partners')
+    .select('id, status, access_code, first_name, last_name, email, phone, family_id')
+    .eq('access_code', code)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[member-code] skate lookup failed:', error.message);
+  }
+  if (!partner?.id) return { valid: false, reason: 'invalid' };
+  if (partner.status !== 'active') {
+    return { valid: false, reason: 'not_eligible', partnerId: partner.id, code };
+  }
+
+  // Identity: registrant must match the member or a spouse/parent in the
+  // member's family by email, phone, full name, or surname.
+  const candidates: Array<{ first?: string; last?: string; email?: string; phone?: string }> = [
+    {
+      first: String(partner.first_name || ''),
+      last: String(partner.last_name || ''),
+      email: String(partner.email || ''),
+      phone: String(partner.phone || ''),
+    },
+  ];
+  if (partner.family_id) {
+    const { data: parents } = await supabase
+      .from('parents')
+      .select('first_name, last_name, email, phone')
+      .eq('family_id', partner.family_id);
+    for (const p of parents ?? []) {
+      candidates.push({
+        first: String(p.first_name || ''),
+        last: String(p.last_name || ''),
+        email: String(p.email || ''),
+        phone: String(p.phone || ''),
+      });
+    }
+  }
+
+  const rFirst = normText(options.firstName || '');
+  const rLast = normText(options.lastName || '');
+  const rEmail = normText(options.email || '');
+  const rPhone = digitsOnly(options.phone || '');
+  const matched = candidates.some((c) => {
+    const cFirst = normText(c.first || '');
+    const cLast = normText(c.last || '');
+    const cEmail = normText(c.email || '');
+    const cPhone = digitsOnly(c.phone || '');
+    if (rEmail && cEmail && rEmail === cEmail) return true;
+    // Compare on the last 10 digits so +1 country code formatting matches.
+    if (rPhone && cPhone && rPhone.slice(-10) === cPhone.slice(-10)) return true;
+    if (rFirst && rLast && cFirst && cLast && rFirst === cFirst && rLast === cLast) return true;
+    if (rLast && cLast && rLast === cLast) return true; // surname qualifies per event owner
+    return false;
+  });
+  if (!matched) {
+    return { valid: false, reason: 'identity_mismatch', partnerId: partner.id, code };
+  }
+
+  // Allowance source of truth is the reservation table once migration
+  // 0028 is applied (includes in-flight holds); before that, count from
+  // event registrations. A real error in both means unverified.
+  let used: number | null = null;
+  const { data: eventRow } = await supabase
+    .from('events')
+    .select('id')
+    .eq('slug', options.eventSlug)
+    .maybeSingle();
+  if (eventRow?.id) {
+    used = await skateAllowanceUsed({ eventId: eventRow.id, partnerId: partner.id });
+  }
+  if (used === null) {
+    used = await skateMemberSkatersUsed(code, options.eventSlug);
+  }
+  if (used === null) {
+    // Allowance could not be verified: never grant the discount unverified.
+    // Caller tells the registrant to retry or continue at full price.
+    return { valid: false, reason: 'unverified', partnerId: partner.id, code };
+  }
+  const remaining = Math.max(0, SKATE_MEMBER_SKATER_LIMIT - used);
+  if (remaining === 0) {
+    return { valid: false, reason: 'exhausted', partnerId: partner.id, code, remaining: 0 };
+  }
+  return { valid: true, partnerId: partner.id, code, remaining };
+}
+
 export async function recordMemberCodeRedemption(input: {
   eventId: string;
   eventRegistrationId?: string | null;
   partnerId: string;
   code: string;
+  /** Skate events allow reuse up to the per-member skater limit. */
+  allowReuse?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = createAdminClient();
   const { error } = await supabase.from('chai_event_code_redemptions').insert({
@@ -105,6 +273,7 @@ export async function recordMemberCodeRedemption(input: {
   if (!error) return { ok: true };
 
   if (error.code === '23505') {
+    if (input.allowReuse) return { ok: true }; // usage counted from registrations
     return { ok: false, error: 'This HaBayit member code was already used for this event.' };
   }
   if (/chai_event_code_redemptions|schema cache|does not exist/i.test(error.message)) {

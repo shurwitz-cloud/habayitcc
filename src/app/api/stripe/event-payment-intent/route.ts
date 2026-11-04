@@ -12,10 +12,18 @@ import {
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
+  type SkateRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { verifyHebrewFairCode } from '@/lib/events/hebrew-fair-codes';
-import { verifyHaBayitMemberCode } from '@/lib/events/chai-member-event-codes';
+import { verifyHaBayitMemberCode, verifySkateMemberCode } from '@/lib/events/chai-member-event-codes';
+import {
+  bindSkateAllowancePayment,
+  claimSkateAllowance,
+  reconcileExpiredSkateHolds,
+  releaseSkateAllowance,
+} from '@/lib/events/skate-allowance';
+import { ensureEventBySlug } from '@/lib/events/sync';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +40,7 @@ export async function POST(req: NextRequest) {
       fair?: FairRegistrationData;
       womens?: WomensRegistrationData;
       couples?: CouplesRegistrationData;
+      skate?: SkateRegistrationData;
     };
 
     const event = getPaidEvent(body.slug);
@@ -45,6 +54,7 @@ export async function POST(req: NextRequest) {
         dinner: body.dinner,
         fair: body.fair,
         womens: body.womens,
+        skate: body.skate,
       }),
     );
     if (!room.ok) {
@@ -105,6 +115,88 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let skateData = body.skate;
+    // Held discount slots for this checkout (migration 0028). Claimed
+    // before the payment intent exists so a discount is never charged
+    // without an allowance, and never rejected after charging.
+    let skateClaim: { token: string; claimed: number } | null = null;
+    if (event.type === 'skate') {
+      const skaterCount = Math.max(0, Math.round(body.skate?.skaters || 0));
+      if (skaterCount < 1) {
+        return NextResponse.json({ error: 'Please add at least one skater.' }, { status: 400 });
+      }
+      const rawCode = body.skate?.memberCode?.trim() || '';
+      if (rawCode) {
+        const lookup = await verifySkateMemberCode(rawCode, {
+          eventSlug: event.slug,
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email,
+          phone: body.phone,
+        });
+        if (!lookup.valid || !lookup.code) {
+          const reasonMsg =
+            lookup.reason === 'identity_mismatch'
+              ? 'This Chai code does not match these details. Correct the name, email or phone, or continue without the code at full price.'
+              : lookup.reason === 'exhausted'
+                ? 'This Chai member already used all 6 discounted skaters for this event.'
+                : lookup.reason === 'unverified'
+                  ? 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.'
+                  : 'This HaBayit member code is not valid or not active.';
+          return NextResponse.json({ error: reasonMsg }, { status: 400 });
+        }
+        let memberSkaters = lookup.remaining;
+        // Atomic claim when the reservation schema is live. Expired
+        // holds are reconciled against Stripe first (never time-freed),
+        // and any uncertainty fails closed without granting a discount.
+        const eventId = await ensureEventBySlug(event.slug);
+        if (eventId && lookup.partnerId) {
+          const reconcile = await reconcileExpiredSkateHolds({
+            eventId,
+            partnerId: lookup.partnerId,
+          });
+          if (reconcile.supported && reconcile.failures > 0) {
+            return NextResponse.json(
+              { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
+              { status: 400 },
+            );
+          }
+          const token = crypto.randomUUID();
+          const claim = await claimSkateAllowance({
+            eventId,
+            partnerId: lookup.partnerId,
+            code: lookup.code,
+            wanted: skaterCount,
+            claimToken: token,
+          });
+          if (claim.supported) {
+            if (claim.error) {
+              return NextResponse.json(
+                { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
+                { status: 400 },
+              );
+            }
+            if (claim.claimed === 0) {
+              return NextResponse.json(
+                { error: 'This Chai member already used all 6 discounted skaters for this event.' },
+                { status: 400 },
+              );
+            }
+            skateClaim = { token, claimed: claim.claimed };
+            memberSkaters = claim.claimed;
+          }
+        }
+        skateData = {
+          skaters: skaterCount,
+          memberCode: lookup.code,
+          memberDiscount: true,
+          memberSkaters,
+        };
+      } else {
+        skateData = { skaters: skaterCount, memberDiscount: false };
+      }
+    }
+
     const pricing = computePaidEventTotal({
       event,
       dinner: body.dinner,
@@ -112,12 +204,14 @@ export async function POST(req: NextRequest) {
       fairFreeChildIndices,
       womens: body.womens,
       couples: couplesData,
+      skate: skateData,
       sponsorAmount: body.sponsorAmount ?? 0,
       coverFee: !!body.coverFee,
     });
 
     const expectedCents = totalToCents(pricing.total);
     if (expectedCents < 0 || body.amountCents !== expectedCents) {
+      if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
       return NextResponse.json({ error: 'Payment amount mismatch. Please refresh and try again.' }, { status: 400 });
     }
 
@@ -127,7 +221,9 @@ export async function POST(req: NextRequest) {
 
     const donorName = `${body.firstName.trim()} ${body.lastName.trim()}`.replace(/\s+/g, ' ');
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
       amount: expectedCents,
       currency: 'usd',
       payment_method_types: ['card'],
@@ -157,14 +253,33 @@ export async function POST(req: NextRequest) {
         fair_children:
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
         couples: event.type === 'couples' ? String(couplesData?.couples ?? 0) : '',
+        skaters: event.type === 'skate' ? String(skateData?.skaters ?? 0) : '',
+        member_skaters:
+          event.type === 'skate' && skateData?.memberDiscount
+            ? String(skateData?.memberSkaters ?? skateData?.skaters ?? 0)
+            : '',
         member_code:
-          event.type === 'couples' && couplesData?.memberDiscount
-            ? String(couplesData.memberCode ?? '').slice(0, 40)
+          (event.type === 'couples' && couplesData?.memberDiscount) ||
+          (event.type === 'skate' && skateData?.memberDiscount)
+            ? String(
+                (event.type === 'skate' ? skateData?.memberCode : couplesData?.memberCode) ?? '',
+              ).slice(0, 40)
             : '',
         member_discount:
-          event.type === 'couples' && couplesData?.memberDiscount ? '1' : '0',
+          (event.type === 'couples' && couplesData?.memberDiscount) ||
+          (event.type === 'skate' && skateData?.memberDiscount)
+            ? '1'
+            : '0',
       },
     });
+
+    } catch (piErr) {
+      if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
+      throw piErr;
+    }
+    if (skateClaim) {
+      await bindSkateAllowancePayment(skateClaim.token, paymentIntent.id);
+    }
 
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,

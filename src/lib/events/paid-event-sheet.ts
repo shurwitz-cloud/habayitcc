@@ -18,6 +18,7 @@ import type {
   DinnerRegistrationData,
   FairRegistrationData,
   PricingBreakdown,
+  SkateRegistrationData,
   WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 
@@ -32,8 +33,10 @@ export type PaidEventSheetRowInput = {
   fair?: FairRegistrationData;
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
+  skate?: SkateRegistrationData;
   fairChildLines?: PricingBreakdown['fairChildLines'];
   coupleLines?: PricingBreakdown['coupleLines'];
+  skateLines?: PricingBreakdown['skateLines'];
   ticketSubtotal: number;
   sponsorAmount: number;
   cardFee: number;
@@ -128,6 +131,23 @@ export function buildPaidEventSheetValues(input: PaidEventSheetRowInput): (strin
     ];
   }
 
+  if (input.event.type === 'skate') {
+    const skaterNote = (input.skateLines ?? [])
+      .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : ''}`)
+      .join('; ');
+    return [
+      timestamp,
+      input.lastName,
+      input.firstName,
+      input.email ?? '',
+      input.phone ?? '',
+      input.skate?.skaters ?? 0,
+      input.skate?.memberDiscount ? input.skate.memberCode?.trim().toUpperCase() || 'Yes' : '',
+      skaterNote,
+      ...sharedTail,
+    ];
+  }
+
   if (input.event.type === 'couples') {
     const coupleNote = (input.coupleLines ?? [])
       .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : ''}`)
@@ -205,8 +225,10 @@ function sheetInputFromRegistration(
   const fair = (details?.fair as FairRegistrationData | undefined) ?? undefined;
   const womens = (details?.womens as WomensRegistrationData | undefined) ?? undefined;
   const couples = (details?.couples as CouplesRegistrationData | undefined) ?? undefined;
+  const skate = (details?.skate as SkateRegistrationData | undefined) ?? undefined;
   const fairChildLines = details?.fairChildLines as PricingBreakdown['fairChildLines'];
   const coupleLines = details?.coupleLines as PricingBreakdown['coupleLines'];
+  const skateLines = details?.skateLines as PricingBreakdown['skateLines'];
 
   return {
     event,
@@ -231,8 +253,12 @@ function sheetInputFromRegistration(
     couples:
       couples ??
       (event.type === 'couples' ? { couples: people.guests || 1 } : undefined),
+    skate:
+      skate ??
+      (event.type === 'skate' ? { skaters: people.guests || 1 } : undefined),
     fairChildLines,
     coupleLines,
+    skateLines,
     ticketSubtotal: money.ticket,
     sponsorAmount: money.donation,
     cardFee: money.fee,

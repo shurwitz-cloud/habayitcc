@@ -15,6 +15,7 @@ const PAID_TYPE_FALLBACK: Record<PaidEventType, EventPeopleMode> = {
   celebration: 'adults_kids',
   'family-fair': 'kids',
   couples: 'couples',
+  skate: 'people',
 };
 
 export function peopleModeForPaidType(type: PaidEventType): EventPeopleMode {

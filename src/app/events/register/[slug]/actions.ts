@@ -6,6 +6,7 @@ import {
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
+  type SkateRegistrationData,
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { getPaidEvent } from '@/lib/events/paid-events';
@@ -23,10 +24,13 @@ import {
 } from '@/lib/events/hebrew-fair-codes';
 import {
   verifyHaBayitMemberCode,
+  verifySkateMemberCode,
   recordMemberCodeRedemption,
   attachMemberCodeRedemptionToEventRegistration,
   releaseMemberCodeRedemption,
+  type SkateMemberLookup,
 } from '@/lib/events/chai-member-event-codes';
+import { getHeldSkateAllowance, releaseSkateAllowance } from '@/lib/events/skate-allowance';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
@@ -45,6 +49,7 @@ export interface PaidEventRegistrationInput {
   fair?: FairRegistrationData;
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
+  skate?: SkateRegistrationData;
 }
 
 export interface PaidEventRegistrationResult {
@@ -74,13 +79,37 @@ export async function verifyHebrewFairCodeAction(
   return { valid: true, childName: childName || undefined };
 }
 
+function skateMemberCodeError(lookup: SkateMemberLookup): string {
+  if (lookup.reason === 'identity_mismatch') {
+    return 'This Chai code does not match these details. Correct the name, email or phone, or continue without the code at full price.';
+  }
+  if (lookup.reason === 'exhausted') {
+    return 'This Chai member already used all 6 discounted skaters for this event.';
+  }
+  if (lookup.reason === 'unverified') {
+    return 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.';
+  }
+  return 'This HaBayit member code is not valid or not active.';
+}
+
 export async function verifyHaBayitMemberCodeAction(
   code: string,
   eventSlug?: string,
-): Promise<{ valid: boolean; reason?: string }> {
+  identity?: { firstName?: string; lastName?: string; email?: string; phone?: string },
+): Promise<{ valid: boolean; reason?: string; remainingSkaters?: number }> {
   const limited = await enforceActionRateLimit('habayit-member-code', 12, 15 * 60 * 1000);
   if (!limited.ok) {
     return { valid: false, reason: limited.error };
+  }
+
+  const event = eventSlug ? getPaidEvent(eventSlug) : null;
+  if (event?.type === 'skate') {
+    const lookup = await verifySkateMemberCode(code, {
+      eventSlug: event.slug,
+      ...identity,
+    });
+    if (!lookup.valid) return { valid: false, reason: skateMemberCodeError(lookup) };
+    return { valid: true, remainingSkaters: lookup.remaining };
   }
 
   const lookup = await verifyHaBayitMemberCode(code, { eventSlug });
@@ -111,6 +140,7 @@ export async function submitPaidEventRegistration(
         dinner: input.dinner,
         fair: input.fair,
         womens: input.womens,
+        skate: input.skate,
       }),
     );
     if (!room.ok) return { success: false, error: room.error };
@@ -196,6 +226,7 @@ export async function submitPaidEventRegistration(
     }
 
     let couplesData = input.couples;
+    let skateData = input.skate;
     let memberRedemption: { partnerId: string; code: string } | null = null;
     if (event.type === 'couples') {
       const coupleCount = Math.max(0, Math.round(input.couples?.couples || 0));
@@ -225,6 +256,73 @@ export async function submitPaidEventRegistration(
       }
     }
 
+    if (event.type === 'skate') {
+      const skaterCount = Math.max(0, Math.round(input.skate?.skaters || 0));
+      if (skaterCount < 1) {
+        return { success: false, error: 'Please add at least one skater.' };
+      }
+      const rawCode = input.skate?.memberCode?.trim() || '';
+      if (rawCode) {
+        // A checkout that claimed its allowance before being charged is
+        // never rejected afterwards: its held reservation rows are the
+        // discount proof (migration 0028). Falls back to re-verifying
+        // the code when reservations are not live.
+        const held = input.paymentIntentId
+          ? await getHeldSkateAllowance(input.paymentIntentId)
+          : null;
+        if (held && held.count > 0) {
+          memberRedemption = { partnerId: held.partnerId, code: held.code };
+          skateData = {
+            skaters: skaterCount,
+            memberCode: held.code,
+            memberDiscount: true,
+            memberSkaters: held.count,
+          };
+        } else if (held && held.count === 0) {
+          // Claimed rows missing for a charged PI: keep the member safe -
+          // re-verify rather than reject a paid registration.
+          const lookup = await verifySkateMemberCode(rawCode, {
+            eventSlug: event.slug,
+            firstName,
+            lastName,
+            email,
+            phone,
+          });
+          if (!lookup.valid || !lookup.partnerId || !lookup.code) {
+            console.error('[paid event] paid PI without held allowance or valid code:', input.paymentIntentId);
+            return { success: false, error: skateMemberCodeError(lookup) };
+          }
+          memberRedemption = { partnerId: lookup.partnerId, code: lookup.code };
+          skateData = {
+            skaters: skaterCount,
+            memberCode: lookup.code,
+            memberDiscount: true,
+            memberSkaters: lookup.remaining,
+          };
+        } else {
+          const lookup = await verifySkateMemberCode(rawCode, {
+            eventSlug: event.slug,
+            firstName,
+            lastName,
+            email,
+            phone,
+          });
+          if (!lookup.valid || !lookup.partnerId || !lookup.code) {
+            return { success: false, error: skateMemberCodeError(lookup) };
+          }
+          memberRedemption = { partnerId: lookup.partnerId, code: lookup.code };
+          skateData = {
+            skaters: skaterCount,
+            memberCode: lookup.code,
+            memberDiscount: true,
+            memberSkaters: lookup.remaining,
+          };
+        }
+      } else {
+        skateData = { skaters: skaterCount, memberDiscount: false };
+      }
+    }
+
     const pricing = computePaidEventTotal({
       event,
       dinner: input.dinner,
@@ -232,6 +330,7 @@ export async function submitPaidEventRegistration(
       fairFreeChildIndices,
       womens: input.womens,
       couples: couplesData,
+      skate: skateData,
       sponsorAmount: input.sponsorAmount,
       coverFee: input.coverFee,
     });
@@ -272,6 +371,7 @@ export async function submitPaidEventRegistration(
           eventRegistrationId: null,
           partnerId: memberRedemption.partnerId,
           code: memberRedemption.code,
+          allowReuse: event.type === 'skate',
         });
         if (!reservedMember.ok) {
           return { success: false, error: reservedMember.error };
@@ -292,6 +392,7 @@ export async function submitPaidEventRegistration(
       fair: input.fair,
       womens: input.womens,
       couples: couplesData,
+      skate: skateData,
     });
 
     if (!result.success) {
@@ -306,6 +407,9 @@ export async function submitPaidEventRegistration(
           eventId,
           partnerId: memberRedemption.partnerId,
         });
+      }
+      if (event.type === 'skate' && input.paymentIntentId) {
+        await releaseSkateAllowance({ paymentIntentId: input.paymentIntentId });
       }
       return { success: false, error: result.error };
     }

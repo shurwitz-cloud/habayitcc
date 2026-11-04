@@ -24,6 +24,9 @@ const nextConfig: NextConfig = {
       { source: '/zugot', destination: '/events/register/erev-zugot' },
       { source: '/erev-zugot', destination: '/events/register/erev-zugot' },
       { source: '/erevzugot', destination: '/events/register/erev-zugot' },
+      { source: '/skate', destination: '/events/register/fire-on-ice' },
+      { source: '/fire-on-ice', destination: '/events/register/fire-on-ice' },
+      { source: '/fireonice', destination: '/events/register/fire-on-ice' },
     ];
   },
   async redirects() {

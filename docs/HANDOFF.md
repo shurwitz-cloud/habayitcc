@@ -91,3 +91,22 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 
 
 
+
+
+=== Fire on Ice event page (branch fire-on-ice-event, PREVIEW ONLY - not merged) ===
+- New paid event 'fire-on-ice' (Fire on Ice - Musical Havdala, Motzei Shabbos Nov 28 2026,
+  6:30-8:00 PM, Pines Ice Arena) with new event type 'skate': $20/skater in advance
+  ($25 at the door noted in copy), Chai Partner code => $17/skater (all skaters on the
+  reservation, vs first-ticket-only on couples), optional sponsor presets, 3% cover-fee.
+- Short links: /skate, /fire-on-ice, /fireonice -> /events/register/fire-on-ice.
+  Flyer: public/flyers/fire-on-ice.jpg (poster from Shmuel's ChatGPT share).
+- New type touches: paid-events config, paid-event-pricing (SkateRegistrationData,
+  skateLines), PaidEventForm UI, register actions, event-payment-intent + webhook
+  metadata (skaters/member_code/member_discount), persist (details summary, guest
+  count, details.skate), paid-event-sheet row + 'Fire on Ice' tab headers,
+  event-registration-stats (skate people), event-display fallback (people),
+  record-offline-registration, EventDetailDrawer default amount, paid-event-capacity.
+- Checks: tsc --noEmit clean; standalone pricing + CRM stats unit tests pass
+  (member math, fee math, other event types unchanged).
+- NOT done here: Vercel preview visual check, merge, publish. Go-live waits for
+  Shmuel's explicit yes. Cursor: do not merge this branch yourself.

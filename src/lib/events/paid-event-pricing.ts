@@ -6,6 +6,8 @@ export const FAIR_CHILD_PRICE = 12;
 export const WOMENS_TICKET_PRICE = 36;
 export const COUPLES_TICKET_PRICE = 55;
 export const COUPLES_MEMBER_TICKET_PRICE = 45;
+export const SKATE_TICKET_PRICE = 20;
+export const SKATE_MEMBER_TICKET_PRICE = 17;
 
 export interface DinnerRegistrationData {
   adults: number;
@@ -31,6 +33,19 @@ export interface CouplesRegistrationData {
   memberDiscount?: boolean;
 }
 
+export interface SkateRegistrationData {
+  skaters: number;
+  memberCode?: string;
+  /** Member price applies to the first memberSkaters of this reservation. */
+  memberDiscount?: boolean;
+  /**
+   * How many skaters on this reservation get the Chai member price (remaining
+   * per-member allowance for this event). Defaults to all skaters when
+   * memberDiscount is set. Extra skaters pay the full advance price.
+   */
+  memberSkaters?: number;
+}
+
 export interface PricingBreakdown {
   ticketSubtotal: number;
   sponsorAmount: number;
@@ -39,6 +54,7 @@ export interface PricingBreakdown {
   /** Per-child fair pricing detail for sheets. */
   fairChildLines?: Array<{ index: number; price: number; codeUsed: string | null; free: boolean }>;
   coupleLines?: Array<{ index: number; price: number; member: boolean }>;
+  skateLines?: Array<{ index: number; price: number; member: boolean }>;
 }
 
 function roundMoney(n: number): number {
@@ -98,6 +114,28 @@ export function computeCouplesTickets(
   return { subtotal: roundMoney(subtotal), lines };
 }
 
+export function computeSkateTickets(
+  data: SkateRegistrationData,
+): { subtotal: number; lines: NonNullable<PricingBreakdown['skateLines']> } {
+  const skaters = Math.max(0, Math.round(data.skaters) || 0);
+  const lines: NonNullable<PricingBreakdown['skateLines']> = [];
+  let subtotal = 0;
+
+  const memberAllowance =
+    data.memberDiscount === true
+      ? Math.min(skaters, Math.max(0, Math.round(data.memberSkaters ?? skaters)))
+      : 0;
+
+  for (let i = 0; i < skaters; i++) {
+    const member = i < memberAllowance;
+    const price = member ? SKATE_MEMBER_TICKET_PRICE : SKATE_TICKET_PRICE;
+    subtotal += price;
+    lines.push({ index: i + 1, price, member });
+  }
+
+  return { subtotal: roundMoney(subtotal), lines };
+}
+
 export function computePaidEventTotal(input: {
   event: PaidEventConfig;
   dinner?: DinnerRegistrationData;
@@ -105,12 +143,14 @@ export function computePaidEventTotal(input: {
   fairFreeChildIndices?: Set<number>;
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
+  skate?: SkateRegistrationData;
   sponsorAmount: number;
   coverFee: boolean;
 }): PricingBreakdown {
   let ticketSubtotal = 0;
   let fairChildLines: PricingBreakdown['fairChildLines'];
   let coupleLines: PricingBreakdown['coupleLines'];
+  let skateLines: PricingBreakdown['skateLines'];
 
   switch (input.event.type) {
     case 'dinner':
@@ -137,6 +177,12 @@ export function computePaidEventTotal(input: {
       coupleLines = result.lines;
       break;
     }
+    case 'skate': {
+      const result = computeSkateTickets(input.skate ?? { skaters: 0 });
+      ticketSubtotal = result.subtotal;
+      skateLines = result.lines;
+      break;
+    }
   }
 
   const sponsorAmount = roundMoney(Math.max(0, input.sponsorAmount));
@@ -144,7 +190,7 @@ export function computePaidEventTotal(input: {
   const cardFee = computeCardFee(preFeeSubtotal, input.coverFee);
   const total = roundMoney(preFeeSubtotal + cardFee);
 
-  return { ticketSubtotal, sponsorAmount, cardFee, total, fairChildLines, coupleLines };
+  return { ticketSubtotal, sponsorAmount, cardFee, total, fairChildLines, coupleLines, skateLines };
 }
 
 export function totalToCents(total: number): number {

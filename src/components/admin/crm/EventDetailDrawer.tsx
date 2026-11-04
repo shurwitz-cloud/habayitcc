@@ -95,9 +95,11 @@ export function EventDetailDrawer({
       ? '36'
       : paidEvent?.type === 'dinner' || paidEvent?.type === 'couples'
         ? '55'
-        : paidEvent?.type === 'celebration'
-          ? '0'
-          : '12';
+        : paidEvent?.type === 'skate'
+          ? '20'
+          : paidEvent?.type === 'celebration'
+            ? '0'
+            : '12';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">

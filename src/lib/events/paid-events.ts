@@ -3,9 +3,10 @@ export type PaidEventSlug =
   | 'rosh-hashana-family-fair'
   | 'pre-rosh-hashana-womens'
   | 'simchat-torah'
-  | 'erev-zugot';
+  | 'erev-zugot'
+  | 'fire-on-ice';
 
-export type PaidEventType = 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples';
+export type PaidEventType = 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate';
 
 export type PaidEventSponsorOption = {
   amount: number;
@@ -165,6 +166,25 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     sheetTab: 'Erev Zugot',
     capacity: 22,
   },
+  {
+    slug: 'fire-on-ice',
+    title: 'Fire on Ice \u2014 Musical Havdala',
+    program: 'Community',
+    month: 'Nov',
+    day: '28',
+    dateLabel: 'Motzei Shabbat, November 28th',
+    time: '6:30 \u2013 8:00 PM',
+    startsAt: '2026-11-28T18:30:00-05:00',
+    description:
+      'Join HaBayit for Fire on Ice \u2014 a musical Havdala on the ice, with hot cocoa and a Tanya distribution in honor of 19 Kislev, the Rosh Hashana of Chassidut. $20 per skater in advance, $25 at the door.',
+    location: 'Pines Ice Arena',
+    flyer: '/flyers/fire-on-ice.jpg',
+    type: 'skate',
+    peopleMode: 'people',
+    memberPriceWithCode: true,
+    sponsorPresets: [54, 72, 180, 360],
+    sheetTab: 'Fire on Ice',
+  },
 ];
 
 /** Shared events workbook — one tab per event. */
@@ -181,6 +201,7 @@ export function paidEventRegisterPath(slug: PaidEventSlug): string {
 export function paidEventSharePath(event: PaidEventConfig): string {
   if (event.slug === 'simchat-torah') return '/st';
   if (event.slug === 'erev-zugot') return '/zugot';
+  if (event.slug === 'fire-on-ice') return '/skate';
   return paidEventRegisterPath(event.slug);
 }
 

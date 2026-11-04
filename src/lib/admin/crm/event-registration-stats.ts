@@ -10,6 +10,7 @@ export type EventRegistrationDetails = {
   fair?: { children?: unknown[] };
   womens?: { women?: number };
   couples?: { couples?: number; memberCode?: string; memberDiscount?: boolean };
+  skate?: { skaters?: number; memberCode?: string; memberDiscount?: boolean };
   /** Generic adults/kids for future event types */
   adults?: number;
   kids?: number;
@@ -96,6 +97,16 @@ export function parseEventPeople(row: {
     const women = Math.max(0, num(details.womens.women));
     // Headcount-only event — do not treat women as "adults" for CRM breakdowns.
     return { adults: null, kids: null, guests: women || guestFallback };
+  }
+
+  const skaters =
+    details?.skate && typeof details.skate === 'object'
+      ? num((details.skate as { skaters?: unknown }).skaters)
+      : details && details.type === 'skate'
+        ? guestFallback
+        : 0;
+  if (skaters > 0 || details?.type === 'skate') {
+    return { adults: null, kids: null, guests: skaters || guestFallback };
   }
 
   const couples =

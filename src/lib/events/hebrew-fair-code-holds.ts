@@ -131,11 +131,15 @@ export async function getHeldHebrewFairCodeClaims(
   paymentIntentId: string,
 ): Promise<HeldHaCodeClaims | null> {
   const supabase = createAdminClient();
+  // Rows CONSUMED by this same payment intent also count: a reconcile
+  // may have consumed the hold (paid PI, registration not yet
+  // persisted) before the checkout's retry arrives - those codes are
+  // this checkout's own discount proof, not another checkout's.
   const { data, error } = await supabase
     .from('hebrew_fair_code_holds')
     .select('id, program_registration_id, code')
     .eq('payment_intent_id', paymentIntentId)
-    .eq('status', 'reserved');
+    .in('status', ['reserved', 'consumed']);
   if (error) {
     if (isMissingSchema(error)) return null;
     console.error('[ha-code-holds] held lookup failed:', error.message);

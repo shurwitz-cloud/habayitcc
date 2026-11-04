@@ -518,17 +518,17 @@ export async function submitPaidEventRegistration(
           partnerId: memberRedemption.partnerId,
         });
       }
-      if (event.type === 'skate' && input.paymentIntentId) {
-        await releaseSkateAllowance({ paymentIntentId: input.paymentIntentId });
-        // HA holds bound to this PI are deliberately NOT released here:
-        // payment was verified succeeded BEFORE persist ran, so this
-        // checkout was already charged - freeing its codes would let
-        // another checkout take them and make the paid retry fail
-        // (pay-then-reject). The retry finds the held rows as its
-        // discount proof; if the user never retries, the expired hold
-        // is reconciled against Stripe (succeeded PI -> consumed +
-        // logged for admin recovery), never freed by time alone.
-      }
+      // Charged skate checkouts NEVER release discount holds on persist
+      // failure - neither Chai allowance nor HA code holds. Payment was
+      // verified succeeded BEFORE persist ran, so this checkout was
+      // already charged: freeing its discount slots would (a) let
+      // another checkout take them and make the paid retry fail
+      // (pay-then-reject), and (b) silently restore the member's
+      // allowance so a later registration could exceed the cap. The
+      // retry finds the held rows (reserved OR already-consumed) as its
+      // discount proof; if the user never retries, the expired hold is
+      // reconciled against Stripe (succeeded PI -> consumed + logged
+      // for admin recovery), never freed by time alone.
       return { success: false, error: result.error };
     }
 

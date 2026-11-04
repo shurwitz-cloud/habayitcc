@@ -134,6 +134,21 @@ begin
   where payment_intent_id = p_payment_intent_id
     and status = 'reserved';
   get diagnostics v_count = row_count;
+
+  -- Attach redemptions this payment already owns (e.g. written by a
+  -- reconcile before the registration existed) to the registration
+  -- that just persisted, so a paid retry idempotently recovers.
+  if p_event_registration_id is not null then
+    update hebrew_fair_code_redemptions r
+    set event_registration_id = p_event_registration_id
+    from hebrew_fair_code_holds h
+    where h.payment_intent_id = p_payment_intent_id
+      and h.status = 'consumed'
+      and r.program_registration_id = h.program_registration_id
+      and r.event_id = h.event_id
+      and r.event_registration_id is null;
+  end if;
+
   return v_count;
 end;
 $$;

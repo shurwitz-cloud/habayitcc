@@ -3,6 +3,7 @@ import { ensureCrmContact } from '@/lib/admin/ensure-contact';
 import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { consumeSkateAllowance } from '@/lib/events/skate-allowance';
+import { consumeHebrewFairCodeHolds } from '@/lib/events/hebrew-fair-code-holds';
 import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
 import {
   computePaidEventTotal,
@@ -80,13 +81,15 @@ function buildDetailsSummary(
     const lines =
       skateLines?.map(
         (l) =>
-          `Skater ${l.index}: $${l.price}${l.member ? ' — HaBayit member' : ''}`,
+          `Skater ${l.index}: $${l.price}${l.member ? ' — HaBayit member' : l.ha ? ' — Hebrew Adventure code' : ''}`,
       ) ?? [];
     const code = skate.memberCode?.trim();
+    const haCodes = (skate.haCodes ?? []).filter(Boolean);
     return [
       `Skaters: ${skate.skaters}`,
       ...lines,
       code ? `Member code: ${code.toUpperCase()}` : '',
+      haCodes.length ? `Hebrew Adventure codes: ${haCodes.join(', ')}` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -425,6 +428,13 @@ export async function persistPaidEventRegistration(
     await consumeSkateAllowance(paymentIntentId);
   }
 
+  // Consume held Hebrew Adventure code discounts (idempotent; no-op
+  // pre-migration 0030 or when this PI holds none): writes the
+  // permanent redemptions rows and attaches them to this registration.
+  if (event.type === 'skate' && paymentIntentId) {
+    await consumeHebrewFairCodeHolds(paymentIntentId, registrationId);
+  }
+
   return { success: true, registrationId, receiptUrl };
 }
 
@@ -493,6 +503,7 @@ export function paidEventInputFromPaymentIntentMetadata(
               meta.member_discount === '1' || meta.member_discount === 'true'
                 ? Math.max(0, Number(meta.member_skaters || 0) || Math.max(1, skaters))
                 : undefined,
+            haDiscountedSkaters: Math.max(0, Number(meta.ha_skaters || 0)) || undefined,
           }
         : undefined,
   };

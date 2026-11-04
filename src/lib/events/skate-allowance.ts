@@ -151,11 +151,15 @@ export async function getHeldSkateAllowance(
   paymentIntentId: string,
 ): Promise<{ count: number; partnerId: string; code: string } | null> {
   const supabase = createAdminClient();
+  // Rows CONSUMED by this same payment intent also count: a reconcile
+  // may have consumed the hold (paid PI, registration not yet
+  // persisted) before the checkout's retry arrives - those slots are
+  // this checkout's own discount proof, not another checkout's.
   const { data, error } = await supabase
     .from('chai_event_skate_reservations')
     .select('id, partner_id, code')
     .eq('payment_intent_id', paymentIntentId)
-    .eq('status', 'reserved');
+    .in('status', ['reserved', 'consumed']);
   if (error) {
     if (isMissingSchema(error)) return null;
     console.error('[skate-allowance] held lookup failed:', error.message);

@@ -8,6 +8,10 @@ export const COUPLES_TICKET_PRICE = 55;
 export const COUPLES_MEMBER_TICKET_PRICE = 45;
 export const SKATE_TICKET_PRICE = 20;
 export const SKATE_MEMBER_TICKET_PRICE = 17;
+/** Hebrew Adventure event-code discount on skate tickets: 3% off one skater per code. */
+export const SKATE_HA_DISCOUNT_RATE = 0.03;
+export const SKATE_HA_TICKET_PRICE =
+  Math.round(SKATE_TICKET_PRICE * (1 - SKATE_HA_DISCOUNT_RATE) * 100) / 100;
 
 export interface DinnerRegistrationData {
   adults: number;
@@ -44,6 +48,19 @@ export interface SkateRegistrationData {
    * memberDiscount is set. Extra skaters pay the full advance price.
    */
   memberSkaters?: number;
+  /**
+   * Hebrew Adventure event codes applied to this reservation (one discounted
+   * skater per code). Only codes actually claimed for the discount belong
+   * here; an unapplied code is never consumed.
+   */
+  haCodes?: string[];
+  /**
+   * How many skaters get the 3% Hebrew Adventure discount (one per claimed
+   * code). Discounts never stack: when a Chai member discount is applied to
+   * this registration the HA discount is NOT applied at all (the larger
+   * discount wins for the whole registration, even beyond the member cap).
+   */
+  haDiscountedSkaters?: number;
 }
 
 export interface PricingBreakdown {
@@ -54,7 +71,7 @@ export interface PricingBreakdown {
   /** Per-child fair pricing detail for sheets. */
   fairChildLines?: Array<{ index: number; price: number; codeUsed: string | null; free: boolean }>;
   coupleLines?: Array<{ index: number; price: number; member: boolean }>;
-  skateLines?: Array<{ index: number; price: number; member: boolean }>;
+  skateLines?: Array<{ index: number; price: number; member: boolean; ha: boolean }>;
 }
 
 function roundMoney(n: number): number {
@@ -125,12 +142,24 @@ export function computeSkateTickets(
     data.memberDiscount === true
       ? Math.min(skaters, Math.max(0, Math.round(data.memberSkaters ?? skaters)))
       : 0;
+  // Registration-level exclusivity: an applied Chai member discount wins
+  // for the whole registration - no HA discount on ANY skater (even beyond
+  // the member cap), and HA codes stay unused.
+  const haAllowance =
+    data.memberDiscount === true
+      ? 0
+      : Math.min(skaters, Math.max(0, Math.round(data.haDiscountedSkaters ?? 0)));
 
   for (let i = 0; i < skaters; i++) {
     const member = i < memberAllowance;
-    const price = member ? SKATE_MEMBER_TICKET_PRICE : SKATE_TICKET_PRICE;
+    const ha = !member && i < haAllowance;
+    const price = member
+      ? SKATE_MEMBER_TICKET_PRICE
+      : ha
+        ? SKATE_HA_TICKET_PRICE
+        : SKATE_TICKET_PRICE;
     subtotal += price;
-    lines.push({ index: i + 1, price, member });
+    lines.push({ index: i + 1, price, member, ha });
   }
 
   return { subtotal: roundMoney(subtotal), lines };

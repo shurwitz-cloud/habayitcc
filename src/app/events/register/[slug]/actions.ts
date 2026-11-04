@@ -31,6 +31,13 @@ import {
   type SkateMemberLookup,
 } from '@/lib/events/chai-member-event-codes';
 import { getHeldSkateAllowance, releaseSkateAllowance } from '@/lib/events/skate-allowance';
+import {
+  bindHebrewFairCodePayment,
+  claimHebrewFairCodeHold,
+  getHeldHebrewFairCodeClaims,
+  reconcileExpiredHebrewFairCodeHolds,
+  releaseHebrewFairCodeHolds,
+} from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
@@ -321,6 +328,109 @@ export async function submitPaidEventRegistration(
       } else {
         skateData = { skaters: skaterCount, memberDiscount: false };
       }
+
+      // Hebrew Adventure codes: 3% off one skater per code. Discounts
+      // never stack: when a Chai member discount is applied to this
+      // registration, HA codes are IGNORED entirely (the larger discount
+      // wins for the whole registration, even beyond the member cap) and
+      // are never claimed or consumed. A checkout that claimed its codes
+      // before being charged is never rejected afterwards: its held
+      // rows (bound to the payment intent, migration 0030) are the
+      // discount proof. When no holds are bound (e.g. a retried paid
+      // checkout whose holds were released), the codes are re-claimed
+      // through the SAME atomic hold path and bound to the existing
+      // payment intent - never a racy check-then-insert.
+      const rawHaCodes = (input.skate?.haCodes ?? [])
+        .map((code) => code.trim().toUpperCase())
+        .filter(Boolean);
+      if (rawHaCodes.length && skateData?.memberDiscount !== true) {
+        if (new Set(rawHaCodes).size !== rawHaCodes.length) {
+          return {
+            success: false,
+            error: 'Each Hebrew Adventure code can only discount one skater on this registration.',
+          };
+        }
+        const codesToApply = rawHaCodes.slice(0, skaterCount);
+        if (codesToApply.length) {
+          if (!input.paymentIntentId) {
+            return { success: false, error: 'Payment is required to complete registration.' };
+          }
+          const held = await getHeldHebrewFairCodeClaims(input.paymentIntentId);
+          if (held === null) {
+            // Holds unsupported (migration 0030 missing): fail closed,
+            // never fall back to a racy redemption write.
+            return {
+              success: false,
+              error:
+                'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
+            };
+          }
+          if (held.count > 0) {
+            skateData = {
+              ...skateData,
+              skaters: skaterCount,
+              haCodes: held.items.map((item) => item.code),
+              haDiscountedSkaters: held.count,
+            };
+          } else {
+            const haEventId = await ensureEventBySlug(event.slug);
+            if (!haEventId) {
+              return { success: false, error: 'Could not save registration. Please contact us.' };
+            }
+            const token = crypto.randomUUID();
+            const claimed: Array<{ registrationId: string; code: string }> = [];
+            const failHa = async (message: string) => {
+              await releaseHebrewFairCodeHolds({ claimToken: token });
+              return { success: false as const, error: message };
+            };
+            for (const code of codesToApply) {
+              const lookup = await verifyHebrewFairCode(code, { eventSlug: event.slug });
+              if (!lookup.valid || !lookup.registrationId) {
+                const reasonMsg =
+                  lookup.reason === 'already_used'
+                    ? 'This Hebrew Adventure code was already used for this event.'
+                    : lookup.reason === 'not_eligible'
+                      ? 'This Hebrew Adventure code is not active.'
+                      : 'This Hebrew Adventure code is not valid.';
+                return await failHa(reasonMsg);
+              }
+              const reconcile = await reconcileExpiredHebrewFairCodeHolds({
+                eventId: haEventId,
+                registrationId: lookup.registrationId,
+              });
+              if (!reconcile.supported || reconcile.failures > 0) {
+                return await failHa(
+                  'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
+                );
+              }
+              const claim = await claimHebrewFairCodeHold({
+                eventId: haEventId,
+                registrationId: lookup.registrationId,
+                code: lookup.code ?? code,
+                claimToken: token,
+              });
+              if (!claim.supported || claim.error) {
+                return await failHa(
+                  'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
+                );
+              }
+              if (!claim.claimed) {
+                return await failHa('This Hebrew Adventure code was already used for this event.');
+              }
+              claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });
+            }
+            // Bind the late claim to the existing payment so persist
+            // consumes it (and a persist failure can release it).
+            await bindHebrewFairCodePayment(token, input.paymentIntentId);
+            skateData = {
+              ...skateData,
+              skaters: skaterCount,
+              haCodes: claimed.map((item) => item.code),
+              haDiscountedSkaters: claimed.length,
+            };
+          }
+        }
+      }
     }
 
     const pricing = computePaidEventTotal({
@@ -408,9 +518,17 @@ export async function submitPaidEventRegistration(
           partnerId: memberRedemption.partnerId,
         });
       }
-      if (event.type === 'skate' && input.paymentIntentId) {
-        await releaseSkateAllowance({ paymentIntentId: input.paymentIntentId });
-      }
+      // Charged skate checkouts NEVER release discount holds on persist
+      // failure - neither Chai allowance nor HA code holds. Payment was
+      // verified succeeded BEFORE persist ran, so this checkout was
+      // already charged: freeing its discount slots would (a) let
+      // another checkout take them and make the paid retry fail
+      // (pay-then-reject), and (b) silently restore the member's
+      // allowance so a later registration could exceed the cap. The
+      // retry finds the held rows (reserved OR already-consumed) as its
+      // discount proof; if the user never retries, the expired hold is
+      // reconciled against Stripe (succeeded PI -> consumed + logged
+      // for admin recovery), never freed by time alone.
       return { success: false, error: result.error };
     }
 

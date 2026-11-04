@@ -168,6 +168,31 @@ export async function verifyHebrewFairCode(
           code,
         };
       }
+
+      // An active discount hold (migration 0030) also makes the code
+      // unavailable. Tolerates the table being absent pre-migration.
+      const { data: hold, error: holdError } = await supabase
+        .from('hebrew_fair_code_holds')
+        .select('id')
+        .eq('program_registration_id', reg.id)
+        .eq('event_id', event.id)
+        .in('status', ['reserved', 'consumed'])
+        .maybeSingle();
+      const holdsMissing =
+        holdError &&
+        (holdError.code === '42P01' ||
+          /does not exist|schema cache/i.test(holdError.message || ''));
+      if (holdError && !holdsMissing) {
+        console.error('[hebrew-fair-code] hold lookup failed:', holdError.message);
+      }
+      if (hold) {
+        return {
+          valid: false,
+          reason: 'already_used',
+          registrationId: reg.id,
+          code,
+        };
+      }
     }
   }
 

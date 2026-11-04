@@ -10,7 +10,6 @@ import {
   computePaidEventTotal,
   COUPLES_MEMBER_TICKET_PRICE,
   COUPLES_TICKET_PRICE,
-  SKATE_MEMBER_TICKET_PRICE,
   SKATE_TICKET_PRICE,
   DINNER_ADULT_PRICE,
   DINNER_CHILD_PRICE,
@@ -804,7 +803,7 @@ function PaidEventFormInner({
                 : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
             }`}
           >
-            ${SKATE_MEMBER_TICKET_PRICE} per skater for HaBayit Chai Partners
+            15% off for HaBayit Chai members
           </button>
           {habayitMember && (
             <div className="space-y-1.5">

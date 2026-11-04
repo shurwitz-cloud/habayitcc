@@ -23,6 +23,12 @@ import {
   reconcileExpiredSkateHolds,
   releaseSkateAllowance,
 } from '@/lib/events/skate-allowance';
+import {
+  bindHebrewFairCodePayment,
+  claimHebrewFairCodeHold,
+  reconcileExpiredHebrewFairCodeHolds,
+  releaseHebrewFairCodeHolds,
+} from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
 
 export async function POST(req: NextRequest) {
@@ -120,12 +126,27 @@ export async function POST(req: NextRequest) {
     // before the payment intent exists so a discount is never charged
     // without an allowance, and never rejected after charging.
     let skateClaim: { token: string; claimed: number } | null = null;
+    // Held Hebrew Adventure codes for this checkout (migration 0030),
+    // claimed before the payment intent exists.
+    let haClaim: { token: string; claimed: Array<{ registrationId: string; code: string }> } | null =
+      null;
     if (event.type === 'skate') {
       const skaterCount = Math.max(0, Math.round(body.skate?.skaters || 0));
       if (skaterCount < 1) {
         return NextResponse.json({ error: 'Please add at least one skater.' }, { status: 400 });
       }
       const rawCode = body.skate?.memberCode?.trim() || '';
+      const rawHaCodes = (body.skate?.haCodes ?? [])
+        .map((code) => code.trim().toUpperCase())
+        .filter(Boolean);
+      const needsEventId = !!rawCode || rawHaCodes.length > 0;
+      const eventId = needsEventId ? await ensureEventBySlug(event.slug) : null;
+      if (needsEventId && !eventId) {
+        return NextResponse.json(
+          { error: 'We could not verify your code right now. Please try again in a moment, or continue without the code at full price.' },
+          { status: 400 },
+        );
+      }
       if (rawCode) {
         const lookup = await verifySkateMemberCode(rawCode, {
           eventSlug: event.slug,
@@ -150,16 +171,9 @@ export async function POST(req: NextRequest) {
         // claim decides, and any uncertainty fails closed without
         // granting a discount. Expired holds are reconciled against
         // Stripe first (never time-freed).
-        const eventId = await ensureEventBySlug(event.slug);
-        if (!eventId) {
-          return NextResponse.json(
-            { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
-            { status: 400 },
-          );
-        }
         if (lookup.partnerId) {
           const reconcile = await reconcileExpiredSkateHolds({
-            eventId,
+            eventId: eventId as string,
             partnerId: lookup.partnerId,
           });
           if (reconcile.supported && reconcile.failures > 0) {
@@ -170,7 +184,7 @@ export async function POST(req: NextRequest) {
           }
           const token = crypto.randomUUID();
           const claim = await claimSkateAllowance({
-            eventId,
+            eventId: eventId as string,
             partnerId: lookup.partnerId,
             code: lookup.code,
             wanted: skaterCount,
@@ -200,6 +214,81 @@ export async function POST(req: NextRequest) {
       } else {
         skateData = { skaters: skaterCount, memberDiscount: false };
       }
+
+      // Hebrew Adventure codes: 3% off one skater per code. Discounts
+      // never stack: when a Chai member discount is applied to this
+      // registration, HA codes are IGNORED entirely (the larger discount
+      // wins for the whole registration, even beyond the member cap) and
+      // are never claimed or consumed. Codes are claimed atomically
+      // BEFORE the Stripe payment intent exists (migration 0030); any
+      // uncertainty fails closed without granting a discount. Codes
+      // beyond the skater count are never claimed either.
+      if (rawHaCodes.length && skateData?.memberDiscount !== true) {
+        const discountable = skaterCount;
+        if (new Set(rawHaCodes).size !== rawHaCodes.length) {
+          if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
+          return NextResponse.json(
+            { error: 'Each Hebrew Adventure code can only discount one skater on this registration.' },
+            { status: 400 },
+          );
+        }
+        const codesToApply = rawHaCodes.slice(0, discountable);
+        if (codesToApply.length) {
+          const token = crypto.randomUUID();
+          const claimed: Array<{ registrationId: string; code: string }> = [];
+          const failHa = async (message: string) => {
+            await releaseHebrewFairCodeHolds({ claimToken: token });
+            if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
+            return NextResponse.json({ error: message }, { status: 400 });
+          };
+          for (const code of codesToApply) {
+            const lookup = await verifyHebrewFairCode(code, { eventSlug: event.slug });
+            if (!lookup.valid || !lookup.registrationId) {
+              const reasonMsg =
+                lookup.reason === 'already_used'
+                  ? 'This Hebrew Adventure code was already used for this event.'
+                  : lookup.reason === 'not_eligible'
+                    ? 'This Hebrew Adventure code is not active.'
+                    : 'This Hebrew Adventure code is not valid.';
+              return await failHa(reasonMsg);
+            }
+            // Expired holds for this code are reconciled against Stripe
+            // first (a hold never frees by time alone); migration 0030
+            // missing or unreconciled state fails closed.
+            const reconcile = await reconcileExpiredHebrewFairCodeHolds({
+              eventId: eventId as string,
+              registrationId: lookup.registrationId,
+            });
+            if (!reconcile.supported || reconcile.failures > 0) {
+              return await failHa(
+                'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
+              );
+            }
+            const claim = await claimHebrewFairCodeHold({
+              eventId: eventId as string,
+              registrationId: lookup.registrationId,
+              code: lookup.code ?? code,
+              claimToken: token,
+            });
+            if (!claim.supported || claim.error) {
+              return await failHa(
+                'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
+              );
+            }
+            if (!claim.claimed) {
+              return await failHa('This Hebrew Adventure code was already used for this event.');
+            }
+            claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });
+          }
+          haClaim = { token, claimed };
+          skateData = {
+            ...skateData,
+            skaters: skaterCount,
+            haCodes: claimed.map((c) => c.code),
+            haDiscountedSkaters: claimed.length,
+          };
+        }
+      }
     }
 
     const pricing = computePaidEventTotal({
@@ -217,6 +306,7 @@ export async function POST(req: NextRequest) {
     const expectedCents = totalToCents(pricing.total);
     if (expectedCents < 0 || body.amountCents !== expectedCents) {
       if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
+      if (haClaim) await releaseHebrewFairCodeHolds({ claimToken: haClaim.token });
       return NextResponse.json({ error: 'Payment amount mismatch. Please refresh and try again.' }, { status: 400 });
     }
 
@@ -263,6 +353,8 @@ export async function POST(req: NextRequest) {
           event.type === 'skate' && skateData?.memberDiscount
             ? String(skateData?.memberSkaters ?? skateData?.skaters ?? 0)
             : '',
+        ha_skaters:
+          event.type === 'skate' ? String(skateData?.haDiscountedSkaters ?? 0) : '',
         member_code:
           (event.type === 'couples' && couplesData?.memberDiscount) ||
           (event.type === 'skate' && skateData?.memberDiscount)
@@ -280,10 +372,14 @@ export async function POST(req: NextRequest) {
 
     } catch (piErr) {
       if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
+      if (haClaim) await releaseHebrewFairCodeHolds({ claimToken: haClaim.token });
       throw piErr;
     }
     if (skateClaim) {
       await bindSkateAllowancePayment(skateClaim.token, paymentIntent.id);
+    }
+    if (haClaim) {
+      await bindHebrewFairCodePayment(haClaim.token, paymentIntent.id);
     }
 
     return NextResponse.json({

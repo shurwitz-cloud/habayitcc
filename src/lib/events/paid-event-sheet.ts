@@ -133,7 +133,7 @@ export function buildPaidEventSheetValues(input: PaidEventSheetRowInput): (strin
 
   if (input.event.type === 'skate') {
     const skaterNote = (input.skateLines ?? [])
-      .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : ''}`)
+      .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : l.ha ? ' HA-code' : ''}`)
       .join('; ');
     return [
       timestamp,

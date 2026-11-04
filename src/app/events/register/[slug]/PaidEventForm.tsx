@@ -87,6 +87,13 @@ function PaidEventFormInner({
   const [fairChildCount, setFairChildCount] = useState(1);
   const [hebrewStudent, setHebrewStudent] = useState(false);
   const [hebrewCodes, setHebrewCodes] = useState<string[]>(['']);
+  const [haDiscount, setHaDiscount] = useState(false);
+  const [haCodes, setHaCodes] = useState<string[]>(['']);
+  const [haCodeStatus, setHaCodeStatus] = useState<
+    Record<number, 'valid' | 'invalid' | 'checking'>
+  >({});
+  const [haCodeReasons, setHaCodeReasons] = useState<Record<number, string>>({});
+  const [codeHelpOpen, setCodeHelpOpen] = useState(false);
   const [fairCodeStatus, setFairCodeStatus] = useState<Record<number, 'valid' | 'invalid' | 'checking'>>({});
 
   const [sponsorPreset, setSponsorPreset] = useState<number | 'other' | 'none' | null>(null);
@@ -135,6 +142,23 @@ function PaidEventFormInner({
     [event.type, couples, habayitMember, memberCode, memberCodeStatus],
   );
 
+  // Discounts never stack: when a Chai member discount is applied, the
+  // Hebrew Adventure discount is unavailable for this whole
+  // registration (the larger discount wins) and codes are not used.
+  const chaiApplied = habayitMember && memberCodeStatus === 'valid';
+  const haDiscountable = event.type === 'skate' && !chaiApplied ? skaters : 0;
+  const appliedHaCodes = useMemo(
+    () =>
+      haDiscount
+        ? haCodes
+            .map((code, i) => ({ code: code.trim().toUpperCase(), i }))
+            .filter(({ code, i }) => code && haCodeStatus[i] === 'valid')
+            .map(({ code }) => code)
+            .slice(0, haDiscountable)
+        : [],
+    [haDiscount, haCodes, haCodeStatus, haDiscountable],
+  );
+
   const skateData = useMemo(
     () =>
       event.type === 'skate'
@@ -146,9 +170,19 @@ function PaidEventFormInner({
               habayitMember && memberCodeStatus === 'valid'
                 ? (memberSkatersRemaining ?? skaters)
                 : undefined,
+            haCodes: appliedHaCodes,
+            haDiscountedSkaters: appliedHaCodes.length,
           }
         : undefined,
-    [event.type, skaters, habayitMember, memberCode, memberCodeStatus, memberSkatersRemaining],
+    [
+      event.type,
+      skaters,
+      habayitMember,
+      memberCode,
+      memberCodeStatus,
+      memberSkatersRemaining,
+      appliedHaCodes,
+    ],
   );
 
   const pricing = useMemo(
@@ -261,6 +295,77 @@ function PaidEventFormInner({
     setMemberSkatersRemaining(result.valid ? (result.remainingSkaters ?? null) : null);
   }
 
+  const haCodeVerifySeq = useRef<Record<number, number>>({});
+
+  async function verifyHaCode(index: number, code: string) {
+    const normalized = code.trim().toUpperCase();
+    const duplicate = haCodes.some((c, i) => i !== index && c.trim().toUpperCase() === normalized);
+    if (duplicate) {
+      setHaCodeStatus((s) => ({ ...s, [index]: 'invalid' }));
+      setHaCodeReasons((s) => ({ ...s, [index]: 'Each code can only discount one skater.' }));
+      return;
+    }
+    const seq = (haCodeVerifySeq.current[index] ?? 0) + 1;
+    haCodeVerifySeq.current[index] = seq;
+    setHaCodeStatus((s) => ({ ...s, [index]: 'checking' }));
+    setHaCodeReasons((s) => {
+      const next = { ...s };
+      delete next[index];
+      return next;
+    });
+    const result = await verifyHebrewFairCodeAction(code, event.slug);
+    if (haCodeVerifySeq.current[index] !== seq) return;
+    setHaCodeStatus((s) => ({ ...s, [index]: result.valid ? 'valid' : 'invalid' }));
+    if (!result.valid) {
+      const reason =
+        result.reason === 'already_used'
+          ? 'This code was already used for this event.'
+          : result.reason === 'not_eligible'
+            ? 'This code is not active.'
+            : result.reason || 'Code not recognized.';
+      setHaCodeReasons((s) => ({ ...s, [index]: reason }));
+    }
+  }
+
+  // Re-verify HA codes (debounced) as they change - one call per
+  // typing pause, not per keystroke.
+  useEffect(() => {
+    if (!haDiscount) return;
+    const t = setTimeout(() => {
+      haCodes.forEach((code, i) => {
+        if (code.trim()) void verifyHaCode(i, code);
+      });
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [haDiscount, haCodes, event.slug]);
+
+  function updateHaCode(index: number, code: string) {
+    setHaCodes((prev) => {
+      const next = [...prev];
+      next[index] = code;
+      return next;
+    });
+  }
+
+  function addHaCodeField() {
+    setHaCodes((prev) => (prev.length >= haDiscountable ? prev : [...prev, '']));
+  }
+
+  // Code helper modal: close on Escape, lock background scroll.
+  useEffect(() => {
+    if (!codeHelpOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCodeHelpOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [codeHelpOpen]);
+
   function addHebrewCodeField() {
     setHebrewCodes((prev) => {
       if (prev.length >= fairChildCount) return prev;
@@ -313,6 +418,20 @@ function PaidEventFormInner({
       }
       if (memberCodeStatus !== 'valid') {
         return 'Please enter a valid Chai Partner code.';
+      }
+    }
+    if (event.type === 'skate' && haDiscount && haDiscountable > 0) {
+      if (!haCodes[0]?.trim()) {
+        return 'Please enter a Hebrew Adventure code.';
+      }
+      for (let i = 0; i < Math.min(haCodes.length, haDiscountable); i++) {
+        const code = haCodes[i]?.trim();
+        if (!code) {
+          return `Please enter a Hebrew Adventure code for skater ${i + 1}.`;
+        }
+        if (haCodeStatus[i] !== 'valid') {
+          return `Please enter a valid Hebrew Adventure code for skater ${i + 1}.`;
+        }
       }
     }
     if (event.type === 'family-fair' && hebrewStudent) {
@@ -870,6 +989,81 @@ function PaidEventFormInner({
         </div>
       )}
 
+      {event.type === 'skate' && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !haDiscount;
+              setHaDiscount(next);
+              if (!next) {
+                setHaCodes(['']);
+                setHaCodeStatus({});
+                setHaCodeReasons({});
+              }
+            }}
+            className={`w-full text-left px-4 py-3.5 rounded-xl border font-extrabold text-[1.02rem] transition-colors ${
+              haDiscount
+                ? 'bg-gold text-white border-gold'
+                : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
+            }`}
+          >
+            3% off with a Hebrew Adventure code
+          </button>
+          {haDiscount && haDiscountable === 0 && (
+            <p className="text-[0.85rem] text-muted">
+              Your Chai member discount gives you a bigger saving, so a Hebrew Adventure code
+              can&apos;t be combined with it and will not be used.
+            </p>
+          )}
+          {haDiscount && haDiscountable > 0 && (
+            <div className="space-y-3">
+              {haCodes.slice(0, haDiscountable).map((code, i) => (
+                <div className="space-y-1.5" key={i}>
+                  <Field label={i === 0 ? 'Hebrew Adventure code' : `Hebrew Adventure code ${i + 1}`}>
+                    <input
+                      value={code}
+                      onChange={(e) => updateHaCode(i, e.target.value)}
+                      placeholder="HA-XXXXXX"
+                      className="uppercase"
+                    />
+                  </Field>
+                  {haCodeStatus[i] === 'checking' && (
+                    <p className="text-[0.8rem] text-muted">Checking code…</p>
+                  )}
+                  {haCodeStatus[i] === 'valid' && (
+                    <p className="text-[0.8rem] text-green-700 font-semibold">
+                      Code confirmed - 3% off one skater
+                    </p>
+                  )}
+                  {haCodeStatus[i] === 'invalid' && (
+                    <p className="text-[0.8rem] text-red-700">
+                      {haCodeReasons[i] || 'Code not recognized, not active, or already used for this event.'}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {haCodes.length < haDiscountable && (
+                <button
+                  type="button"
+                  onClick={addHaCodeField}
+                  className="text-[0.85rem] font-semibold text-gold hover:text-navy"
+                >
+                  Add another Hebrew Adventure code
+                </button>
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setCodeHelpOpen(true)}
+            className="text-[0.8rem] text-muted underline underline-offset-2 hover:text-navy"
+          >
+            Need help finding your code?
+          </button>
+        </div>
+      )}
+
       <SponsorSection
         presets={event.sponsorPresets}
         options={event.sponsorOptions}
@@ -963,6 +1157,40 @@ function PaidEventFormInner({
               ? `Register & Pay $${pricing.total.toFixed(2)}`
               : 'Complete Registration'}
       </button>
+
+      {codeHelpOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Finding your code"
+          onClick={() => setCodeHelpOpen(false)}
+        >
+          <div className="absolute inset-0 bg-navy/60" />
+          <div
+            className="relative bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[1.15rem] font-bold text-navy">Find your code in your email</h3>
+            <p className="text-[0.92rem] text-muted leading-relaxed">
+              <strong className="text-navy">Chai Partner code:</strong> search your email for{' '}
+              <strong>Chai HaBayit &quot;Access code&quot;</strong>
+            </p>
+            <p className="text-[0.92rem] text-muted leading-relaxed">
+              <strong className="text-navy">Hebrew Adventure code:</strong> search your email for{' '}
+              <strong>&quot;Hebrew Adventure Event Code&quot;</strong>
+            </p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => setCodeHelpOpen(false)}
+              className="w-full bg-gold text-white rounded-full px-6 py-3 font-bold uppercase tracking-wider text-[0.82rem] hover:bg-[#b8892a] transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

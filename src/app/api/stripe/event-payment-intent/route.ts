@@ -145,12 +145,19 @@ export async function POST(req: NextRequest) {
                   : 'This HaBayit member code is not valid or not active.';
           return NextResponse.json({ error: reasonMsg }, { status: 400 });
         }
-        let memberSkaters = lookup.remaining;
-        // Atomic claim when the reservation schema is live. Expired
-        // holds are reconciled against Stripe first (never time-freed),
-        // and any uncertainty fails closed without granting a discount.
+        // The reservation system is the ONLY allowance path for this
+        // event (it went live with the schema in place): the atomic
+        // claim decides, and any uncertainty fails closed without
+        // granting a discount. Expired holds are reconciled against
+        // Stripe first (never time-freed).
         const eventId = await ensureEventBySlug(event.slug);
-        if (eventId && lookup.partnerId) {
+        if (!eventId) {
+          return NextResponse.json(
+            { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
+            { status: 400 },
+          );
+        }
+        if (lookup.partnerId) {
           const reconcile = await reconcileExpiredSkateHolds({
             eventId,
             partnerId: lookup.partnerId,
@@ -169,23 +176,21 @@ export async function POST(req: NextRequest) {
             wanted: skaterCount,
             claimToken: token,
           });
-          if (claim.supported) {
-            if (claim.error) {
-              return NextResponse.json(
-                { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
-                { status: 400 },
-              );
-            }
-            if (claim.claimed === 0) {
-              return NextResponse.json(
-                { error: 'This Chai member already used all 6 discounted skaters for this event.' },
-                { status: 400 },
-              );
-            }
-            skateClaim = { token, claimed: claim.claimed };
-            memberSkaters = claim.claimed;
+          if (!claim.supported || claim.error) {
+            return NextResponse.json(
+              { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
+              { status: 400 },
+            );
           }
+          if (claim.claimed === 0) {
+            return NextResponse.json(
+              { error: 'This Chai member already used all 6 discounted skaters for this event.' },
+              { status: 400 },
+            );
+          }
+          skateClaim = { token, claimed: claim.claimed };
         }
+        const memberSkaters = skateClaim?.claimed ?? lookup.remaining;
         skateData = {
           skaters: skaterCount,
           memberCode: lookup.code,

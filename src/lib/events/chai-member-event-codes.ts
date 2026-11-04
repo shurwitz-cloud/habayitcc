@@ -93,7 +93,7 @@ export const SKATE_MEMBER_SKATER_LIMIT = 6;
 
 export interface SkateMemberLookup {
   valid: boolean;
-  reason?: 'invalid' | 'not_eligible' | 'exhausted' | 'identity_mismatch';
+  reason?: 'invalid' | 'not_eligible' | 'exhausted' | 'identity_mismatch' | 'unverified';
   partnerId?: string;
   code?: string;
   /** Discounted skaters this member has left for this event. */
@@ -228,10 +228,11 @@ export async function verifySkateMemberCode(
 
   const used = await skateMemberSkatersUsed(code, options.eventSlug);
   if (used === null) {
-    // Could not verify remaining allowance; fail open (log above) with full
-    // allowance rather than blocking a legitimate member.
+    // Allowance could not be verified: never grant the discount unverified.
+    // Caller tells the registrant to retry or continue at full price.
+    return { valid: false, reason: 'unverified', partnerId: partner.id, code };
   }
-  const remaining = Math.max(0, SKATE_MEMBER_SKATER_LIMIT - (used ?? 0));
+  const remaining = Math.max(0, SKATE_MEMBER_SKATER_LIMIT - used);
   if (remaining === 0) {
     return { valid: false, reason: 'exhausted', partnerId: partner.id, code, remaining: 0 };
   }

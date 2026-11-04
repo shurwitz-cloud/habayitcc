@@ -129,7 +129,9 @@ export async function POST(req: NextRequest) {
               ? 'This Chai code does not match these details. Correct the name, email or phone, or continue without the code at full price.'
               : lookup.reason === 'exhausted'
                 ? 'This Chai member already used all 6 discounted skaters for this event.'
-                : 'This HaBayit member code is not valid or not active.';
+                : lookup.reason === 'unverified'
+                  ? 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.'
+                  : 'This HaBayit member code is not valid or not active.';
           return NextResponse.json({ error: reasonMsg }, { status: 400 });
         }
         skateData = {

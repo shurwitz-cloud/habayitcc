@@ -85,6 +85,9 @@ function skateMemberCodeError(lookup: SkateMemberLookup): string {
   if (lookup.reason === 'exhausted') {
     return 'This Chai member already used all 6 discounted skaters for this event.';
   }
+  if (lookup.reason === 'unverified') {
+    return 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.';
+  }
   return 'This HaBayit member code is not valid or not active.';
 }
 

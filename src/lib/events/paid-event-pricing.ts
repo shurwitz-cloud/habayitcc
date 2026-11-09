@@ -7,7 +7,14 @@ export const WOMENS_TICKET_PRICE = 36;
 export const COUPLES_TICKET_PRICE = 55;
 export const COUPLES_MEMBER_TICKET_PRICE = 45;
 export const SKATE_TICKET_PRICE = 20;
-export const SKATE_MEMBER_TICKET_PRICE = 17;
+/** Non-skater entry pass: rink admission without skating. */
+export const SKATE_NON_SKATER_PRICE = 7;
+/** Chai member skate discount: 3% off each ticket, people on the reservation. */
+export const SKATE_CHAI_DISCOUNT_RATE = 0.03;
+export const SKATE_CHAI_SKATER_PRICE =
+  Math.round(SKATE_TICKET_PRICE * (1 - SKATE_CHAI_DISCOUNT_RATE) * 100) / 100;
+export const SKATE_CHAI_NON_SKATER_PRICE =
+  Math.round(SKATE_NON_SKATER_PRICE * (1 - SKATE_CHAI_DISCOUNT_RATE) * 100) / 100;
 /** Hebrew Adventure event-code discount on skate tickets: 3% off one skater per code. */
 export const SKATE_HA_DISCOUNT_RATE = 0.03;
 export const SKATE_HA_TICKET_PRICE =
@@ -39,19 +46,23 @@ export interface CouplesRegistrationData {
 
 export interface SkateRegistrationData {
   skaters: number;
+  /** Non-skater entry passes on this reservation (rink admission only). */
+  nonSkaters?: number;
   memberCode?: string;
-  /** Member price applies to the first memberSkaters of this reservation. */
+  /** Chai discount applies to the first memberPeople of this reservation. */
   memberDiscount?: boolean;
   /**
-   * How many skaters on this reservation get the Chai member price (remaining
-   * per-member allowance for this event). Defaults to all skaters when
-   * memberDiscount is set. Extra skaters pay the full advance price.
+   * How many people on this reservation get the Chai discount (remaining
+   * per-member allowance for this event). Skaters are discounted first,
+   * then non-skater passes. Defaults to everyone on the reservation when
+   * memberDiscount is set. Extra people pay the full advance price.
    */
-  memberSkaters?: number;
+  memberPeople?: number;
   /**
    * Hebrew Adventure event codes applied to this reservation (one discounted
    * skater per code). Only codes actually claimed for the discount belong
-   * here; an unapplied code is never consumed.
+   * here; an unapplied code is never consumed. Never applies to a non-skater
+   * pass.
    */
   haCodes?: string[];
   /**
@@ -72,6 +83,7 @@ export interface PricingBreakdown {
   fairChildLines?: Array<{ index: number; price: number; codeUsed: string | null; free: boolean }>;
   coupleLines?: Array<{ index: number; price: number; member: boolean }>;
   skateLines?: Array<{ index: number; price: number; member: boolean; ha: boolean }>;
+  skatePassLines?: Array<{ index: number; price: number; member: boolean }>;
 }
 
 function roundMoney(n: number): number {
@@ -133,18 +145,27 @@ export function computeCouplesTickets(
 
 export function computeSkateTickets(
   data: SkateRegistrationData,
-): { subtotal: number; lines: NonNullable<PricingBreakdown['skateLines']> } {
+): {
+  subtotal: number;
+  lines: NonNullable<PricingBreakdown['skateLines']>;
+  passLines: NonNullable<PricingBreakdown['skatePassLines']>;
+} {
   const skaters = Math.max(0, Math.round(data.skaters) || 0);
+  const nonSkaters = Math.max(0, Math.round(data.nonSkaters ?? 0) || 0);
   const lines: NonNullable<PricingBreakdown['skateLines']> = [];
+  const passLines: NonNullable<PricingBreakdown['skatePassLines']> = [];
   let subtotal = 0;
 
+  const people = skaters + nonSkaters;
+  // Chai discount covers up to memberPeople people on this reservation,
+  // $20 skaters first, then $7 non-skater passes.
   const memberAllowance =
     data.memberDiscount === true
-      ? Math.min(skaters, Math.max(0, Math.round(data.memberSkaters ?? skaters)))
+      ? Math.min(people, Math.max(0, Math.round(data.memberPeople ?? people)))
       : 0;
   // Registration-level exclusivity: an applied Chai member discount wins
   // for the whole registration - no HA discount on ANY skater (even beyond
-  // the member cap), and HA codes stay unused.
+  // the member cap), and HA codes stay unused. HA never discounts a pass.
   const haAllowance =
     data.memberDiscount === true
       ? 0
@@ -154,7 +175,7 @@ export function computeSkateTickets(
     const member = i < memberAllowance;
     const ha = !member && i < haAllowance;
     const price = member
-      ? SKATE_MEMBER_TICKET_PRICE
+      ? SKATE_CHAI_SKATER_PRICE
       : ha
         ? SKATE_HA_TICKET_PRICE
         : SKATE_TICKET_PRICE;
@@ -162,7 +183,14 @@ export function computeSkateTickets(
     lines.push({ index: i + 1, price, member, ha });
   }
 
-  return { subtotal: roundMoney(subtotal), lines };
+  for (let j = 0; j < nonSkaters; j++) {
+    const member = skaters + j < memberAllowance;
+    const price = member ? SKATE_CHAI_NON_SKATER_PRICE : SKATE_NON_SKATER_PRICE;
+    subtotal += price;
+    passLines.push({ index: j + 1, price, member });
+  }
+
+  return { subtotal: roundMoney(subtotal), lines, passLines };
 }
 
 export function computePaidEventTotal(input: {
@@ -180,6 +208,7 @@ export function computePaidEventTotal(input: {
   let fairChildLines: PricingBreakdown['fairChildLines'];
   let coupleLines: PricingBreakdown['coupleLines'];
   let skateLines: PricingBreakdown['skateLines'];
+  let skatePassLines: PricingBreakdown['skatePassLines'];
 
   switch (input.event.type) {
     case 'dinner':
@@ -210,6 +239,7 @@ export function computePaidEventTotal(input: {
       const result = computeSkateTickets(input.skate ?? { skaters: 0 });
       ticketSubtotal = result.subtotal;
       skateLines = result.lines;
+      skatePassLines = result.passLines;
       break;
     }
   }
@@ -219,7 +249,7 @@ export function computePaidEventTotal(input: {
   const cardFee = computeCardFee(preFeeSubtotal, input.coverFee);
   const total = roundMoney(preFeeSubtotal + cardFee);
 
-  return { ticketSubtotal, sponsorAmount, cardFee, total, fairChildLines, coupleLines, skateLines };
+  return { ticketSubtotal, sponsorAmount, cardFee, total, fairChildLines, coupleLines, skateLines, skatePassLines };
 }
 
 export function totalToCents(total: number): number {

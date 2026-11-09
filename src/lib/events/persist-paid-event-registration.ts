@@ -62,6 +62,7 @@ function buildDetailsSummary(
   coupleLines?: ReturnType<typeof computePaidEventTotal>['coupleLines'],
   skate?: SkateRegistrationData,
   skateLines?: ReturnType<typeof computePaidEventTotal>['skateLines'],
+  skatePassLines?: ReturnType<typeof computePaidEventTotal>['skatePassLines'],
 ): string {
   if ((event.type === 'dinner' || event.type === 'celebration') && dinner) {
     return `Adults: ${dinner.adults}\nChildren: ${dinner.kids}`;
@@ -78,16 +79,24 @@ function buildDetailsSummary(
     return `Women attending: ${womens.women}`;
   }
   if (event.type === 'skate' && skate) {
+    const nonSkaters = Math.max(0, Math.round(skate.nonSkaters ?? 0) || 0);
     const lines =
       skateLines?.map(
         (l) =>
-          `Skater ${l.index}: $${l.price}${l.member ? ' — HaBayit member' : l.ha ? ' — Hebrew Adventure code' : ''}`,
+          `Skater ${l.index}: $${l.price.toFixed(2)}${l.member ? ' — HaBayit member' : l.ha ? ' — Hebrew Adventure code' : ''}`,
+      ) ?? [];
+    const passLines =
+      skatePassLines?.map(
+        (l) =>
+          `Non-skater pass ${l.index}: $${l.price.toFixed(2)}${l.member ? ' — HaBayit member' : ''}`,
       ) ?? [];
     const code = skate.memberCode?.trim();
     const haCodes = (skate.haCodes ?? []).filter(Boolean);
     return [
-      `Skaters: ${skate.skaters}`,
+      skate.skaters > 0 ? `Skaters: ${skate.skaters}` : '',
       ...lines,
+      nonSkaters > 0 ? `Non-skater entry passes: ${nonSkaters}` : '',
+      ...passLines,
       code ? `Member code: ${code.toUpperCase()}` : '',
       haCodes.length ? `Hebrew Adventure codes: ${haCodes.join(', ')}` : '',
     ]
@@ -218,6 +227,7 @@ export async function persistPaidEventRegistration(
     pricing.coupleLines,
     input.skate,
     pricing.skateLines,
+    pricing.skatePassLines,
   );
 
   const guestCount =
@@ -228,7 +238,7 @@ export async function persistPaidEventRegistration(
         : event.type === 'couples'
           ? (input.couples?.couples ?? 1)
           : event.type === 'skate'
-            ? (input.skate?.skaters ?? 1)
+            ? (input.skate?.skaters ?? 0) + (input.skate?.nonSkaters ?? 0) || 1
             : (input.womens?.women ?? 1);
 
   const familyId = await findFamilyIdByEmail(email);
@@ -251,6 +261,7 @@ export async function persistPaidEventRegistration(
     fairChildLines: pricing.fairChildLines,
     coupleLines: pricing.coupleLines,
     skateLines: pricing.skateLines,
+    skatePassLines: pricing.skatePassLines,
     ticketSubtotal: pricing.ticketSubtotal,
     coverFee: input.coverFee,
   };
@@ -380,6 +391,7 @@ export async function persistPaidEventRegistration(
         fairChildLines: pricing.fairChildLines,
         coupleLines: pricing.coupleLines,
         skateLines: pricing.skateLines,
+        skatePassLines: pricing.skatePassLines,
         ticketSubtotal: pricing.ticketSubtotal,
         sponsorAmount: pricing.sponsorAmount,
         cardFee: pricing.cardFee,
@@ -459,6 +471,7 @@ export function paidEventInputFromPaymentIntentMetadata(
   const fairChildren = Number(meta.fair_children || 0);
   const couples = Number(meta.couples || 0);
   const skaters = Number(meta.skaters || 0);
+  const nonSkaters = Math.max(0, Number(meta.non_skaters || 0) || 0);
 
   const event = getPaidEvent(slug);
   if (!event) return null;
@@ -496,12 +509,18 @@ export function paidEventInputFromPaymentIntentMetadata(
     skate:
       event.type === 'skate'
         ? {
-            skaters: Math.max(1, skaters),
+            skaters,
+            nonSkaters,
             memberCode: meta.member_code?.trim() || undefined,
             memberDiscount: meta.member_discount === '1' || meta.member_discount === 'true',
-            memberSkaters:
+            memberPeople:
               meta.member_discount === '1' || meta.member_discount === 'true'
-                ? Math.max(0, Number(meta.member_skaters || 0) || Math.max(1, skaters))
+                ? Math.max(
+                    0,
+                    // member_skaters is the pre-passes metadata key.
+                    Number(meta.member_people || meta.member_skaters || 0) ||
+                      skaters + nonSkaters,
+                  )
                 : undefined,
             haDiscountedSkaters: Math.max(0, Number(meta.ha_skaters || 0)) || undefined,
           }

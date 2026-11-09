@@ -11,6 +11,7 @@ import {
   COUPLES_MEMBER_TICKET_PRICE,
   COUPLES_TICKET_PRICE,
   SKATE_TICKET_PRICE,
+  SKATE_NON_SKATER_PRICE,
   DINNER_ADULT_PRICE,
   DINNER_CHILD_PRICE,
   FAIR_CHILD_PRICE,
@@ -77,13 +78,14 @@ function PaidEventFormInner({
   const [women, setWomen] = useState(1);
   const [couples, setCouples] = useState(1);
   const [skaters, setSkaters] = useState(1);
+  const [nonSkaters, setNonSkaters] = useState(0);
   const [habayitMember, setHabayitMember] = useState(false);
   const [memberCode, setMemberCode] = useState('');
   const [memberCodeStatus, setMemberCodeStatus] = useState<'valid' | 'invalid' | 'checking' | null>(
     null,
   );
   const [memberCodeReason, setMemberCodeReason] = useState<string | null>(null);
-  const [memberSkatersRemaining, setMemberSkatersRemaining] = useState<number | null>(null);
+  const [memberPeopleRemaining, setMemberPeopleRemaining] = useState<number | null>(null);
   const [fairChildCount, setFairChildCount] = useState(1);
   const [hebrewStudent, setHebrewStudent] = useState(false);
   const [hebrewCodes, setHebrewCodes] = useState<string[]>(['']);
@@ -164,11 +166,12 @@ function PaidEventFormInner({
       event.type === 'skate'
         ? {
             skaters,
+            nonSkaters,
             memberCode: habayitMember ? memberCode : '',
             memberDiscount: habayitMember && memberCodeStatus === 'valid',
-            memberSkaters:
+            memberPeople:
               habayitMember && memberCodeStatus === 'valid'
-                ? (memberSkatersRemaining ?? skaters)
+                ? (memberPeopleRemaining ?? skaters + nonSkaters)
                 : undefined,
             haCodes: appliedHaCodes,
             haDiscountedSkaters: appliedHaCodes.length,
@@ -177,10 +180,11 @@ function PaidEventFormInner({
     [
       event.type,
       skaters,
+      nonSkaters,
       habayitMember,
       memberCode,
       memberCodeStatus,
-      memberSkatersRemaining,
+      memberPeopleRemaining,
       appliedHaCodes,
     ],
   );
@@ -227,7 +231,7 @@ function PaidEventFormInner({
       memberCodeVerifySeq.current += 1;
       setMemberCodeStatus(null);
       setMemberCodeReason(null);
-      setMemberSkatersRemaining(null);
+      setMemberPeopleRemaining(null);
       return;
     }
     const t = setTimeout(() => {
@@ -276,7 +280,7 @@ function PaidEventFormInner({
       memberCodeVerifySeq.current += 1;
       setMemberCodeStatus(null);
       setMemberCodeReason(null);
-      setMemberSkatersRemaining(null);
+      setMemberPeopleRemaining(null);
       return;
     }
     const seq = ++memberCodeVerifySeq.current;
@@ -292,7 +296,7 @@ function PaidEventFormInner({
     if (seq !== memberCodeVerifySeq.current) return;
     setMemberCodeStatus(result.valid ? 'valid' : 'invalid');
     setMemberCodeReason(result.valid ? null : result.reason || null);
-    setMemberSkatersRemaining(result.valid ? (result.remainingSkaters ?? null) : null);
+    setMemberPeopleRemaining(result.valid ? (result.remainingPeople ?? null) : null);
   }
 
   const haCodeVerifySeq = useRef<Record<number, number>>({});
@@ -409,8 +413,8 @@ function PaidEventFormInner({
     if (event.type === 'couples' && couples < 1) {
       return 'Please add at least one couple.';
     }
-    if (event.type === 'skate' && skaters < 1) {
-      return 'Please add at least one skater.';
+    if (event.type === 'skate' && skaters + nonSkaters < 1) {
+      return 'Please add at least one ticket.';
     }
     if ((event.type === 'couples' || event.type === 'skate') && habayitMember) {
       if (!memberCode.trim()) {
@@ -474,6 +478,7 @@ function PaidEventFormInner({
     women,
     couples,
     skaters,
+    nonSkaters,
     habayitMember,
     memberCode,
     memberCodeStatus,
@@ -939,12 +944,18 @@ function PaidEventFormInner({
             label={`$${SKATE_TICKET_PRICE} Per Skater`}
             value={skaters}
             onChange={setSkaters}
-            min={1}
+            min={0}
             required
           />
           <p className="text-[0.82rem] text-muted">
             Advance online price. ${SKATE_TICKET_PRICE + 5} per skater at the door.
           </p>
+          <StepperField
+            label={`$${SKATE_NON_SKATER_PRICE} Entry pass for non-skaters`}
+            value={nonSkaters}
+            onChange={setNonSkaters}
+            min={0}
+          />
           <button
             type="button"
             onClick={() => {
@@ -961,7 +972,7 @@ function PaidEventFormInner({
                 : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
             }`}
           >
-            15% off for HaBayit Chai members
+            3% off for HaBayit Chai members
           </button>
           {habayitMember && (
             <div className="space-y-1.5">
@@ -1078,7 +1089,24 @@ function PaidEventFormInner({
 
       <div className="border-t border-line pt-5 space-y-3">
         <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Order Summary</p>
-        {pricing.ticketSubtotal > 0 && <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />}
+        {event.type === 'skate' ? (
+          <>
+            {skaters > 0 && (
+              <SummaryLine
+                label="Skater tickets"
+                amount={(pricing.skateLines ?? []).reduce((sum, l) => sum + l.price, 0)}
+              />
+            )}
+            {nonSkaters > 0 && (
+              <SummaryLine
+                label={`Non-skater entry passes (${nonSkaters})`}
+                amount={(pricing.skatePassLines ?? []).reduce((sum, l) => sum + l.price, 0)}
+              />
+            )}
+          </>
+        ) : (
+          pricing.ticketSubtotal > 0 && <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />
+        )}
         {pricing.sponsorAmount > 0 && (
           <SummaryLine
             label={event.requireDonationChoice ? 'Donation' : 'Sponsorship'}

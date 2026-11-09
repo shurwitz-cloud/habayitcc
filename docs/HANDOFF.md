@@ -136,3 +136,12 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   NOT covered: real Stripe payment end to end (first paid booking is the
   true check - being watched); offline CRM entry has no pass support.
 - Rollback: Vercel Instant Rollback to the pre-merge production deployment.
+
+=== Erev Zugot flyer restore (branch fix/zugot-flyer, PREVIEW ONLY - not merged) ===
+- /zugot referenced /flyers/erev-zugot.jpg but the file was missing: the Oct 28
+  reconcile (e222c9a) restored production source from the untracked live line
+  but not this image. 404 on live since then; the event page showed no flyer.
+- Recovered the exact original bytes from a serving Oct 19-27 production
+  deployment (habayitcc-m6fnygt8c-habayit.vercel.app) via Vercel dashboard.
+- 599x1024 JPEG, 148,115 bytes, zero EXIF tags. Privacy gate CLEAN.
+- No code changes; asset only. Do not merge without owner approval.

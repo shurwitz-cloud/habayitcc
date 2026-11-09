@@ -10,7 +10,7 @@ export type EventRegistrationDetails = {
   fair?: { children?: unknown[] };
   womens?: { women?: number };
   couples?: { couples?: number; memberCode?: string; memberDiscount?: boolean };
-  skate?: { skaters?: number; memberCode?: string; memberDiscount?: boolean };
+  skate?: { skaters?: number; nonSkaters?: number; memberCode?: string; memberDiscount?: boolean };
   /** Generic adults/kids for future event types */
   adults?: number;
   kids?: number;
@@ -99,14 +99,14 @@ export function parseEventPeople(row: {
     return { adults: null, kids: null, guests: women || guestFallback };
   }
 
-  const skaters =
+  const skate =
     details?.skate && typeof details.skate === 'object'
-      ? num((details.skate as { skaters?: unknown }).skaters)
-      : details && details.type === 'skate'
-        ? guestFallback
-        : 0;
-  if (skaters > 0 || details?.type === 'skate') {
-    return { adults: null, kids: null, guests: skaters || guestFallback };
+      ? (details.skate as { skaters?: unknown; nonSkaters?: unknown })
+      : null;
+  if (skate || details?.type === 'skate') {
+    // Guests = everyone attending: skaters plus non-skater entry passes.
+    const people = skate ? num(skate.skaters) + num(skate.nonSkaters) : 0;
+    return { adults: null, kids: null, guests: people || guestFallback };
   }
 
   const couples =

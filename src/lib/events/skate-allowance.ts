@@ -4,6 +4,11 @@ import { stripe } from '@/lib/stripe/server';
 /**
  * Race-safe Chai allowance reservations for skate events (Fire on Ice).
  *
+ * One row per discounted PERSON slot (skater or non-skater pass). A Chai
+ * member may discount ONE reservation per event: the checkout claims the
+ * member's whole entitlement (SKATE_ALLOWANCE_LIMIT slots) atomically,
+ * all-or-nothing, so no second discounted checkout can run alongside.
+ *
  * DORMANT until migration 0028_skate_allowance_reservations is applied:
  * every function detects the missing table/RPC and reports
  * supported:false so callers fall back to the registration-scan
@@ -120,7 +125,11 @@ export async function releaseSkateAllowance(input: {
 /**
  * Slots currently used (consumed + unexpired holds) from the reservation
  * table, or null when migration 0028 is not applied (caller falls back
- * to the registration scan).
+ * to the registration scan). Expired reserved rows are NOT counted here:
+ * code verification should not report a member as used-up over an
+ * abandoned checkout that the payment route still has to reconcile
+ * against Stripe. The atomic claim (migration 0029) still counts every
+ * reserved row and is the final gate.
  */
 export async function skateAllowanceUsed(input: {
   eventId: string;
@@ -132,7 +141,9 @@ export async function skateAllowanceUsed(input: {
     .select('id', { count: 'exact', head: true })
     .eq('event_id', input.eventId)
     .eq('partner_id', input.partnerId)
-    .in('status', ['reserved', 'consumed']);
+    .or(
+      `status.eq.consumed,and(status.eq.reserved,expires_at.gt.${new Date().toISOString()})`,
+    );
   if (error) {
     if (isMissingSchema(error)) return null;
     console.error('[skate-allowance] usage count failed:', error.message);

@@ -37,6 +37,7 @@ export type PaidEventSheetRowInput = {
   fairChildLines?: PricingBreakdown['fairChildLines'];
   coupleLines?: PricingBreakdown['coupleLines'];
   skateLines?: PricingBreakdown['skateLines'];
+  skatePassLines?: PricingBreakdown['skatePassLines'];
   ticketSubtotal: number;
   sponsorAmount: number;
   cardFee: number;
@@ -135,6 +136,12 @@ export function buildPaidEventSheetValues(input: PaidEventSheetRowInput): (strin
     const skaterNote = (input.skateLines ?? [])
       .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : l.ha ? ' HA-code' : ''}`)
       .join('; ');
+    const passCount = Math.max(0, Math.round(input.skate?.nonSkaters ?? 0) || 0);
+    const passTotal = (input.skatePassLines ?? []).reduce((sum, l) => sum + l.price, 0);
+    const passNote =
+      passCount > 0
+        ? `+${passCount} non-skater pass${passCount === 1 ? '' : 'es'} (${usd(passTotal)})`
+        : '';
     return [
       timestamp,
       input.lastName,
@@ -143,7 +150,7 @@ export function buildPaidEventSheetValues(input: PaidEventSheetRowInput): (strin
       input.phone ?? '',
       input.skate?.skaters ?? 0,
       input.skate?.memberDiscount ? input.skate.memberCode?.trim().toUpperCase() || 'Yes' : '',
-      skaterNote,
+      [skaterNote, passNote].filter(Boolean).join(' '),
       ...sharedTail,
     ];
   }
@@ -229,6 +236,7 @@ function sheetInputFromRegistration(
   const fairChildLines = details?.fairChildLines as PricingBreakdown['fairChildLines'];
   const coupleLines = details?.coupleLines as PricingBreakdown['coupleLines'];
   const skateLines = details?.skateLines as PricingBreakdown['skateLines'];
+  const skatePassLines = details?.skatePassLines as PricingBreakdown['skatePassLines'];
 
   return {
     event,
@@ -259,6 +267,7 @@ function sheetInputFromRegistration(
     fairChildLines,
     coupleLines,
     skateLines,
+    skatePassLines,
     ticketSubtotal: money.ticket,
     sponsorAmount: money.donation,
     cardFee: money.fee,

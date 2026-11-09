@@ -89,15 +89,20 @@ export async function verifyHaBayitMemberCode(
   return { valid: true, partnerId: partner.id, code };
 }
 
-/** Max skaters one Chai member can buy at the member price per skate event. */
-export const SKATE_MEMBER_SKATER_LIMIT = 6;
+/**
+ * Max people one Chai member can discount per skate event, and the whole
+ * discounted entitlement is one reservation: once any of it is used (held
+ * or consumed), the member cannot discount another reservation for that
+ * event.
+ */
+export const SKATE_MEMBER_PEOPLE_LIMIT = 6;
 
 export interface SkateMemberLookup {
   valid: boolean;
-  reason?: 'invalid' | 'not_eligible' | 'exhausted' | 'identity_mismatch' | 'unverified';
+  reason?: 'invalid' | 'not_eligible' | 'exhausted' | 'already_used' | 'identity_mismatch' | 'unverified';
   partnerId?: string;
   code?: string;
-  /** Discounted skaters this member has left for this event. */
+  /** Discounted people this member has left for this event (all or none). */
   remaining?: number;
 }
 
@@ -110,11 +115,13 @@ function normText(v: string): string {
 }
 
 /**
- * Discounted (member-priced) skaters already registered with this code for
- * this event, counted from event registrations (source of truth; the
- * redemptions table only marks first use). Returns null if the scan failed.
+ * Discounted (member-priced) people already registered with this code for
+ * this event, counted from event registrations (fallback source; the
+ * reservation table is the source of truth once migration 0028 is live).
+ * Counts member-priced skaters AND non-skater passes. Returns null if the
+ * scan failed.
  */
-export async function skateMemberSkatersUsed(
+export async function skateMemberPeopleUsed(
   codeRaw: string,
   eventSlug: string,
 ): Promise<number | null> {
@@ -137,12 +144,14 @@ export async function skateMemberSkatersUsed(
     const stored = normalizeMemberCode(String(skate?.memberCode || ''));
     if (!stored || stored !== code) continue;
     const lines = Array.isArray(details.skateLines) ? details.skateLines : null;
-    if (lines) {
-      used += lines.filter(
-        (l) => asDetails(l)?.member === true,
-      ).length;
+    const passLines = Array.isArray(details.skatePassLines) ? details.skatePassLines : null;
+    if (lines || passLines) {
+      used += (lines ?? []).filter((l) => asDetails(l)?.member === true).length;
+      used += (passLines ?? []).filter((l) => asDetails(l)?.member === true).length;
     } else if (skate?.memberDiscount === true) {
-      used += Math.max(0, Math.round(Number(skate.skaters) || 0));
+      used +=
+        Math.max(0, Math.round(Number(skate.skaters) || 0)) +
+        Math.max(0, Math.round(Number(skate.nonSkaters) || 0));
     }
   }
   return used;
@@ -150,9 +159,11 @@ export async function skateMemberSkatersUsed(
 
 /**
  * Verify a Chai member code for a SKATE event (Fire on Ice rules):
- * member price for up to SKATE_MEMBER_SKATER_LIMIT skaters total per member
- * per event, and the code must match the registrant (or their spouse) by
- * email, phone, full name, or surname. Couples events keep single-use rules.
+ * 3% off up to SKATE_MEMBER_PEOPLE_LIMIT people on ONE reservation per
+ * member per event - any earlier use (a paid registration or an in-flight
+ * checkout hold) means the code is already used for this event. The code
+ * must match the registrant (or their spouse) by email, phone, full name,
+ * or surname. Couples events keep single-use rules.
  */
 export async function verifySkateMemberCode(
   codeRaw: string,
@@ -227,9 +238,10 @@ export async function verifySkateMemberCode(
     return { valid: false, reason: 'identity_mismatch', partnerId: partner.id, code };
   }
 
-  // Allowance source of truth is the reservation table once migration
-  // 0028 is applied (includes in-flight holds); before that, count from
-  // event registrations. A real error in both means unverified.
+  // One discounted reservation per member per event: ANY prior use (held
+  // or consumed slots in the reservation table once migration 0028 is
+  // applied, or a member-priced registration before that) means the code
+  // was already used. A real error in both sources means unverified.
   let used: number | null = null;
   const { data: eventRow } = await supabase
     .from('events')
@@ -240,18 +252,17 @@ export async function verifySkateMemberCode(
     used = await skateAllowanceUsed({ eventId: eventRow.id, partnerId: partner.id });
   }
   if (used === null) {
-    used = await skateMemberSkatersUsed(code, options.eventSlug);
+    used = await skateMemberPeopleUsed(code, options.eventSlug);
   }
   if (used === null) {
-    // Allowance could not be verified: never grant the discount unverified.
+    // Usage could not be verified: never grant the discount unverified.
     // Caller tells the registrant to retry or continue at full price.
     return { valid: false, reason: 'unverified', partnerId: partner.id, code };
   }
-  const remaining = Math.max(0, SKATE_MEMBER_SKATER_LIMIT - used);
-  if (remaining === 0) {
-    return { valid: false, reason: 'exhausted', partnerId: partner.id, code, remaining: 0 };
+  if (used > 0) {
+    return { valid: false, reason: 'already_used', partnerId: partner.id, code, remaining: 0 };
   }
-  return { valid: true, partnerId: partner.id, code, remaining };
+  return { valid: true, partnerId: partner.id, code, remaining: SKATE_MEMBER_PEOPLE_LIMIT };
 }
 
 export async function recordMemberCodeRedemption(input: {

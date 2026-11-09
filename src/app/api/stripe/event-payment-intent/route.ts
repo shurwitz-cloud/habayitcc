@@ -16,7 +16,11 @@ import {
   type WomensRegistrationData,
 } from '@/lib/events/paid-event-pricing';
 import { verifyHebrewFairCode } from '@/lib/events/hebrew-fair-codes';
-import { verifyHaBayitMemberCode, verifySkateMemberCode } from '@/lib/events/chai-member-event-codes';
+import {
+  SKATE_MEMBER_PEOPLE_LIMIT,
+  verifyHaBayitMemberCode,
+  verifySkateMemberCode,
+} from '@/lib/events/chai-member-event-codes';
 import {
   bindSkateAllowancePayment,
   claimSkateAllowance,
@@ -132,8 +136,9 @@ export async function POST(req: NextRequest) {
       null;
     if (event.type === 'skate') {
       const skaterCount = Math.max(0, Math.round(body.skate?.skaters || 0));
-      if (skaterCount < 1) {
-        return NextResponse.json({ error: 'Please add at least one skater.' }, { status: 400 });
+      const nonSkaterCount = Math.max(0, Math.round(body.skate?.nonSkaters || 0));
+      if (skaterCount + nonSkaterCount < 1) {
+        return NextResponse.json({ error: 'Please add at least one ticket.' }, { status: 400 });
       }
       const rawCode = body.skate?.memberCode?.trim() || '';
       const rawHaCodes = (body.skate?.haCodes ?? [])
@@ -148,19 +153,39 @@ export async function POST(req: NextRequest) {
         );
       }
       if (rawCode) {
-        const lookup = await verifySkateMemberCode(rawCode, {
+        let lookup = await verifySkateMemberCode(rawCode, {
           eventSlug: event.slug,
           firstName: body.firstName,
           lastName: body.lastName,
           email,
           phone: body.phone,
         });
+        if (!lookup.valid && lookup.reason === 'already_used' && lookup.partnerId && eventId) {
+          // An EXPIRED hold from an abandoned checkout must not lock the
+          // member out forever: reconcile it against Stripe's live state
+          // (terminal states only, never time-freed) and verify once more.
+          // Live holds stay reserved, so an in-flight checkout still blocks
+          // a second discounted reservation.
+          const reconcile = await reconcileExpiredSkateHolds({
+            eventId,
+            partnerId: lookup.partnerId,
+          });
+          if (reconcile.supported && reconcile.failures === 0) {
+            lookup = await verifySkateMemberCode(rawCode, {
+              eventSlug: event.slug,
+              firstName: body.firstName,
+              lastName: body.lastName,
+              email,
+              phone: body.phone,
+            });
+          }
+        }
         if (!lookup.valid || !lookup.code) {
           const reasonMsg =
             lookup.reason === 'identity_mismatch'
               ? 'This Chai code does not match these details. Correct the name, email or phone, or continue without the code at full price.'
-              : lookup.reason === 'exhausted'
-                ? 'This Chai member already used all 6 discounted skaters for this event.'
+              : lookup.reason === 'exhausted' || lookup.reason === 'already_used'
+                ? 'This Chai code was already used for this event.'
                 : lookup.reason === 'unverified'
                   ? 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.'
                   : 'This HaBayit member code is not valid or not active.';
@@ -169,26 +194,21 @@ export async function POST(req: NextRequest) {
         // The reservation system is the ONLY allowance path for this
         // event (it went live with the schema in place): the atomic
         // claim decides, and any uncertainty fails closed without
-        // granting a discount. Expired holds are reconciled against
-        // Stripe first (never time-freed).
+        // granting a discount.
         if (lookup.partnerId) {
-          const reconcile = await reconcileExpiredSkateHolds({
-            eventId: eventId as string,
-            partnerId: lookup.partnerId,
-          });
-          if (reconcile.supported && reconcile.failures > 0) {
-            return NextResponse.json(
-              { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
-              { status: 400 },
-            );
-          }
           const token = crypto.randomUUID();
+          // One discounted reservation per member per event: claim the
+          // member's WHOLE entitlement so no second discounted checkout
+          // can start while this one is open. A partial grant means the
+          // member already used part of it elsewhere - never honor a
+          // partial discount, release the partial claim.
           const claim = await claimSkateAllowance({
             eventId: eventId as string,
             partnerId: lookup.partnerId,
             code: lookup.code,
-            wanted: skaterCount,
+            wanted: SKATE_MEMBER_PEOPLE_LIMIT,
             claimToken: token,
+            limit: SKATE_MEMBER_PEOPLE_LIMIT,
           });
           if (!claim.supported || claim.error) {
             return NextResponse.json(
@@ -196,33 +216,36 @@ export async function POST(req: NextRequest) {
               { status: 400 },
             );
           }
-          if (claim.claimed === 0) {
+          if (claim.claimed < SKATE_MEMBER_PEOPLE_LIMIT) {
+            await releaseSkateAllowance({ claimToken: token });
             return NextResponse.json(
-              { error: 'This Chai member already used all 6 discounted skaters for this event.' },
+              { error: 'This Chai code was already used for this event.' },
               { status: 400 },
             );
           }
           skateClaim = { token, claimed: claim.claimed };
         }
-        const memberSkaters = skateClaim?.claimed ?? lookup.remaining;
+        const memberPeople = skateClaim?.claimed ?? lookup.remaining;
         skateData = {
           skaters: skaterCount,
+          nonSkaters: nonSkaterCount,
           memberCode: lookup.code,
           memberDiscount: true,
-          memberSkaters,
+          memberPeople,
         };
       } else {
-        skateData = { skaters: skaterCount, memberDiscount: false };
+        skateData = { skaters: skaterCount, nonSkaters: nonSkaterCount, memberDiscount: false };
       }
 
-      // Hebrew Adventure codes: 3% off one skater per code. Discounts
-      // never stack: when a Chai member discount is applied to this
-      // registration, HA codes are IGNORED entirely (the larger discount
-      // wins for the whole registration, even beyond the member cap) and
-      // are never claimed or consumed. Codes are claimed atomically
-      // BEFORE the Stripe payment intent exists (migration 0030); any
-      // uncertainty fails closed without granting a discount. Codes
-      // beyond the skater count are never claimed either.
+      // Hebrew Adventure codes: 3% off one skater per code (never a
+      // non-skater pass). Discounts never stack: when a Chai member
+      // discount is applied to this registration, HA codes are IGNORED
+      // entirely (the larger discount wins for the whole registration,
+      // even beyond the member cap) and are never claimed or consumed.
+      // Codes are claimed atomically BEFORE the Stripe payment intent
+      // exists (migration 0030); any uncertainty fails closed without
+      // granting a discount. Codes beyond the skater count are never
+      // claimed either.
       if (rawHaCodes.length && skateData?.memberDiscount !== true) {
         const discountable = skaterCount;
         if (new Set(rawHaCodes).size !== rawHaCodes.length) {
@@ -349,9 +372,13 @@ export async function POST(req: NextRequest) {
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
         couples: event.type === 'couples' ? String(couplesData?.couples ?? 0) : '',
         skaters: event.type === 'skate' ? String(skateData?.skaters ?? 0) : '',
-        member_skaters:
+        non_skaters: event.type === 'skate' ? String(skateData?.nonSkaters ?? 0) : '',
+        member_people:
           event.type === 'skate' && skateData?.memberDiscount
-            ? String(skateData?.memberSkaters ?? skateData?.skaters ?? 0)
+            ? String(
+                skateData?.memberPeople ??
+                  (skateData?.skaters ?? 0) + (skateData?.nonSkaters ?? 0),
+              )
             : '',
         ha_skaters:
           event.type === 'skate' ? String(skateData?.haDiscountedSkaters ?? 0) : '',

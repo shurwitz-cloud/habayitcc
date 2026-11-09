@@ -6,6 +6,7 @@ export const FAIR_CHILD_PRICE = 12;
 export const WOMENS_TICKET_PRICE = 36;
 export const COUPLES_TICKET_PRICE = 55;
 export const COUPLES_MEMBER_TICKET_PRICE = 45;
+export const BBQ_TICKET_PRICE = 10;
 export const SKATE_TICKET_PRICE = 20;
 /** Non-skater entry pass: rink admission without skating. */
 export const SKATE_NON_SKATER_PRICE = 7;
@@ -42,6 +43,10 @@ export interface CouplesRegistrationData {
   memberCode?: string;
   /** First couple at member price. Extra couples on this reservation stay full price. */
   memberDiscount?: boolean;
+}
+
+export interface BbqRegistrationData {
+  attendees: number;
 }
 
 export interface SkateRegistrationData {
@@ -143,6 +148,12 @@ export function computeCouplesTickets(
   return { subtotal: roundMoney(subtotal), lines };
 }
 
+export function computeBbqTickets(data: BbqRegistrationData): number {
+  const attendees = Math.max(0, Math.round(data.attendees) || 0);
+  if (attendees < 1) return 0;
+  return roundMoney(attendees * BBQ_TICKET_PRICE);
+}
+
 export function computeSkateTickets(
   data: SkateRegistrationData,
 ): {
@@ -201,6 +212,7 @@ export function computePaidEventTotal(input: {
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
   skate?: SkateRegistrationData;
+  bbq?: BbqRegistrationData;
   sponsorAmount: number;
   coverFee: boolean;
 }): PricingBreakdown {
@@ -242,6 +254,9 @@ export function computePaidEventTotal(input: {
       skatePassLines = result.passLines;
       break;
     }
+    case 'bbq':
+      ticketSubtotal = computeBbqTickets(input.bbq ?? { attendees: 0 });
+      break;
   }
 
   const sponsorAmount = roundMoney(Math.max(0, input.sponsorAmount));

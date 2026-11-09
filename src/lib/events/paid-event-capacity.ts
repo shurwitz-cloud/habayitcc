@@ -12,6 +12,7 @@ export function paidEventUnitsFromInput(event: PaidEventConfig, input: {
   fair?: { children?: unknown[] };
   womens?: { women?: number };
   skate?: { skaters?: number };
+  bbq?: { attendees?: number };
 }): number {
   if (event.type === 'couples') {
     return Math.max(0, Math.round(Number(input.couples?.couples) || 0));
@@ -27,6 +28,9 @@ export function paidEventUnitsFromInput(event: PaidEventConfig, input: {
   }
   if (event.type === 'skate') {
     return Math.max(0, Math.round(Number(input.skate?.skaters) || 0));
+  }
+  if (event.type === 'bbq') {
+    return Math.max(0, Math.round(Number(input.bbq?.attendees) || 0));
   }
   return 0;
 }

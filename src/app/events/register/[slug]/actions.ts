@@ -3,6 +3,7 @@
 import {
   computePaidEventTotal,
   totalToCents,
+  type BbqRegistrationData,
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
@@ -57,6 +58,7 @@ export interface PaidEventRegistrationInput {
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
   skate?: SkateRegistrationData;
+  bbq?: BbqRegistrationData;
 }
 
 export interface PaidEventRegistrationResult {
@@ -149,6 +151,7 @@ export async function submitPaidEventRegistration(
         fair: input.fair,
         womens: input.womens,
         skate: input.skate,
+        bbq: input.bbq,
       }),
     );
     if (!room.ok) return { success: false, error: room.error };
@@ -230,6 +233,13 @@ export async function submitPaidEventRegistration(
       const women = input.womens?.women ?? 0;
       if (women < 1) {
         return { success: false, error: 'Please enter how many women are attending.' };
+      }
+    }
+
+    if (event.type === 'bbq') {
+      const attendees = Math.max(0, Math.round(input.bbq?.attendees || 0));
+      if (attendees < 1) {
+        return { success: false, error: 'Please enter how many people are attending.' };
       }
     }
 
@@ -446,6 +456,7 @@ export async function submitPaidEventRegistration(
       womens: input.womens,
       couples: couplesData,
       skate: skateData,
+      bbq: input.bbq,
       sponsorAmount: input.sponsorAmount,
       coverFee: input.coverFee,
     });
@@ -508,6 +519,7 @@ export async function submitPaidEventRegistration(
       womens: input.womens,
       couples: couplesData,
       skate: skateData,
+      bbq: input.bbq,
     });
 
     if (!result.success) {

@@ -10,6 +10,7 @@ import {
   computePaidEventTotal,
   COUPLES_MEMBER_TICKET_PRICE,
   COUPLES_TICKET_PRICE,
+  BBQ_TICKET_PRICE,
   SKATE_TICKET_PRICE,
   SKATE_NON_SKATER_PRICE,
   DINNER_ADULT_PRICE,
@@ -76,6 +77,7 @@ function PaidEventFormInner({
   const [adults, setAdults] = useState(1);
   const [kids, setKids] = useState(0);
   const [women, setWomen] = useState(1);
+  const [bbqAttendees, setBbqAttendees] = useState(1);
   const [couples, setCouples] = useState(1);
   const [skaters, setSkaters] = useState(1);
   const [nonSkaters, setNonSkaters] = useState(0);
@@ -161,6 +163,11 @@ function PaidEventFormInner({
     [haDiscount, haCodes, haCodeStatus, haDiscountable],
   );
 
+  const bbqData = useMemo(
+    () => (event.type === 'bbq' ? { attendees: bbqAttendees } : undefined),
+    [event.type, bbqAttendees],
+  );
+
   const skateData = useMemo(
     () =>
       event.type === 'skate'
@@ -199,6 +206,7 @@ function PaidEventFormInner({
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
         skate: skateData,
+        bbq: bbqData,
         sponsorAmount,
         coverFee,
       }),
@@ -211,6 +219,7 @@ function PaidEventFormInner({
       fairFreeChildIndices,
       couplesData,
       skateData,
+      bbqData,
       sponsorAmount,
       coverFee,
     ]
@@ -410,6 +419,9 @@ function PaidEventFormInner({
     if (event.type === 'womens' && women < 1) {
       return 'Please enter how many women are attending.';
     }
+    if (event.type === 'bbq' && bbqAttendees < 1) {
+      return 'Please enter how many people are attending.';
+    }
     if (event.type === 'couples' && couples < 1) {
       return 'Please add at least one couple.';
     }
@@ -476,6 +488,7 @@ function PaidEventFormInner({
     kids,
     fairChildCount,
     women,
+    bbqAttendees,
     couples,
     skaters,
     nonSkaters,
@@ -519,6 +532,7 @@ function PaidEventFormInner({
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
         skate: skateData,
+        bbq: bbqData,
       }),
     });
 
@@ -548,6 +562,7 @@ function PaidEventFormInner({
     women,
     couplesData,
     skateData,
+    bbqData,
     fairChildCount,
     hebrewStudent,
     hebrewCodes,
@@ -575,6 +590,7 @@ function PaidEventFormInner({
           womens: event.type === 'womens' ? { women } : undefined,
           couples: couplesData,
           skate: skateData,
+          bbq: bbqData,
         });
 
         if (!result.success) {
@@ -602,6 +618,7 @@ function PaidEventFormInner({
       women,
       couplesData,
       skateData,
+      bbqData,
     ]
   );
 
@@ -656,6 +673,7 @@ function PaidEventFormInner({
               womens: event.type === 'womens' ? { women } : undefined,
               couples: couplesData,
               skate: skateData,
+              bbq: bbqData,
             }),
           });
 
@@ -713,6 +731,7 @@ function PaidEventFormInner({
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
         skate: skateData,
+        bbq: bbqData,
       });
 
       if (!result.success) {
@@ -877,6 +896,18 @@ function PaidEventFormInner({
             label={`Women attending — $${WOMENS_TICKET_PRICE} each`}
             value={women}
             onChange={setWomen}
+            min={1}
+            required
+          />
+        </div>
+      )}
+
+      {event.type === 'bbq' && (
+        <div className="border-t border-line pt-5">
+          <StepperField
+            label={`Attendees — $${BBQ_TICKET_PRICE} each`}
+            value={bbqAttendees}
+            onChange={setBbqAttendees}
             min={1}
             required
           />

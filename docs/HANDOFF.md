@@ -136,3 +136,18 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   NOT covered: real Stripe payment end to end (first paid booking is the
   true check - being watched); offline CRM entry has no pass support.
 - Rollback: Vercel Instant Rollback to the pre-merge production deployment.
+
+## Teens BBQ Kickoff event page (branch teens-bbq-event, PREVIEW ONLY - not merged)
+- New paid event 'teens-bbq' (HaBayit Teens BBQ Kickoff, Sun Nov 22 2026, 6:00 PM,
+  Backyard of 3007 Bogota Ave) with new event type 'bbq': $10/person stepper,
+  sponsor presets, optional 3% card-fee checkbox. Short links /bbq and /teens-bbq.
+- Flyer public/flyers/teens-bbq.jpg is the user-supplied event art (metadata-clean).
+- Full standard wiring: Stripe intent + metadata, webhook rebuild (attendees key),
+  CRM registration + people mode 'people', events-sheet tab 'Teens BBQ Kickoff',
+  confirmation + office emails, offline CRM entry default $10.
+- NOT included (awaiting Shmuel's call): Chai member discount and Hebrew
+  Adventure codes: the 15% baseline vs the skate-only 3%/6-person rules conflict;
+  no discount code fields on this form until he decides.
+- Checks: tsc --noEmit clean, import audit clean. Vercel preview build + visual
+  check on the PR before any merge. Go-live waits for Shmuel's explicit yes.
+  Cursor: do not merge this branch yourself.

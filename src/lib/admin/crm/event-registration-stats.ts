@@ -11,6 +11,7 @@ export type EventRegistrationDetails = {
   womens?: { women?: number };
   couples?: { couples?: number; memberCode?: string; memberDiscount?: boolean };
   skate?: { skaters?: number; nonSkaters?: number; memberCode?: string; memberDiscount?: boolean };
+  bbq?: { attendees?: number };
   /** Generic adults/kids for future event types */
   adults?: number;
   kids?: number;
@@ -97,6 +98,12 @@ export function parseEventPeople(row: {
     const women = Math.max(0, num(details.womens.women));
     // Headcount-only event — do not treat women as "adults" for CRM breakdowns.
     return { adults: null, kids: null, guests: women || guestFallback };
+  }
+
+  if (details?.bbq) {
+    const attendees = Math.max(0, num(details.bbq.attendees));
+    // Headcount-only event — same CRM treatment as womens.
+    return { adults: null, kids: null, guests: attendees || guestFallback };
   }
 
   const skate =

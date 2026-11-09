@@ -9,6 +9,7 @@ import {
 import {
   computePaidEventTotal,
   totalToCents,
+  type BbqRegistrationData,
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       womens?: WomensRegistrationData;
       couples?: CouplesRegistrationData;
       skate?: SkateRegistrationData;
+      bbq?: BbqRegistrationData;
     };
 
     const event = getPaidEvent(body.slug);
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
         fair: body.fair,
         womens: body.womens,
         skate: body.skate,
+        bbq: body.bbq,
       }),
     );
     if (!room.ok) {
@@ -122,6 +125,16 @@ export async function POST(req: NextRequest) {
         };
       } else {
         couplesData = { couples: coupleCount, memberDiscount: false };
+      }
+    }
+
+    if (event.type === 'bbq') {
+      const attendees = Math.max(0, Math.round(body.bbq?.attendees || 0));
+      if (attendees < 1) {
+        return NextResponse.json(
+          { error: 'Please enter how many people are attending.' },
+          { status: 400 },
+        );
       }
     }
 
@@ -326,6 +339,7 @@ export async function POST(req: NextRequest) {
       womens: body.womens,
       couples: couplesData,
       skate: skateData,
+      bbq: body.bbq,
       sponsorAmount: body.sponsorAmount ?? 0,
       coverFee: !!body.coverFee,
     });
@@ -364,6 +378,7 @@ export async function POST(req: NextRequest) {
         card_fee: String(pricing.cardFee),
         cover_fee: body.coverFee ? '1' : '0',
         women: event.type === 'womens' ? String(body.womens?.women ?? 1) : '',
+        attendees: event.type === 'bbq' ? String(body.bbq?.attendees ?? 1) : '',
         adults:
           event.type === 'dinner' || event.type === 'celebration'
             ? String(body.dinner?.adults ?? 0)

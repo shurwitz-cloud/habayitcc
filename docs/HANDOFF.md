@@ -110,3 +110,29 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   (member math, fee math, other event types unchanged).
 - NOT done here: Vercel preview visual check, merge, publish. Go-live waits for
   Shmuel's explicit yes. Cursor: do not merge this branch yourself.
+
+## Skate non-skater entry passes + Chai 3% up to 6 people (SHIPPED 2026-11-09)
+- main = 1342f40 (squash of reviewed PR #18, branch non-skater-entry-pass).
+  Vercel preview build passed on the PR; production rebuilt on merge and the
+  live /skate page was pixel-verified after promotion.
+- /skate (Fire on Ice) tickets: $7 "Entry pass for non-skaters" stepper,
+  independent of $20 skaters; pass-only bookings allowed.
+- Chai code: 3% off up to 6 PEOPLE per reservation (was 15% off skaters,
+  cumulative 6), $20 skaters first then $7 passes ($19.40 / $6.79); extras
+  full price. ONE discounted reservation per member per event: all-or-nothing
+  6-slot claim via the existing 0028/0029 RPC, partial claim released,
+  neutral "already used" message. No customer-facing limit text.
+- Hebrew Adventure code: 3% off one $20 skater, never a pass; Chai wins
+  over HA (unchanged non-stacking).
+- Passes recorded in registration details, confirmation + office email text,
+  Stripe metadata (non_skaters/member_people; legacy member_skaters still
+  read by the webhook rebuild), events sheet "Skater Details", CRM guest
+  counts (skaters + passes).
+- Checkout reconciles expired Chai holds (existing helper) before trusting
+  code verification so verify and claim cannot disagree; failed/unknown
+  Stripe state fails closed.
+- Checks: tsc clean, import audit + privacy gate clean, pricing/PGlite/
+  details/sheet/CRM tests pass, Vercel preview build pass, live pixel check.
+  NOT covered: real Stripe payment end to end (first paid booking is the
+  true check - being watched); offline CRM entry has no pass support.
+- Rollback: Vercel Instant Rollback to the pre-merge production deployment.

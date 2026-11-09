@@ -153,31 +153,35 @@ export async function POST(req: NextRequest) {
         );
       }
       if (rawCode) {
-        let lookup = await verifySkateMemberCode(rawCode, {
+        const verifyInput = {
           eventSlug: event.slug,
           firstName: body.firstName,
           lastName: body.lastName,
           email,
           phone: body.phone,
-        });
-        if (!lookup.valid && lookup.reason === 'already_used' && lookup.partnerId && eventId) {
-          // An EXPIRED hold from an abandoned checkout must not lock the
-          // member out forever: reconcile it against Stripe's live state
-          // (terminal states only, never time-freed) and verify once more.
-          // Live holds stay reserved, so an in-flight checkout still blocks
-          // a second discounted reservation.
+        };
+        let lookup = await verifySkateMemberCode(rawCode, verifyInput);
+        if (lookup.partnerId && eventId) {
+          // Code verification ignores EXPIRED holds (so an abandoned
+          // checkout does not lock the member out), but the atomic claim
+          // counts every reserved row. Reconcile expired holds against
+          // Stripe's live state FIRST (terminal states only, never
+          // time-freed), then verify once more, so the two can never
+          // disagree: a succeeded payment is consumed (verify then
+          // reports the code as used), a canceled one is released, and
+          // any unreconciled state fails closed without a discount.
           const reconcile = await reconcileExpiredSkateHolds({
             eventId,
             partnerId: lookup.partnerId,
           });
-          if (reconcile.supported && reconcile.failures === 0) {
-            lookup = await verifySkateMemberCode(rawCode, {
-              eventSlug: event.slug,
-              firstName: body.firstName,
-              lastName: body.lastName,
-              email,
-              phone: body.phone,
-            });
+          if (reconcile.supported && reconcile.failures > 0) {
+            return NextResponse.json(
+              { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
+              { status: 400 },
+            );
+          }
+          if (reconcile.supported) {
+            lookup = await verifySkateMemberCode(rawCode, verifyInput);
           }
         }
         if (!lookup.valid || !lookup.code) {

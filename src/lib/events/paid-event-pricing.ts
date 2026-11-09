@@ -47,6 +47,10 @@ export interface CouplesRegistrationData {
 
 export interface BbqRegistrationData {
   attendees: number;
+  /** One-time staff code entered at checkout (covers one admission). */
+  staffCode?: string;
+  /** Verified staff code: one admission on this registration is free. */
+  staffFree?: boolean;
 }
 
 export interface SkateRegistrationData {
@@ -151,7 +155,8 @@ export function computeCouplesTickets(
 export function computeBbqTickets(data: BbqRegistrationData): number {
   const attendees = Math.max(0, Math.round(data.attendees) || 0);
   if (attendees < 1) return 0;
-  return roundMoney(attendees * BBQ_TICKET_PRICE);
+  const paid = data.staffFree ? Math.max(0, attendees - 1) : attendees;
+  return roundMoney(paid * BBQ_TICKET_PRICE);
 }
 
 export function computeSkateTickets(

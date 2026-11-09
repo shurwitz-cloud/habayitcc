@@ -145,9 +145,24 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 - Full standard wiring: Stripe intent + metadata, webhook rebuild (attendees key),
   CRM registration + people mode 'people', events-sheet tab 'Teens BBQ Kickoff',
   confirmation + office emails, offline CRM entry default $10.
-- NOT included (awaiting Shmuel's call): Chai member discount and Hebrew
-  Adventure codes: the 15% baseline vs the skate-only 3%/6-person rules conflict;
-  no discount code fields on this form until he decides.
+- Discounts per Shmuel 2026-11-09: flat $10, NO Chai discount and NO Hebrew
+  Adventure codes on this event. Instead: one-time staff codes. Discreet
+  'Have a code?' toggle on the form (promo-code style, no eligibility text
+  anywhere on the site).
+- Staff codes: migration 0031_bbq_staff_codes (bbq_staff_codes table + claim/
+  bind/consume/release/resolve RPCs, RLS-locked, dormant-safe fail-closed).
+  Each code covers ONE admission exactly once: claim before the Stripe intent
+  (never charge without the discount), bind PI, consume on persist (submit or
+  webhook path), release only when never charged, expired holds reconcile
+  against live Stripe state (mirrors 0029/0030). Free ($0) registrations
+  claim+consume in the submit action; the form already hides payment at $0.
+- Codes are generated and inserted ONLY by scripts/generate-bbq-staff-codes.mjs
+  (10 codes, BBQ-XXXXXXXX, unambiguous alphabet) at go-live with the service
+  key: no plaintext codes in the repo. Printout goes to Shmuel privately.
+- PENDING Shmuel's confirmation: code effect implemented as one FREE admission
+  per code (his 16:42 wording; main asked to confirm free vs partial). If he
+  wants a different effect, change computeBbqTickets + summary line only.
 - Checks: tsc --noEmit clean, import audit clean. Vercel preview build + visual
   check on the PR before any merge. Go-live waits for Shmuel's explicit yes.
+  Go-live order: apply migration 0031 -> run the code script -> merge.
   Cursor: do not merge this branch yourself.

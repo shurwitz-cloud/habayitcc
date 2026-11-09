@@ -40,6 +40,15 @@ import {
   releaseHebrewFairCodeHolds,
 } from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
+import {
+  bindBbqStaffCodePayment,
+  claimBbqStaffCode,
+  consumeBbqStaffCode,
+  getHeldBbqStaffCode,
+  reconcileExpiredBbqStaffCode,
+  releaseBbqStaffCode,
+  verifyBbqStaffCode,
+} from '@/lib/events/bbq-staff-codes';
 import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
 import { assertSupabaseWriteReady } from '@/lib/supabase/require-write';
 
@@ -129,6 +138,34 @@ export async function verifyHaBayitMemberCodeAction(
 
 function eventAllowsHebrewKidsFree(event: { type: string; hebrewKidsFreeWithCode?: boolean }) {
   return event.hebrewKidsFreeWithCode === true || event.type === 'family-fair';
+}
+
+/**
+ * Live check for a BBQ staff code (no claim). Neutral wording: who the
+ * codes are for is never shown on the site.
+ */
+export async function verifyBbqStaffCodeAction(
+  code: string,
+  eventSlug?: string,
+): Promise<{ valid: boolean; reason?: string }> {
+  const limited = await enforceActionRateLimit('bbq-staff-code', 12, 15 * 60 * 1000);
+  if (!limited.ok) {
+    return { valid: false, reason: limited.error };
+  }
+
+  const event = eventSlug ? getPaidEvent(eventSlug) : null;
+  if (!event || event.type !== 'bbq') return { valid: false, reason: 'invalid' };
+
+  const lookup = await verifyBbqStaffCode(code);
+  if (!lookup.supported) {
+    return {
+      valid: false,
+      reason:
+        'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+    };
+  }
+  if (!lookup.valid) return { valid: false, reason: lookup.reason };
+  return { valid: true };
 }
 
 export async function submitPaidEventRegistration(
@@ -236,10 +273,100 @@ export async function submitPaidEventRegistration(
       }
     }
 
+    let bbqData = input.bbq;
+    // Staff code held for this registration (migration 0031). A paid
+    // checkout claims the code in the intent route before being charged;
+    // a free ($0) registration claims it here, right before persist.
+    let bbqStaffClaim: { token: string; code: string } | null = null;
     if (event.type === 'bbq') {
       const attendees = Math.max(0, Math.round(input.bbq?.attendees || 0));
       if (attendees < 1) {
         return { success: false, error: 'Please enter how many people are attending.' };
+      }
+      const rawCode = input.bbq?.staffCode?.trim() || '';
+      if (rawCode) {
+        const failCode = async (message: string) => {
+          if (bbqStaffClaim && !input.paymentIntentId) {
+            await releaseBbqStaffCode(bbqStaffClaim.token);
+          }
+          return { success: false as const, error: message };
+        };
+        if (input.paymentIntentId) {
+          // Paid path: the intent route claimed the code before charging.
+          const held = await getHeldBbqStaffCode(input.paymentIntentId);
+          if (held === undefined) {
+            return await failCode(
+              'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+            );
+          }
+          if (held) {
+            bbqStaffClaim = { token: held.claimToken, code: held.code };
+          } else {
+            // Late claim (hold released after a failed first submit): the
+            // payment already happened, so claim and bind to the SAME
+            // intent - never reject a paid registration.
+            const lookup = await verifyBbqStaffCode(rawCode);
+            if (!lookup.supported) {
+              return await failCode(
+                'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+              );
+            }
+            if (!lookup.valid || !lookup.code) {
+              return await failCode(
+                lookup.reason === 'already_used'
+                  ? 'This code was already used.'
+                  : 'This code is not valid.',
+              );
+            }
+            const token = crypto.randomUUID();
+            const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
+            if (!claim.supported || claim.error) {
+              return await failCode(
+                'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+              );
+            }
+            if (!claim.claimed) {
+              return await failCode('This code was already used.');
+            }
+            await bindBbqStaffCodePayment(token, input.paymentIntentId);
+            bbqStaffClaim = { token, code: lookup.code };
+          }
+        } else {
+          // Free path: no payment is taken, so claim the code here.
+          const lookup = await verifyBbqStaffCode(rawCode);
+          if (!lookup.supported) {
+            return await failCode(
+              'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+            );
+          }
+          if (!lookup.valid || !lookup.code) {
+            return await failCode(
+              lookup.reason === 'already_used'
+                ? 'This code was already used.'
+                : 'This code is not valid.',
+            );
+          }
+          const reconcile = await reconcileExpiredBbqStaffCode(lookup.code);
+          if (!reconcile.supported || reconcile.failures > 0) {
+            return await failCode(
+              'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+            );
+          }
+          const token = crypto.randomUUID();
+          const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
+          if (!claim.supported || claim.error) {
+            return await failCode(
+              'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+            );
+          }
+          if (!claim.claimed) {
+            return await failCode('This code was already used.');
+          }
+          bbqStaffClaim = { token, code: lookup.code };
+        }
+        bbqData = { attendees, staffCode: bbqStaffClaim.code, staffFree: true };
+      } else {
+        bbqData = { attendees, staffFree: false };
       }
     }
 
@@ -456,7 +583,7 @@ export async function submitPaidEventRegistration(
       womens: input.womens,
       couples: couplesData,
       skate: skateData,
-      bbq: input.bbq,
+      bbq: bbqData,
       sponsorAmount: input.sponsorAmount,
       coverFee: input.coverFee,
     });
@@ -519,7 +646,7 @@ export async function submitPaidEventRegistration(
       womens: input.womens,
       couples: couplesData,
       skate: skateData,
-      bbq: input.bbq,
+      bbq: bbqData,
     });
 
     if (!result.success) {
@@ -546,7 +673,25 @@ export async function submitPaidEventRegistration(
       // discount proof; if the user never retries, the expired hold is
       // reconciled against Stripe (succeeded PI -> consumed + logged
       // for admin recovery), never freed by time alone.
+      // Charged BBQ checkouts NEVER release the staff code hold on
+      // persist failure - the payment was verified before persist ran,
+      // so this checkout was already charged: freeing the code would
+      // let another checkout take it and make the paid retry fail. The
+      // retry finds the held row as its discount proof; if the user
+      // never retries, the expired hold is reconciled against Stripe
+      // (succeeded PI -> consumed + logged), never freed by time alone.
+      // An unpaid (free) registration's hold is released safely.
+      if (bbqStaffClaim && !input.paymentIntentId) {
+        await releaseBbqStaffCode(bbqStaffClaim.token);
+      }
       return { success: false, error: result.error };
+    }
+
+    if (bbqStaffClaim) {
+      await consumeBbqStaffCode({
+        claimToken: bbqStaffClaim.token,
+        registrationId: result.registrationId,
+      });
     }
 
     if (fairRedemptions.length && eventId) {

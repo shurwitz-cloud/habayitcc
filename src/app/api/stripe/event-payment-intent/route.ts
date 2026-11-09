@@ -35,6 +35,13 @@ import {
   releaseHebrewFairCodeHolds,
 } from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
+import {
+  bindBbqStaffCodePayment,
+  claimBbqStaffCode,
+  reconcileExpiredBbqStaffCode,
+  releaseBbqStaffCode,
+  verifyBbqStaffCode,
+} from '@/lib/events/bbq-staff-codes';
 
 export async function POST(req: NextRequest) {
   try {
@@ -128,6 +135,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Held staff code for this BBQ checkout (migration 0031). Claimed
+    // before the payment intent exists so a code is never charged
+    // without the discount, and never rejected after charging.
+    let bbqClaim: { token: string; code: string } | null = null;
+    let bbqData = body.bbq;
     if (event.type === 'bbq') {
       const attendees = Math.max(0, Math.round(body.bbq?.attendees || 0));
       if (attendees < 1) {
@@ -135,6 +147,46 @@ export async function POST(req: NextRequest) {
           { error: 'Please enter how many people are attending.' },
           { status: 400 },
         );
+      }
+      const rawCode = body.bbq?.staffCode?.trim() || '';
+      if (rawCode) {
+        const failCode = async (message: string) => {
+          if (bbqClaim) await releaseBbqStaffCode(bbqClaim.token);
+          return NextResponse.json({ error: message }, { status: 400 });
+        };
+        const lookup = await verifyBbqStaffCode(rawCode);
+        if (!lookup.supported) {
+          return await failCode(
+            'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+          );
+        }
+        if (!lookup.valid || !lookup.code) {
+          return await failCode(
+            lookup.reason === 'already_used'
+              ? 'This code was already used.'
+              : 'This code is not valid.',
+          );
+        }
+        const reconcile = await reconcileExpiredBbqStaffCode(lookup.code);
+        if (!reconcile.supported || reconcile.failures > 0) {
+          return await failCode(
+            'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+          );
+        }
+        const token = crypto.randomUUID();
+        const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
+        if (!claim.supported || claim.error) {
+          return await failCode(
+            'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+          );
+        }
+        if (!claim.claimed) {
+          return await failCode('This code was already used.');
+        }
+        bbqClaim = { token, code: lookup.code };
+        bbqData = { ...bbqData, attendees, staffCode: lookup.code, staffFree: true };
+      } else {
+        bbqData = { ...bbqData, attendees, staffFree: false };
       }
     }
 
@@ -339,7 +391,7 @@ export async function POST(req: NextRequest) {
       womens: body.womens,
       couples: couplesData,
       skate: skateData,
-      bbq: body.bbq,
+      bbq: bbqData,
       sponsorAmount: body.sponsorAmount ?? 0,
       coverFee: !!body.coverFee,
     });
@@ -348,6 +400,7 @@ export async function POST(req: NextRequest) {
     if (expectedCents < 0 || body.amountCents !== expectedCents) {
       if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
       if (haClaim) await releaseHebrewFairCodeHolds({ claimToken: haClaim.token });
+      if (bbqClaim) await releaseBbqStaffCode(bbqClaim.token);
       return NextResponse.json({ error: 'Payment amount mismatch. Please refresh and try again.' }, { status: 400 });
     }
 
@@ -378,7 +431,8 @@ export async function POST(req: NextRequest) {
         card_fee: String(pricing.cardFee),
         cover_fee: body.coverFee ? '1' : '0',
         women: event.type === 'womens' ? String(body.womens?.women ?? 1) : '',
-        attendees: event.type === 'bbq' ? String(body.bbq?.attendees ?? 1) : '',
+        attendees: event.type === 'bbq' ? String(bbqData?.attendees ?? 1) : '',
+        bbq_staff_code: event.type === 'bbq' && bbqClaim ? '1' : '',
         adults:
           event.type === 'dinner' || event.type === 'celebration'
             ? String(body.dinner?.adults ?? 0)
@@ -419,6 +473,7 @@ export async function POST(req: NextRequest) {
     } catch (piErr) {
       if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
       if (haClaim) await releaseHebrewFairCodeHolds({ claimToken: haClaim.token });
+      if (bbqClaim) await releaseBbqStaffCode(bbqClaim.token);
       throw piErr;
     }
     if (skateClaim) {
@@ -426,6 +481,9 @@ export async function POST(req: NextRequest) {
     }
     if (haClaim) {
       await bindHebrewFairCodePayment(haClaim.token, paymentIntent.id);
+    }
+    if (bbqClaim) {
+      await bindBbqStaffCodePayment(bbqClaim.token, paymentIntent.id);
     }
 
     return NextResponse.json({

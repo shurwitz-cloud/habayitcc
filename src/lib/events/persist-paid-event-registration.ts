@@ -4,6 +4,7 @@ import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { consumeSkateAllowance } from '@/lib/events/skate-allowance';
 import { consumeHebrewFairCodeHolds } from '@/lib/events/hebrew-fair-code-holds';
+import { consumeBbqStaffCode } from '@/lib/events/bbq-staff-codes';
 import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
 import {
   computePaidEventTotal,
@@ -458,6 +459,16 @@ export async function persistPaidEventRegistration(
     await consumeHebrewFairCodeHolds(paymentIntentId, registrationId);
   }
 
+  // Consume a held BBQ staff code (idempotent; no-op pre-migration
+  // 0031 or when this registration used none). Runs for both the
+  // submit and webhook paths, so a used code is always recorded.
+  if (event.type === 'bbq' && input.bbq?.staffFree) {
+    await consumeBbqStaffCode({
+      paymentIntentId: paymentIntentId ?? undefined,
+      registrationId,
+    });
+  }
+
   return { success: true, registrationId, receiptUrl };
 }
 
@@ -512,7 +523,10 @@ export function paidEventInputFromPaymentIntentMetadata(
     womens: event.type === 'womens' ? { women: Math.max(1, women) } : undefined,
     bbq:
       event.type === 'bbq'
-        ? { attendees: Math.max(1, bbqAttendees) }
+        ? {
+            attendees: Math.max(1, bbqAttendees),
+            staffFree: meta.bbq_staff_code === '1' || meta.bbq_staff_code === 'true',
+          }
         : undefined,
     couples:
       event.type === 'couples'

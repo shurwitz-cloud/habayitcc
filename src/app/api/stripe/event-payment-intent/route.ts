@@ -24,13 +24,15 @@ import {
 import {
   bindSkateAllowancePayment,
   claimSkateAllowance,
-  reconcileExpiredSkateHolds,
+  getHeldSkateAllowance,
+  reconcileOwnSkateHolds,
   releaseSkateAllowance,
 } from '@/lib/events/skate-allowance';
 import {
   bindHebrewFairCodePayment,
   claimHebrewFairCodeHold,
-  reconcileExpiredHebrewFairCodeHolds,
+  getHeldHebrewFairCodeClaims,
+  reconcileOwnHebrewFairCodeHolds,
   releaseHebrewFairCodeHolds,
 } from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
@@ -162,18 +164,92 @@ export async function POST(req: NextRequest) {
         };
         let lookup = await verifySkateMemberCode(rawCode, verifyInput);
         if (lookup.partnerId && eventId) {
-          // Code verification ignores EXPIRED holds (so an abandoned
-          // checkout does not lock the member out), but the atomic claim
-          // counts every reserved row. Reconcile expired holds against
-          // Stripe's live state FIRST (terminal states only, never
-          // time-freed), then verify once more, so the two can never
-          // disagree: a succeeded payment is consumed (verify then
-          // reports the code as used), a canceled one is released, and
-          // any unreconciled state fails closed without a discount.
-          const reconcile = await reconcileExpiredSkateHolds({
+          // Code verification counts only PAID usage (so an abandoned
+          // checkout never locks the member out), but the atomic claim
+          // counts every reserved row. Reconcile the member's OWN holds
+          // against Stripe's live state FIRST (never time-freed): a
+          // succeeded payment is consumed (verify then reports the code
+          // as used), a canceled or never-charged one is canceled to a
+          // terminal state and released, and a payment still processing
+          // is left in place with an accurate "still processing" reply -
+          // never a false "already used". Any unreconciled state fails
+          // closed without a discount.
+          const ownedSkateToken = req.cookies.get('chai_claim_token')?.value;
+          // Candidate total for RESUME matching: a held Chai claim is
+          // always the full entitlement, so the resumed checkout's PI
+          // amount must equal the cart priced with memberPeople = the
+          // entitlement (HA codes are ignored when Chai applies).
+          const chaiCandidateCents = totalToCents(
+            computePaidEventTotal({
+              event,
+              dinner: body.dinner,
+              fair: body.fair,
+              fairFreeChildIndices,
+              womens: body.womens,
+              couples: couplesData,
+              skate: {
+                skaters: skaterCount,
+                nonSkaters: nonSkaterCount,
+                memberCode: lookup.code ?? rawCode,
+                memberDiscount: true,
+                memberPeople: SKATE_MEMBER_PEOPLE_LIMIT,
+              },
+              sponsorAmount: body.sponsorAmount ?? 0,
+              coverFee: !!body.coverFee,
+            }).total,
+          );
+          const reconcile = await reconcileOwnSkateHolds({
             eventId,
             partnerId: lookup.partnerId,
+            // Only the checkout that owns its claim-token cookie may be
+            // canceled or resumed; a live checkout in ANOTHER browser
+            // stays pending instead of being canceled out from under
+            // its payer.
+            ownedClaimTokens: ownedSkateToken ? [ownedSkateToken] : [],
+            resumeAmountCents: chaiCandidateCents,
           });
+          if (reconcile.supported && reconcile.resumes.length > 0) {
+            // Load-bearing recheck before resuming: the held code,
+            // event and amount must all match THIS request. Any
+            // mismatch falls through to the normal claim path (the
+            // hold then blocks as in-progress - fail closed).
+            const cand = reconcile.resumes[0];
+            try {
+              const held = await getHeldSkateAllowance(cand.paymentIntentId);
+              const pi = await stripe.paymentIntents.retrieve(cand.paymentIntentId);
+              if (
+                held &&
+                held.partnerId === lookup.partnerId &&
+                held.code === lookup.code &&
+                held.count === SKATE_MEMBER_PEOPLE_LIMIT &&
+                pi.metadata?.event_slug === event.slug &&
+                pi.amount === chaiCandidateCents &&
+                (pi.status === 'requires_payment_method' ||
+                  pi.status === 'requires_confirmation' ||
+                  pi.status === 'requires_action')
+              ) {
+                const res = NextResponse.json({
+                  clientSecret: pi.client_secret,
+                  paymentIntentId: pi.id,
+                });
+                res.cookies.set('chai_claim_token', cand.claimToken, {
+                  httpOnly: true,
+                  sameSite: 'lax',
+                  path: '/',
+                  maxAge: 24 * 60 * 60,
+                });
+                return res;
+              }
+            } catch (resumeErr) {
+              console.error('[event-payment-intent] Chai resume recheck failed:', resumeErr);
+            }
+          }
+          if (reconcile.supported && reconcile.pending > 0) {
+            return NextResponse.json(
+              { error: 'A checkout with this Chai code is still in progress. Please wait a few minutes, then try again.' },
+              { status: 400 },
+            );
+          }
           if (reconcile.supported && reconcile.failures > 0) {
             return NextResponse.json(
               { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
@@ -221,9 +297,13 @@ export async function POST(req: NextRequest) {
             );
           }
           if (claim.claimed < SKATE_MEMBER_PEOPLE_LIMIT) {
+            // The member's own holds were just reconciled above, so a
+            // partial grant means a COMPETING checkout on the same
+            // account is holding slots right now. Release the partial
+            // claim and say so accurately - not "already used".
             await releaseSkateAllowance({ claimToken: token });
             return NextResponse.json(
-              { error: 'This Chai code was already used for this event.' },
+              { error: 'A checkout with this Chai code is still in progress. Please wait a few minutes, then try again.' },
               { status: 400 },
             );
           }
@@ -279,13 +359,108 @@ export async function POST(req: NextRequest) {
                     : 'This Hebrew Adventure code is not valid.';
               return await failHa(reasonMsg);
             }
-            // Expired holds for this code are reconciled against Stripe
-            // first (a hold never frees by time alone); migration 0030
-            // missing or unreconciled state fails closed.
-            const reconcile = await reconcileExpiredHebrewFairCodeHolds({
+            // This code's own holds are reconciled against Stripe first
+            // (a hold never frees by time alone, and a never-charged
+            // checkout is canceled to a terminal state before release);
+            // migration 0030 missing or unreconciled state fails closed.
+            const ownedHaToken = req.cookies.get('ha_claim_token')?.value;
+            // Candidate total for RESUME matching: assume every
+            // submitted code discounts one skater; the recheck below
+            // recomputes from the ACTUAL held codes before resuming.
+            const haCandidateCents = totalToCents(
+              computePaidEventTotal({
+                event,
+                dinner: body.dinner,
+                fair: body.fair,
+                fairFreeChildIndices,
+                womens: body.womens,
+                couples: couplesData,
+                skate: {
+                  skaters: skaterCount,
+                  nonSkaters: nonSkaterCount,
+                  memberDiscount: false,
+                  haCodes: codesToApply,
+                  haDiscountedSkaters: codesToApply.length,
+                },
+                sponsorAmount: body.sponsorAmount ?? 0,
+                coverFee: !!body.coverFee,
+              }).total,
+            );
+            const reconcile = await reconcileOwnHebrewFairCodeHolds({
               eventId: eventId as string,
               registrationId: lookup.registrationId,
+              // Same ownership rule as the Chai path: never cancel or
+              // resume a checkout this request does not own.
+              ownedClaimTokens: ownedHaToken ? [ownedHaToken] : [],
+              resumeAmountCents: haCandidateCents,
             });
+            if (reconcile.supported && reconcile.resumes.length > 0) {
+              // Load-bearing recheck before resuming: the resumed PI
+              // must hold exactly the submitted valid code set, for
+              // this event, at the amount recomputed from the ACTUAL
+              // held data. Any mismatch falls through to the normal
+              // claim path (the hold then blocks as in-progress).
+              const cand = reconcile.resumes[0];
+              try {
+                const held = await getHeldHebrewFairCodeClaims(cand.paymentIntentId);
+                const pi = await stripe.paymentIntents.retrieve(cand.paymentIntentId);
+                const validSubmitted: string[] = [];
+                for (const c of codesToApply) {
+                  const l = await verifyHebrewFairCode(c, { eventSlug: event.slug });
+                  if (l.valid && l.registrationId) validSubmitted.push(l.code ?? c);
+                }
+                const heldCodes = (held?.items ?? []).map((i) => i.code).sort();
+                const heldCents = totalToCents(
+                  computePaidEventTotal({
+                    event,
+                    dinner: body.dinner,
+                    fair: body.fair,
+                    fairFreeChildIndices,
+                    womens: body.womens,
+                    couples: couplesData,
+                    skate: {
+                      skaters: skaterCount,
+                      nonSkaters: nonSkaterCount,
+                      memberDiscount: false,
+                      haCodes: heldCodes,
+                      haDiscountedSkaters: heldCodes.length,
+                    },
+                    sponsorAmount: body.sponsorAmount ?? 0,
+                    coverFee: !!body.coverFee,
+                  }).total,
+                );
+                if (
+                  held &&
+                  held.count > 0 &&
+                  heldCodes.length === validSubmitted.length &&
+                  heldCodes.every((c, i) => c === [...validSubmitted].sort()[i]) &&
+                  pi.metadata?.event_slug === event.slug &&
+                  pi.amount === heldCents &&
+                  (pi.status === 'requires_payment_method' ||
+                    pi.status === 'requires_confirmation' ||
+                    pi.status === 'requires_action')
+                ) {
+                  const res = NextResponse.json({
+                    clientSecret: pi.client_secret,
+                    paymentIntentId: pi.id,
+                  });
+                  res.cookies.set('ha_claim_token', cand.claimToken, {
+                    httpOnly: true,
+                    sameSite: 'lax',
+                    path: '/',
+                    maxAge: 24 * 60 * 60,
+                  });
+                  return res;
+                }
+              } catch (resumeErr) {
+                console.error('[event-payment-intent] HA resume recheck failed:', resumeErr);
+              }
+            }
+            if (reconcile.supported && reconcile.pending > 0) {
+              return await failHa(
+                'A checkout with this Hebrew Adventure code is still in progress. Please wait a few minutes, then try again.',
+              );
+            }
             if (!reconcile.supported || reconcile.failures > 0) {
               return await failHa(
                 'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
@@ -303,7 +478,12 @@ export async function POST(req: NextRequest) {
               );
             }
             if (!claim.claimed) {
-              return await failHa('This Hebrew Adventure code was already used for this event.');
+              // The code's own holds were just reconciled above, so a
+              // refused claim means a COMPETING checkout with the same
+              // code is holding it right now - say so accurately.
+              return await failHa(
+                'A checkout with this Hebrew Adventure code is still in progress. Please wait a few minutes, then try again.',
+              );
             }
             claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });
           }
@@ -413,10 +593,31 @@ export async function POST(req: NextRequest) {
       await bindHebrewFairCodePayment(haClaim.token, paymentIntent.id);
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
     });
+    // Checkout-ownership proof for a later retry in THIS browser: the
+    // claim token lets the reconcile cancel only this browser's own
+    // abandoned checkout, never a competing live one. httpOnly +
+    // sameSite=lax; expires with the 24h hold TTL.
+    if (skateClaim) {
+      res.cookies.set('chai_claim_token', skateClaim.token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60,
+      });
+    }
+    if (haClaim) {
+      res.cookies.set('ha_claim_token', haClaim.token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60,
+      });
+    }
+    return res;
   } catch (err) {
     console.error('[event-payment-intent]', err);
     return NextResponse.json({ error: 'Failed to initialize payment.' }, { status: 500 });

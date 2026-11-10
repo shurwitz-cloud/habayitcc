@@ -123,15 +123,16 @@ export async function releaseSkateAllowance(input: {
 }
 
 /**
- * Slots currently used (consumed + unexpired holds) from the reservation
- * table, or null when migration 0028 is not applied (caller falls back
- * to the registration scan). Expired reserved rows are NOT counted here:
- * code verification should not report a member as used-up over an
- * abandoned checkout that the payment route still has to reconcile
- * against Stripe. The atomic claim (migration 0029) still counts every
- * reserved row and is the final gate.
+ * Slots PAID for this event (consumed rows) - the only rows that make a
+ * member's code "already used". Unfinished or failed checkouts
+ * (reserved rows) do NOT count as used: the payment route reconciles
+ * the member's own holds against Stripe's live state and releases the
+ * ones that were never paid. Returns null when migration 0028 is not
+ * applied (caller falls back to the registration scan). The atomic
+ * claim (migration 0029) still counts every reserved row and remains
+ * the final gate against two discounted checkouts running at once.
  */
-export async function skateAllowanceUsed(input: {
+export async function skateAllowanceConsumed(input: {
   eventId: string;
   partnerId: string;
 }): Promise<number | null> {
@@ -141,12 +142,10 @@ export async function skateAllowanceUsed(input: {
     .select('id', { count: 'exact', head: true })
     .eq('event_id', input.eventId)
     .eq('partner_id', input.partnerId)
-    .or(
-      `status.eq.consumed,and(status.eq.reserved,expires_at.gt.${new Date().toISOString()})`,
-    );
+    .eq('status', 'consumed');
   if (error) {
     if (isMissingSchema(error)) return null;
-    console.error('[skate-allowance] usage count failed:', error.message);
+    console.error('[skate-allowance] consumed count failed:', error.message);
     return null;
   }
   return count ?? 0;
@@ -190,66 +189,240 @@ export interface SkateReconcileResult {
   supported: boolean;
   /** Holds whose Stripe state could not be determined. Fail closed. */
   failures: number;
+  /** Holds whose payment is actively processing/confirming: protect
+   *  from a duplicate charge by leaving the slots in place and telling
+   *  the registrant the payment is still processing (not "already
+   *  used"). */
+  pending: number;
+  /** Owned, unexpired, amount-matching still-payable checkouts that
+   *  can be RESUMED (return the same client_secret) instead of
+   *  cancel+recreate. At most one per member in practice (the claim
+   *  is entitlement-wide). */
+  resumes: { paymentIntentId: string; clientSecret: string | null; claimToken: string }[];
 }
 
+export type SkateHoldDisposition =
+  | 'consume' // PI paid: consume the slots (registration recovery is separate)
+  | 'release' // PI canceled or never bound: nothing payable, free the slots
+  | 'cancel_release' // PI unfinished and never charged: cancel to a terminal state, then free the slots
+  | 'pending'; // PI actively processing/confirming: protect from a duplicate charge, leave the slots
+
 /**
- * Resolve EXPIRED holds (older than expires_at) against Stripe's live
- * state before the allowance can re-grant their slots. A hold never
- * frees by time alone:
- *  - never bound to a payment intent -> nothing was payable, release;
- *  - PI succeeded -> consume (payment exists; registration recovery is
- *    handled by the existing admin tooling) and log loudly;
- *  - PI canceled -> release;
- *  - PI still payable -> CANCEL it (terminal), then release;
- *  - PI processing / Stripe unreachable -> leave the hold (fail closed,
- *    caller reports unverified instead of granting).
+ * What to do with a reserved hold given its payment intent's live
+ * state. For a hold from the member's OWN current retry (unexpired),
+ * a PI that is actively being confirmed (requires_confirmation /
+ * requires_action) is treated as pending - someone may be mid-payment
+ * on it right now. For an EXPIRED hold (older than expires_at), those
+ * states are canceled to reach a terminal state before release, as
+ * before: a payable intent is never left dangling past the hold's life.
  */
-export async function reconcileExpiredSkateHolds(input: {
+export function skateHoldDisposition(
+  piStatus: string | null,
+  opts: { expired: boolean; owned: boolean },
+): SkateHoldDisposition {
+  if (piStatus === null) return 'release';
+  if (piStatus === 'succeeded') return 'consume';
+  if (piStatus === 'canceled') return 'release';
+  if (piStatus === 'requires_payment_method') {
+    // requires_payment_method is also the state of a checkout whose
+    // payer is ACTIVELY entering card details in another browser.
+    // Cancel only when this request proves it owns that checkout
+    // (its claim-token cookie); a foreign one stays pending.
+    return opts.owned ? 'cancel_release' : 'pending';
+  }
+  if (piStatus === 'processing' || piStatus === 'requires_capture') return 'pending';
+  if (piStatus === 'requires_confirmation' || piStatus === 'requires_action') {
+    // A live payer may be mid-confirmation - cancel only once the
+    // hold is expired (the abandonment proxy).
+    return opts.expired ? 'cancel_release' : 'pending';
+  }
+  // Unknown/future Stripe status: never cancel; fail closed.
+  return 'pending';
+}
+
+
+// Injectable seam for one hold row: the disposition decision plus its
+// side effects, with the Stripe/DB clients supplied by the caller so
+// tests can stub retrieve/cancel races (e.g. a PI that transitions to
+// processing between retrieve and cancel -> cancel throws -> failure,
+// hold left intact).
+export interface SkateHoldRowDeps {
+  retrieve: (piId: string) => Promise<{ status: string; amount?: number; client_secret?: string | null }>;
+  cancel: (piId: string) => Promise<unknown>;
+  consume: (piId: string) => Promise<unknown>;
+  releaseByPi: (piId: string) => Promise<unknown>;
+  onOrphanPaid?: (piId: string) => void;
+}
+
+export type SkateHoldRowResult =
+  | { outcome: 'consumed' | 'released' | 'pending' | 'failure' }
+  | { outcome: 'resume'; paymentIntentId: string; clientSecret: string | null };
+
+export async function reconcileSkateHoldRow(
+  piId: string,
+  opts: { expired: boolean; owned: boolean; resumeAmountCents?: number },
+  deps: SkateHoldRowDeps,
+): Promise<SkateHoldRowResult> {
+  try {
+    const pi = await deps.retrieve(piId);
+    const disposition = skateHoldDisposition(pi.status, opts);
+    if (disposition === 'consume') {
+      await deps.consume(piId);
+      deps.onOrphanPaid?.(piId);
+      return { outcome: 'consumed' };
+    }
+    if (disposition === 'release') {
+      await deps.releaseByPi(piId);
+      return { outcome: 'released' };
+    }
+    // RESUME an owned, unexpired, still-payable checkout whose amount
+    // matches the current cart: hand back the SAME payment intent
+    // instead of canceling. A second tab mid-3DS stays alive; both
+    // tabs share one PI, confirm is idempotent per PI (a succeeded PI
+    // re-confirms as succeeded), so no double charge is possible.
+    if (
+      opts.owned &&
+      !opts.expired &&
+      opts.resumeAmountCents != null &&
+      pi.amount === opts.resumeAmountCents &&
+      (pi.status === 'requires_payment_method' ||
+        pi.status === 'requires_confirmation' ||
+        pi.status === 'requires_action')
+    ) {
+      return { outcome: 'resume', paymentIntentId: piId, clientSecret: pi.client_secret ?? null };
+    }
+    if (disposition === 'pending') {
+      // Not safe to cancel/reallocate; leave the hold counting.
+      return { outcome: 'pending' };
+    }
+    // cancel_release: an owned amount-changed retry, or an expired
+    // hold, whose PI was never charged. Cancellation is attempted
+    // only from requires_payment_method (or expired
+    // requires_confirmation/requires_action). Residual race: if the
+    // PI moved to processing since retrieve, Stripe usually rejects
+    // the cancel (the row reports failure, hold intact); in Stripe's
+    // rare documented processing-cancel case the in-flight payment is
+    // interrupted instead - still never charged, no double charge
+    // possible (a canceled PI can never capture), and the payer's
+    // next submit heals.
+    await deps.cancel(piId);
+    await deps.releaseByPi(piId);
+    return { outcome: 'released' };
+  } catch {
+    return { outcome: 'failure' };
+  }
+}
+
+async function reconcileSkateHolds(input: {
   eventId: string;
   partnerId: string;
+  onlyExpired: boolean;
+  // Claim tokens this request owns (checkout-ownership cookie). Only
+  // holds carrying one of these tokens may be canceled or resumed;
+  // undefined (the expired-hold reconciler) means age already proved
+  // abandonment, so every expired row is treated as owned.
+  ownedClaimTokens?: string[];
+  // When set, an owned unexpired still-payable PI with exactly this
+  // amount is RESUMED (same PI returned) instead of canceled.
+  resumeAmountCents?: number;
 }): Promise<SkateReconcileResult> {
   const supabase = createAdminClient();
-  const { data: rows, error } = await supabase
+  let query = supabase
     .from('chai_event_skate_reservations')
-    .select('id, claim_token, payment_intent_id')
+    .select('id, claim_token, payment_intent_id, expires_at')
     .eq('event_id', input.eventId)
     .eq('partner_id', input.partnerId)
-    .eq('status', 'reserved')
-    .lt('expires_at', new Date().toISOString());
+    .eq('status', 'reserved');
+  if (input.onlyExpired) query = query.lt('expires_at', new Date().toISOString());
+  const { data: rows, error } = await query;
   if (error) {
-    if (isMissingSchema(error)) return { supported: false, failures: 0 };
+    if (isMissingSchema(error)) return { supported: false, failures: 0, pending: 0, resumes: [] };
     console.error('[skate-allowance] reconcile query failed:', error.message);
-    return { supported: true, failures: 1 };
+    return { supported: true, failures: 1, pending: 0, resumes: [] };
   }
   let failures = 0;
+  let pending = 0;
+  const resumes: SkateReconcileResult['resumes'] = [];
+  // Rows of one claim share a payment_intent_id: process each PI once.
+  const seenPi = new Set<string>();
+  const now = Date.now();
   for (const row of rows ?? []) {
     const piId = (row.payment_intent_id as string | null) || null;
     if (!piId) {
       await releaseSkateAllowance({ claimToken: String(row.claim_token) });
       continue;
     }
-    try {
-      const pi = await stripe.paymentIntents.retrieve(piId);
-      if (pi.status === 'succeeded') {
-        await consumeSkateAllowance(piId);
-        console.error(
-          `[skate-allowance] paid PI ${piId} had no persisted registration; admin recovery needed`,
-        );
-      } else if (pi.status === 'canceled') {
-        await releaseSkateAllowance({ paymentIntentId: piId });
-      } else if (pi.status === 'processing' || pi.status === 'requires_capture') {
-        // Not safe to cancel/reallocate; leave the hold counting.
-        failures += 1;
-      } else {
-        // requires_payment_method / requires_confirmation / requires_action:
-        // still payable, so cancel to reach a terminal state before release.
-        await stripe.paymentIntents.cancel(piId);
-        await releaseSkateAllowance({ paymentIntentId: piId });
-      }
-    } catch (err) {
-      console.error('[skate-allowance] reconcile failed for PI', piId, err);
+    if (seenPi.has(piId)) continue;
+    seenPi.add(piId);
+    const owned =
+      input.ownedClaimTokens === undefined ||
+      input.ownedClaimTokens.includes(String(row.claim_token));
+    // Per-row expiry (P2c): own-reconcile also heals rows already past
+    // their TTL, without waiting on any scheduled reconciler.
+    const expired =
+      input.onlyExpired ||
+      (row.expires_at ? Date.parse(String(row.expires_at)) <= now : false);
+    const result = await reconcileSkateHoldRow(
+      piId,
+      { expired, owned, resumeAmountCents: input.resumeAmountCents },
+      {
+        retrieve: (id) => stripe.paymentIntents.retrieve(id),
+        cancel: (id) => stripe.paymentIntents.cancel(id),
+        consume: async (id) => {
+          const n = await consumeSkateAllowance(id);
+          if (!n) throw new Error(`consume affected 0 rows for ${id}`);
+        },
+        releaseByPi: async (id) => {
+          const n = await releaseSkateAllowance({ paymentIntentId: id });
+          if (!n) throw new Error(`release affected 0 rows for ${id}`);
+        },
+        onOrphanPaid: (id) =>
+          console.error(
+            `[skate-allowance] paid PI ${id} had no persisted registration; admin recovery needed`,
+          ),
+      },
+    );
+    if (result.outcome === 'pending') pending += 1;
+    else if (result.outcome === 'failure') {
+      console.error('[skate-allowance] reconcile failed for PI', piId);
       failures += 1;
+    } else if (result.outcome === 'resume') {
+      resumes.push({
+        paymentIntentId: result.paymentIntentId,
+        clientSecret: result.clientSecret,
+        claimToken: String(row.claim_token),
+      });
     }
   }
-  return { supported: true, failures };
+  return { supported: true, failures, pending, resumes };
+}
+
+/**
+ * Resolve EXPIRED holds (older than expires_at) against Stripe's live
+ * state before the allowance can re-grant their slots. A hold never
+ * frees by time alone. Kept for paths that must not touch a hold a
+ * payer could still be completing.
+ */
+export async function reconcileExpiredSkateHolds(input: {
+  eventId: string;
+  partnerId: string;
+}): Promise<SkateReconcileResult> {
+  return reconcileSkateHolds({ ...input, onlyExpired: true });
+}
+
+/**
+ * Resolve the member's OWN reserved holds for this event, expired or
+ * not. Called from the payment-intent route AFTER identity match, so a
+ * retrying member is never blocked by their own unfinished or failed
+ * checkout ("already used" means a completed paid registration only).
+ * A hold whose payment is actively processing is left in place and
+ * reported as pending - never canceled under a possible payer.
+ */
+export async function reconcileOwnSkateHolds(input: {
+  eventId: string;
+  partnerId: string;
+  ownedClaimTokens: string[];
+  resumeAmountCents?: number;
+}): Promise<SkateReconcileResult> {
+  return reconcileSkateHolds({ ...input, onlyExpired: false });
 }

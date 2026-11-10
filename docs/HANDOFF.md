@@ -150,3 +150,46 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   0.03 -> 0.15 in src/lib/events/paid-event-pricing.ts; UI copy updated.
   Card processing fee (3%) untouched.
 - Checks: privacy gate clean; Vercel preview build + live form probe.
+
+## Discount-code retry fix: resume owned checkouts, paid-only "used" (2026-11-09)
+- Bug: an unfinished checkout (never charged / card failed) left a reserved
+  hold that verification counted as usage, so every retry said "already
+  used" and locked the member out (seen live twice tonight on one family).
+- Rule (user, WhatsApp): "already used" means a completed PAID registration
+  only; unfinished/failed must not block; a processing payment gets an
+  accurate in-progress reply, never a false "already used".
+- Fix (PR #22, squash 6af0345):
+  - Verify counts consumed (paid) holds only - Chai + Hebrew Adventure.
+  - Per-request reconcile of the code owner's own holds against live Stripe
+    state before verify/claim: succeeded -> consume, canceled/unbound ->
+    release, processing/requires_capture -> pending (never canceled),
+    unknown/future status -> pending (never canceled).
+  - OWNERSHIP GATING: the route sets an httpOnly SameSite=Lax claim-token
+    cookie at checkout creation; only a request carrying that token may
+    resume or cancel that checkout. A foreign browser's live checkout is
+    never canceled - it reads "still in progress, wait a few minutes".
+  - RESUME (not cancel) for an owned, unexpired, amount-matching
+    still-payable PI: the route re-verifies held code set + event + amount
+    (recomputed from the actual held rows), then returns the SAME
+    client_secret. No new PI per retry; the leaked-PI loop is gone.
+    Amount-mismatch owned retry: requires_payment_method -> cancel_release;
+    requires_confirmation/action -> pending, heals at hold expiry.
+  - 0-row release/consume RPC writes throw inside reconcile (fail closed);
+    per-row expiry heals TTL-expired rows in own-reconcile. NOTE: no cron
+    exists - the claim RPCs' 24h expires_at exclusion is the abandonment
+    backstop; reconcileExpired* exports remain uncalled legacy.
+  - Post-payment reclaim path no longer invites continuing at full price.
+- Residual (documented, accepted): if a PI moves to processing between
+  retrieve and cancel AND Stripe's rare processing-cancel succeeds, that
+  in-flight payment is interrupted (never charged, no double charge
+  possible; the payer's next submit heals). Cookie-less cross-device retry
+  of an in-flight checkout waits out the 24h TTL with an in-progress
+  message.
+- Checks: 25/25 tests (PGlite migrations 0028-0030 + Stripe-stubbed seam
+  harness incl. resume/race/foreign/unknown-status), tsc clean, privacy
+  gate clean, Vercel preview green on the exact merged head, independent
+  real-code harness review (18/18) by a second agent, post-deploy live
+  read-only verify (HA code confirms 15% off one skater; no "already
+  used"). NOT covered: a real paid retry end to end (first real retry is
+  being watched).
+- Rollback: Vercel Instant Rollback to the pre-merge production deployment.

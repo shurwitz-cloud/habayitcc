@@ -3,7 +3,7 @@ import { stripe } from '@/lib/stripe/server';
 
 /**
  * Race-safe Hebrew Adventure code holds for paid-event discounts
- * (Fire on Ice: 3% off one skater per code).
+ * (Fire on Ice: 15% off one skater per code).
  *
  * DORMANT until migration 0030_hebrew_fair_code_holds is applied:
  * every function detects the missing table/RPC and reports

@@ -17,7 +17,8 @@ import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { skateHoldDisposition } from '../src/lib/events/skate-allowance';
-import { haHoldDisposition } from '../src/lib/events/hebrew-fair-code-holds';
+import { haHoldDisposition, reconcileHebrewFairHoldRow } from '../src/lib/events/hebrew-fair-code-holds';
+import { reconcileSkateHoldRow } from '../src/lib/events/skate-allowance';
 
 const EVENT = '11111111-1111-1111-1111-111111111111';
 const PARTNER = '22222222-2222-2222-2222-222222222222';
@@ -115,6 +116,103 @@ test('paid -> consume, canceled -> release, never bound -> release', () => {
     assert.equal(haHoldDisposition('canceled', { expired, owned: true }), 'release');
     assert.equal(haHoldDisposition(null, { expired, owned: true }), 'release');
   }
+});
+
+
+// ---------- 1b. Stripe-stubbed reconcile-row harness (injected deps) ----------
+
+test('owned retry: cancel then release, in that order', async () => {
+  const order: string[] = [];
+  const outcome = await reconcileSkateHoldRow('pi_x', { expired: false, owned: true }, {
+    retrieve: async () => ({ status: 'requires_payment_method' }),
+    cancel: async () => { order.push('cancel'); },
+    consume: async () => { order.push('consume'); },
+    releaseByPi: async () => { order.push('release'); },
+  });
+  assert.equal(outcome, 'released');
+  assert.deepEqual(order, ['cancel', 'release']);
+});
+
+test('retrieve-cancel race: PI moved to processing, cancel throws -> failure, hold NOT released', async () => {
+  const order: string[] = [];
+  const outcome = await reconcileSkateHoldRow('pi_x', { expired: false, owned: true }, {
+    retrieve: async () => ({ status: 'requires_payment_method' }),
+    cancel: async () => { order.push('cancel'); throw new Error('You cannot cancel a PaymentIntent that is processing.'); },
+    consume: async () => { order.push('consume'); },
+    releaseByPi: async () => { order.push('release'); },
+  });
+  assert.equal(outcome, 'failure');
+  assert.deepEqual(order, ['cancel']); // release never attempted
+});
+
+test('processing at retrieve: pending, cancel never called (double-charge protection)', async () => {
+  for (const status of ['processing', 'requires_capture', 'requires_confirmation', 'requires_action']) {
+    let canceled = false;
+    const outcome = await reconcileSkateHoldRow('pi_x', { expired: false, owned: true }, {
+      retrieve: async () => ({ status }),
+      cancel: async () => { canceled = true; },
+      consume: async () => undefined,
+      releaseByPi: async () => undefined,
+    });
+    assert.equal(outcome, 'pending', status);
+    assert.equal(canceled, false, status);
+  }
+});
+
+test('foreign live checkout: pending, cancel never called even though never charged', async () => {
+  let canceled = false;
+  const outcome = await reconcileSkateHoldRow('pi_x', { expired: false, owned: false }, {
+    retrieve: async () => ({ status: 'requires_payment_method' }),
+    cancel: async () => { canceled = true; },
+    consume: async () => undefined,
+    releaseByPi: async () => undefined,
+  });
+  assert.equal(outcome, 'pending');
+  assert.equal(canceled, false);
+});
+
+test('retrieve failure (unknown Stripe state) fails closed: no cancel, no release', async () => {
+  const order: string[] = [];
+  const outcome = await reconcileSkateHoldRow('pi_x', { expired: false, owned: true }, {
+    retrieve: async () => { throw new Error('stripe unreachable'); },
+    cancel: async () => { order.push('cancel'); },
+    consume: async () => { order.push('consume'); },
+    releaseByPi: async () => { order.push('release'); },
+  });
+  assert.equal(outcome, 'failure');
+  assert.deepEqual(order, []);
+});
+
+test('paid-before-persist: succeeded -> consumed (+ orphan log)', async () => {
+  const order: string[] = [];
+  const outcome = await reconcileSkateHoldRow('pi_x', { expired: false, owned: true }, {
+    retrieve: async () => ({ status: 'succeeded' }),
+    cancel: async () => { order.push('cancel'); },
+    consume: async () => { order.push('consume'); },
+    releaseByPi: async () => { order.push('release'); },
+    onOrphanPaid: () => { order.push('orphan-log'); },
+  });
+  assert.equal(outcome, 'consumed');
+  assert.deepEqual(order, ['consume', 'orphan-log']);
+});
+
+test('HA row harness: race + foreign behave identically', async () => {
+  let canceled = false;
+  const race = await reconcileHebrewFairHoldRow('pi_x', { expired: false, owned: true }, {
+    retrieve: async () => ({ status: 'requires_payment_method' }),
+    cancel: async () => { canceled = true; throw new Error('processing'); },
+    consume: async () => undefined,
+    releaseByPi: async () => undefined,
+  });
+  assert.equal(race, 'failure');
+  const foreign = await reconcileHebrewFairHoldRow('pi_x', { expired: false, owned: false }, {
+    retrieve: async () => ({ status: 'requires_payment_method' }),
+    cancel: async () => { canceled = true; },
+    consume: async () => undefined,
+    releaseByPi: async () => undefined,
+  });
+  assert.equal(foreign, 'pending');
+  assert.equal(canceled, true); // only the race attempt called cancel; foreign never did
 });
 
 // ---------- 2. RPC invariants over PGlite ----------

@@ -232,6 +232,53 @@ export function skateHoldDisposition(
   return opts.expired ? 'cancel_release' : 'pending';
 }
 
+
+// Injectable seam for one hold row: the disposition decision plus its
+// side effects, with the Stripe/DB clients supplied by the caller so
+// tests can stub retrieve/cancel races (e.g. a PI that transitions to
+// processing between retrieve and cancel -> cancel throws -> failure,
+// hold left intact).
+export interface SkateHoldRowDeps {
+  retrieve: (piId: string) => Promise<{ status: string }>;
+  cancel: (piId: string) => Promise<unknown>;
+  consume: (piId: string) => Promise<unknown>;
+  releaseByPi: (piId: string) => Promise<unknown>;
+  onOrphanPaid?: (piId: string) => void;
+}
+
+export async function reconcileSkateHoldRow(
+  piId: string,
+  opts: { expired: boolean; owned: boolean },
+  deps: SkateHoldRowDeps,
+): Promise<'consumed' | 'released' | 'pending' | 'failure'> {
+  try {
+    const pi = await deps.retrieve(piId);
+    const disposition = skateHoldDisposition(pi.status, opts);
+    if (disposition === 'consume') {
+      await deps.consume(piId);
+      deps.onOrphanPaid?.(piId);
+      return 'consumed';
+    }
+    if (disposition === 'release') {
+      await deps.releaseByPi(piId);
+      return 'released';
+    }
+    if (disposition === 'pending') {
+      // Not safe to cancel/reallocate; leave the hold counting.
+      return 'pending';
+    }
+    // Unfinished and never charged: cancel to a terminal state, then
+    // release. Never charged means no refund is involved. If the PI
+    // moved to processing/paid since retrieve, Stripe's cancel throws
+    // here and the whole row reports failure (hold left intact).
+    await deps.cancel(piId);
+    await deps.releaseByPi(piId);
+    return 'released';
+  } catch {
+    return 'failure';
+  }
+}
+
 async function reconcileSkateHolds(input: {
   eventId: string;
   partnerId: string;
@@ -264,33 +311,26 @@ async function reconcileSkateHolds(input: {
       await releaseSkateAllowance({ claimToken: String(row.claim_token) });
       continue;
     }
-    try {
-      const pi = await stripe.paymentIntents.retrieve(piId);
-      const owned =
-        input.ownedClaimTokens === undefined ||
-        input.ownedClaimTokens.includes(String(row.claim_token));
-      const disposition = skateHoldDisposition(pi.status, {
-        expired: input.onlyExpired,
-        owned,
-      });
-      if (disposition === 'consume') {
-        await consumeSkateAllowance(piId);
-        console.error(
-          `[skate-allowance] paid PI ${piId} had no persisted registration; admin recovery needed`,
-        );
-      } else if (disposition === 'release') {
-        await releaseSkateAllowance({ paymentIntentId: piId });
-      } else if (disposition === 'pending') {
-        // Not safe to cancel/reallocate; leave the hold counting.
-        pending += 1;
-      } else {
-        // Unfinished and never charged: cancel to a terminal state,
-        // then release. Never charged means no refund is involved.
-        await stripe.paymentIntents.cancel(piId);
-        await releaseSkateAllowance({ paymentIntentId: piId });
-      }
-    } catch (err) {
-      console.error('[skate-allowance] reconcile failed for PI', piId, err);
+    const owned =
+      input.ownedClaimTokens === undefined ||
+      input.ownedClaimTokens.includes(String(row.claim_token));
+    const outcome = await reconcileSkateHoldRow(
+      piId,
+      { expired: input.onlyExpired, owned },
+      {
+        retrieve: (id) => stripe.paymentIntents.retrieve(id),
+        cancel: (id) => stripe.paymentIntents.cancel(id),
+        consume: (id) => consumeSkateAllowance(id),
+        releaseByPi: (id) => releaseSkateAllowance({ paymentIntentId: id }),
+        onOrphanPaid: (id) =>
+          console.error(
+            `[skate-allowance] paid PI ${id} had no persisted registration; admin recovery needed`,
+          ),
+      },
+    );
+    if (outcome === 'pending') pending += 1;
+    else if (outcome === 'failure') {
+      console.error('[skate-allowance] reconcile failed for PI', piId);
       failures += 1;
     }
   }

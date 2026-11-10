@@ -205,6 +205,45 @@ export function haHoldDisposition(
  *    the hold (fail closed, caller reports pending/unverified instead
  *    of granting).
  */
+
+// Same injectable seam as the skate reconcile: decision + side effects
+// for one hold row with stubbed Stripe/DB clients in tests.
+export interface HaHoldRowDeps {
+  retrieve: (piId: string) => Promise<{ status: string }>;
+  cancel: (piId: string) => Promise<unknown>;
+  consume: (piId: string) => Promise<unknown>;
+  releaseByPi: (piId: string) => Promise<unknown>;
+  onOrphanPaid?: (piId: string) => void;
+}
+
+export async function reconcileHebrewFairHoldRow(
+  piId: string,
+  opts: { expired: boolean; owned: boolean },
+  deps: HaHoldRowDeps,
+): Promise<'consumed' | 'released' | 'pending' | 'failure'> {
+  try {
+    const pi = await deps.retrieve(piId);
+    const disposition = haHoldDisposition(pi.status, opts);
+    if (disposition === 'consume') {
+      await deps.consume(piId);
+      deps.onOrphanPaid?.(piId);
+      return 'consumed';
+    }
+    if (disposition === 'release') {
+      await deps.releaseByPi(piId);
+      return 'released';
+    }
+    if (disposition === 'pending') return 'pending';
+    // If the PI moved to processing/paid since retrieve, Stripe's
+    // cancel throws here and the row reports failure (hold intact).
+    await deps.cancel(piId);
+    await deps.releaseByPi(piId);
+    return 'released';
+  } catch {
+    return 'failure';
+  }
+}
+
 async function reconcileHebrewFairCodeHolds(input: {
   eventId: string;
   registrationId: string;
@@ -236,33 +275,26 @@ async function reconcileHebrewFairCodeHolds(input: {
       await releaseHebrewFairCodeHolds({ claimToken: String(row.claim_token) });
       continue;
     }
-    try {
-      const pi = await stripe.paymentIntents.retrieve(piId);
-      const owned =
-        input.ownedClaimTokens === undefined ||
-        input.ownedClaimTokens.includes(String(row.claim_token));
-      const disposition = haHoldDisposition(pi.status, {
-        expired: input.onlyExpired,
-        owned,
-      });
-      if (disposition === 'consume') {
-        await consumeHebrewFairCodeHolds(piId);
-        console.error(
-          `[ha-code-holds] paid PI ${piId} had no persisted registration; admin recovery needed`,
-        );
-      } else if (disposition === 'release') {
-        await releaseHebrewFairCodeHolds({ paymentIntentId: piId });
-      } else if (disposition === 'pending') {
-        // Not safe to cancel/reallocate; leave the hold counting.
-        pending += 1;
-      } else {
-        // Unfinished and never charged: cancel to a terminal state,
-        // then release. Never charged means no refund is involved.
-        await stripe.paymentIntents.cancel(piId);
-        await releaseHebrewFairCodeHolds({ paymentIntentId: piId });
-      }
-    } catch (err) {
-      console.error('[ha-code-holds] reconcile failed for PI', piId, err);
+    const owned =
+      input.ownedClaimTokens === undefined ||
+      input.ownedClaimTokens.includes(String(row.claim_token));
+    const outcome = await reconcileHebrewFairHoldRow(
+      piId,
+      { expired: input.onlyExpired, owned },
+      {
+        retrieve: (id) => stripe.paymentIntents.retrieve(id),
+        cancel: (id) => stripe.paymentIntents.cancel(id),
+        consume: (id) => consumeHebrewFairCodeHolds(id),
+        releaseByPi: (id) => releaseHebrewFairCodeHolds({ paymentIntentId: id }),
+        onOrphanPaid: (id) =>
+          console.error(
+            `[ha-code-holds] paid PI ${id} had no persisted registration; admin recovery needed`,
+          ),
+      },
+    );
+    if (outcome === 'pending') pending += 1;
+    else if (outcome === 'failure') {
+      console.error('[ha-code-holds] reconcile failed for PI', piId);
       failures += 1;
     }
   }

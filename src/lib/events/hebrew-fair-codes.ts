@@ -169,14 +169,18 @@ export async function verifyHebrewFairCode(
         };
       }
 
-      // An active discount hold (migration 0030) also makes the code
-      // unavailable. Tolerates the table being absent pre-migration.
+      // A CONSUMED discount hold (paid registration, migration 0030)
+      // also makes the code unavailable. An unfinished or failed
+      // checkout (reserved rows) does NOT count as used: the
+      // payment-intent route reconciles the code's own holds against
+      // Stripe and releases the unpaid ones before claiming. Tolerates
+      // the table being absent pre-migration.
       const { data: hold, error: holdError } = await supabase
         .from('hebrew_fair_code_holds')
         .select('id')
         .eq('program_registration_id', reg.id)
         .eq('event_id', event.id)
-        .in('status', ['reserved', 'consumed'])
+        .eq('status', 'consumed')
         .maybeSingle();
       const holdsMissing =
         holdError &&

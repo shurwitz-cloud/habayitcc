@@ -35,7 +35,7 @@ import {
   bindHebrewFairCodePayment,
   claimHebrewFairCodeHold,
   getHeldHebrewFairCodeClaims,
-  reconcileExpiredHebrewFairCodeHolds,
+  reconcileOwnHebrewFairCodeHolds,
   releaseHebrewFairCodeHolds,
 } from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
@@ -399,11 +399,18 @@ export async function submitPaidEventRegistration(
                       : 'This Hebrew Adventure code is not valid.';
                 return await failHa(reasonMsg);
               }
-              const reconcile = await reconcileExpiredHebrewFairCodeHolds({
+              // This code's own holds are reconciled against Stripe
+              // first (a hold never frees by time alone, and a
+              // never-charged checkout is canceled to a terminal state
+              // before release); migration 0030 missing or unreconciled
+              // state fails closed. This PI is already PAID, so the
+              // re-claim below must not be blocked by the code's own
+              // abandoned checkouts.
+              const reconcile = await reconcileOwnHebrewFairCodeHolds({
                 eventId: haEventId,
                 registrationId: lookup.registrationId,
               });
-              if (!reconcile.supported || reconcile.failures > 0) {
+              if (!reconcile.supported || reconcile.failures > 0 || reconcile.pending > 0) {
                 return await failHa(
                   'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
                 );
@@ -420,7 +427,11 @@ export async function submitPaidEventRegistration(
                 );
               }
               if (!claim.claimed) {
-                return await failHa('This Hebrew Adventure code was already used for this event.');
+                // Own holds were reconciled above; a refused claim means
+                // a competing checkout with the same code is in flight.
+                return await failHa(
+                  'A payment with this Hebrew Adventure code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.',
+                );
               }
               claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });
             }

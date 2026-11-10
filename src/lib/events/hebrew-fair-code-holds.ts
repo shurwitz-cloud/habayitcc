@@ -157,38 +157,70 @@ export interface HaCodeReconcileResult {
   supported: boolean;
   /** Holds whose Stripe state could not be determined. Fail closed. */
   failures: number;
+  /** Holds whose payment is actively processing/confirming: protect
+   *  from a duplicate charge by leaving the hold in place and telling
+   *  the registrant the payment is still processing (not "already
+   *  used"). */
+  pending: number;
 }
 
 /**
- * Resolve EXPIRED holds (older than expires_at) for one code against
- * Stripe's live state before the code can be re-granted. A hold never
- * frees by time alone:
+ * What to do with a reserved hold given its payment intent's live
+ * state. Mirrors skateHoldDisposition in skate-allowance.ts: for the
+ * code's OWN current retry (unexpired hold), a PI that is actively
+ * being confirmed (requires_confirmation / requires_action) is treated
+ * as pending - someone may be mid-payment on it right now. For an
+ * EXPIRED hold those states are canceled to reach a terminal state
+ * before release, as before: a payable intent is never left dangling
+ * past the hold's life.
+ */
+export function haHoldDisposition(
+  piStatus: string | null,
+  opts: { expired: boolean },
+): 'consume' | 'release' | 'cancel_release' | 'pending' {
+  if (piStatus === null) return 'release';
+  if (piStatus === 'succeeded') return 'consume';
+  if (piStatus === 'canceled') return 'release';
+  if (piStatus === 'requires_payment_method') return 'cancel_release';
+  if (piStatus === 'processing' || piStatus === 'requires_capture') return 'pending';
+  // requires_confirmation / requires_action
+  return opts.expired ? 'cancel_release' : 'pending';
+}
+
+/**
+ * Resolve holds for one code against Stripe's live state before the
+ * code can be re-granted. A hold never frees by time alone:
  *  - never bound to a payment intent -> nothing was payable, release;
  *  - PI succeeded -> consume (payment exists; registration recovery is
  *    handled by the existing admin tooling) and log loudly;
  *  - PI canceled -> release;
- *  - PI still payable -> CANCEL it (terminal), then release;
- *  - PI processing / Stripe unreachable -> leave the hold (fail closed,
- *    caller reports unverified instead of granting).
+ *  - PI unfinished and never charged (requires_payment_method) ->
+ *    cancel to a terminal state, then release (no refund is involved);
+ *  - PI processing / actively confirming / Stripe unreachable -> leave
+ *    the hold (fail closed, caller reports pending/unverified instead
+ *    of granting).
  */
-export async function reconcileExpiredHebrewFairCodeHolds(input: {
+async function reconcileHebrewFairCodeHolds(input: {
   eventId: string;
   registrationId: string;
+  onlyExpired: boolean;
 }): Promise<HaCodeReconcileResult> {
   const supabase = createAdminClient();
-  const { data: rows, error } = await supabase
+  let query = supabase
     .from('hebrew_fair_code_holds')
     .select('id, claim_token, payment_intent_id')
     .eq('event_id', input.eventId)
     .eq('program_registration_id', input.registrationId)
-    .eq('status', 'reserved')
-    .lt('expires_at', new Date().toISOString());
+    .eq('status', 'reserved');
+  if (input.onlyExpired) query = query.lt('expires_at', new Date().toISOString());
+  const { data: rows, error } = await query;
   if (error) {
-    if (isMissingSchema(error)) return { supported: false, failures: 0 };
+    if (isMissingSchema(error)) return { supported: false, failures: 0, pending: 0 };
     console.error('[ha-code-holds] reconcile query failed:', error.message);
-    return { supported: true, failures: 1 };
+    return { supported: true, failures: 1, pending: 0 };
   }
   let failures = 0;
+  let pending = 0;
   for (const row of rows ?? []) {
     const piId = (row.payment_intent_id as string | null) || null;
     if (!piId) {
@@ -197,19 +229,20 @@ export async function reconcileExpiredHebrewFairCodeHolds(input: {
     }
     try {
       const pi = await stripe.paymentIntents.retrieve(piId);
-      if (pi.status === 'succeeded') {
+      const disposition = haHoldDisposition(pi.status, { expired: input.onlyExpired });
+      if (disposition === 'consume') {
         await consumeHebrewFairCodeHolds(piId);
         console.error(
           `[ha-code-holds] paid PI ${piId} had no persisted registration; admin recovery needed`,
         );
-      } else if (pi.status === 'canceled') {
+      } else if (disposition === 'release') {
         await releaseHebrewFairCodeHolds({ paymentIntentId: piId });
-      } else if (pi.status === 'processing' || pi.status === 'requires_capture') {
+      } else if (disposition === 'pending') {
         // Not safe to cancel/reallocate; leave the hold counting.
-        failures += 1;
+        pending += 1;
       } else {
-        // requires_payment_method / requires_confirmation / requires_action:
-        // still payable, so cancel to reach a terminal state before release.
+        // Unfinished and never charged: cancel to a terminal state,
+        // then release. Never charged means no refund is involved.
         await stripe.paymentIntents.cancel(piId);
         await releaseHebrewFairCodeHolds({ paymentIntentId: piId });
       }
@@ -218,5 +251,31 @@ export async function reconcileExpiredHebrewFairCodeHolds(input: {
       failures += 1;
     }
   }
-  return { supported: true, failures };
+  return { supported: true, failures, pending };
+}
+
+/**
+ * Resolve EXPIRED holds (older than expires_at) for one code. Kept for
+ * paths that must not touch a hold a payer could still be completing.
+ */
+export async function reconcileExpiredHebrewFairCodeHolds(input: {
+  eventId: string;
+  registrationId: string;
+}): Promise<HaCodeReconcileResult> {
+  return reconcileHebrewFairCodeHolds({ ...input, onlyExpired: true });
+}
+
+/**
+ * Resolve the code's OWN reserved holds for this event, expired or not.
+ * Called from the payment-intent route with the verified code, so a
+ * retrying registrant is never blocked by their own unfinished or
+ * failed checkout ("already used" means a completed paid registration
+ * only). A hold whose payment is actively processing is left in place
+ * and reported as pending - never canceled under a possible payer.
+ */
+export async function reconcileOwnHebrewFairCodeHolds(input: {
+  eventId: string;
+  registrationId: string;
+}): Promise<HaCodeReconcileResult> {
+  return reconcileHebrewFairCodeHolds({ ...input, onlyExpired: false });
 }

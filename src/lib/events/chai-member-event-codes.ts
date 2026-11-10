@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { skateAllowanceUsed } from '@/lib/events/skate-allowance';
+import { skateAllowanceConsumed } from '@/lib/events/skate-allowance';
 
 export function normalizeMemberCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/\s+/g, '');
@@ -238,10 +238,14 @@ export async function verifySkateMemberCode(
     return { valid: false, reason: 'identity_mismatch', partnerId: partner.id, code };
   }
 
-  // One discounted reservation per member per event: ANY prior use (held
-  // or consumed slots in the reservation table once migration 0028 is
-  // applied, or a member-priced registration before that) means the code
-  // was already used. A real error in both sources means unverified.
+  // One discounted reservation per member per event: "already used"
+  // means a COMPLETED PAID registration only (consumed slots in the
+  // reservation table once migration 0028 is applied, or a member-priced
+  // registration before that). An unfinished or failed checkout
+  // (reserved slots) never counts as used - the payment-intent route
+  // reconciles the member's own holds against Stripe and releases the
+  // unpaid ones before claiming. A real error in both sources means
+  // unverified.
   let used: number | null = null;
   const { data: eventRow } = await supabase
     .from('events')
@@ -249,7 +253,7 @@ export async function verifySkateMemberCode(
     .eq('slug', options.eventSlug)
     .maybeSingle();
   if (eventRow?.id) {
-    used = await skateAllowanceUsed({ eventId: eventRow.id, partnerId: partner.id });
+    used = await skateAllowanceConsumed({ eventId: eventRow.id, partnerId: partner.id });
   }
   if (used === null) {
     used = await skateMemberPeopleUsed(code, options.eventSlug);

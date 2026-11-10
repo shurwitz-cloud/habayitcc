@@ -24,13 +24,13 @@ import {
 import {
   bindSkateAllowancePayment,
   claimSkateAllowance,
-  reconcileExpiredSkateHolds,
+  reconcileOwnSkateHolds,
   releaseSkateAllowance,
 } from '@/lib/events/skate-allowance';
 import {
   bindHebrewFairCodePayment,
   claimHebrewFairCodeHold,
-  reconcileExpiredHebrewFairCodeHolds,
+  reconcileOwnHebrewFairCodeHolds,
   releaseHebrewFairCodeHolds,
 } from '@/lib/events/hebrew-fair-code-holds';
 import { ensureEventBySlug } from '@/lib/events/sync';
@@ -162,18 +162,26 @@ export async function POST(req: NextRequest) {
         };
         let lookup = await verifySkateMemberCode(rawCode, verifyInput);
         if (lookup.partnerId && eventId) {
-          // Code verification ignores EXPIRED holds (so an abandoned
-          // checkout does not lock the member out), but the atomic claim
-          // counts every reserved row. Reconcile expired holds against
-          // Stripe's live state FIRST (terminal states only, never
-          // time-freed), then verify once more, so the two can never
-          // disagree: a succeeded payment is consumed (verify then
-          // reports the code as used), a canceled one is released, and
-          // any unreconciled state fails closed without a discount.
-          const reconcile = await reconcileExpiredSkateHolds({
+          // Code verification counts only PAID usage (so an abandoned
+          // checkout never locks the member out), but the atomic claim
+          // counts every reserved row. Reconcile the member's OWN holds
+          // against Stripe's live state FIRST (never time-freed): a
+          // succeeded payment is consumed (verify then reports the code
+          // as used), a canceled or never-charged one is canceled to a
+          // terminal state and released, and a payment still processing
+          // is left in place with an accurate "still processing" reply -
+          // never a false "already used". Any unreconciled state fails
+          // closed without a discount.
+          const reconcile = await reconcileOwnSkateHolds({
             eventId,
             partnerId: lookup.partnerId,
           });
+          if (reconcile.supported && reconcile.pending > 0) {
+            return NextResponse.json(
+              { error: 'A payment with this Chai code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.' },
+              { status: 400 },
+            );
+          }
           if (reconcile.supported && reconcile.failures > 0) {
             return NextResponse.json(
               { error: 'We could not verify your Chai code right now. Please try again in a moment, or continue without the code at full price.' },
@@ -221,9 +229,13 @@ export async function POST(req: NextRequest) {
             );
           }
           if (claim.claimed < SKATE_MEMBER_PEOPLE_LIMIT) {
+            // The member's own holds were just reconciled above, so a
+            // partial grant means a COMPETING checkout on the same
+            // account is holding slots right now. Release the partial
+            // claim and say so accurately - not "already used".
             await releaseSkateAllowance({ claimToken: token });
             return NextResponse.json(
-              { error: 'This Chai code was already used for this event.' },
+              { error: 'A payment with this Chai code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.' },
               { status: 400 },
             );
           }
@@ -279,13 +291,19 @@ export async function POST(req: NextRequest) {
                     : 'This Hebrew Adventure code is not valid.';
               return await failHa(reasonMsg);
             }
-            // Expired holds for this code are reconciled against Stripe
-            // first (a hold never frees by time alone); migration 0030
-            // missing or unreconciled state fails closed.
-            const reconcile = await reconcileExpiredHebrewFairCodeHolds({
+            // This code's own holds are reconciled against Stripe first
+            // (a hold never frees by time alone, and a never-charged
+            // checkout is canceled to a terminal state before release);
+            // migration 0030 missing or unreconciled state fails closed.
+            const reconcile = await reconcileOwnHebrewFairCodeHolds({
               eventId: eventId as string,
               registrationId: lookup.registrationId,
             });
+            if (reconcile.supported && reconcile.pending > 0) {
+              return await failHa(
+                'A payment with this Hebrew Adventure code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.',
+              );
+            }
             if (!reconcile.supported || reconcile.failures > 0) {
               return await failHa(
                 'We could not verify your Hebrew Adventure code right now. Please try again in a moment, or continue without the code at full price.',
@@ -303,7 +321,12 @@ export async function POST(req: NextRequest) {
               );
             }
             if (!claim.claimed) {
-              return await failHa('This Hebrew Adventure code was already used for this event.');
+              // The code's own holds were just reconciled above, so a
+              // refused claim means a COMPETING checkout with the same
+              // code is holding it right now - say so accurately.
+              return await failHa(
+                'A payment with this Hebrew Adventure code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.',
+              );
             }
             claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });
           }

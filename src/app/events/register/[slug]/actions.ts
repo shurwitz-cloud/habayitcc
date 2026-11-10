@@ -433,7 +433,7 @@ export async function submitPaidEventRegistration(
                 // Own holds were reconciled above; a refused claim means
                 // a competing checkout with the same code is in flight.
                 return await failHa(
-                  'A payment with this Hebrew Adventure code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.',
+                  'A checkout with this Hebrew Adventure code is still in progress. Please wait a few minutes, then try again.',
                 );
               }
               claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });

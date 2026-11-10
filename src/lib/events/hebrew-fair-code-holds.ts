@@ -176,12 +176,17 @@ export interface HaCodeReconcileResult {
  */
 export function haHoldDisposition(
   piStatus: string | null,
-  opts: { expired: boolean },
+  opts: { expired: boolean; owned: boolean },
 ): 'consume' | 'release' | 'cancel_release' | 'pending' {
   if (piStatus === null) return 'release';
   if (piStatus === 'succeeded') return 'consume';
   if (piStatus === 'canceled') return 'release';
-  if (piStatus === 'requires_payment_method') return 'cancel_release';
+  if (piStatus === 'requires_payment_method') {
+    // Also the state of a checkout whose payer is ACTIVELY entering
+    // card details in another browser: cancel only with proof this
+    // request owns that checkout (its claim-token cookie).
+    return opts.owned ? 'cancel_release' : 'pending';
+  }
   if (piStatus === 'processing' || piStatus === 'requires_capture') return 'pending';
   // requires_confirmation / requires_action
   return opts.expired ? 'cancel_release' : 'pending';
@@ -204,6 +209,10 @@ async function reconcileHebrewFairCodeHolds(input: {
   eventId: string;
   registrationId: string;
   onlyExpired: boolean;
+  // Claim tokens this request owns (checkout-ownership cookie); only
+  // matching holds may be canceled. Undefined (hourly expired
+  // reconciler) means age already proved abandonment.
+  ownedClaimTokens?: string[];
 }): Promise<HaCodeReconcileResult> {
   const supabase = createAdminClient();
   let query = supabase
@@ -229,7 +238,13 @@ async function reconcileHebrewFairCodeHolds(input: {
     }
     try {
       const pi = await stripe.paymentIntents.retrieve(piId);
-      const disposition = haHoldDisposition(pi.status, { expired: input.onlyExpired });
+      const owned =
+        input.ownedClaimTokens === undefined ||
+        input.ownedClaimTokens.includes(String(row.claim_token));
+      const disposition = haHoldDisposition(pi.status, {
+        expired: input.onlyExpired,
+        owned,
+      });
       if (disposition === 'consume') {
         await consumeHebrewFairCodeHolds(piId);
         console.error(
@@ -276,6 +291,7 @@ export async function reconcileExpiredHebrewFairCodeHolds(input: {
 export async function reconcileOwnHebrewFairCodeHolds(input: {
   eventId: string;
   registrationId: string;
+  ownedClaimTokens: string[];
 }): Promise<HaCodeReconcileResult> {
   return reconcileHebrewFairCodeHolds({ ...input, onlyExpired: false });
 }

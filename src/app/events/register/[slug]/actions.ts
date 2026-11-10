@@ -1,5 +1,6 @@
 'use server';
 
+import { cookies } from 'next/headers';
 import {
   computePaidEventTotal,
   totalToCents,
@@ -406,9 +407,11 @@ export async function submitPaidEventRegistration(
               // state fails closed. This PI is already PAID, so the
               // re-claim below must not be blocked by the code's own
               // abandoned checkouts.
+              const ownedHaToken = (await cookies()).get('ha_claim_token')?.value;
               const reconcile = await reconcileOwnHebrewFairCodeHolds({
                 eventId: haEventId,
                 registrationId: lookup.registrationId,
+                ownedClaimTokens: ownedHaToken ? [ownedHaToken] : [],
               });
               if (!reconcile.supported || reconcile.failures > 0 || reconcile.pending > 0) {
                 return await failHa(

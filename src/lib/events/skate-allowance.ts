@@ -213,14 +213,22 @@ export type SkateHoldDisposition =
  */
 export function skateHoldDisposition(
   piStatus: string | null,
-  opts: { expired: boolean },
+  opts: { expired: boolean; owned: boolean },
 ): SkateHoldDisposition {
   if (piStatus === null) return 'release';
   if (piStatus === 'succeeded') return 'consume';
   if (piStatus === 'canceled') return 'release';
-  if (piStatus === 'requires_payment_method') return 'cancel_release';
+  if (piStatus === 'requires_payment_method') {
+    // requires_payment_method is also the state of a checkout whose
+    // payer is ACTIVELY entering card details in another browser.
+    // Cancel only when this request proves it owns that checkout
+    // (its claim-token cookie); a foreign one stays pending.
+    return opts.owned ? 'cancel_release' : 'pending';
+  }
   if (piStatus === 'processing' || piStatus === 'requires_capture') return 'pending';
-  // requires_confirmation / requires_action
+  // requires_confirmation / requires_action: a live payer may be
+  // mid-confirmation - cancel only once the hold is expired (the
+  // hourly reconciler's abandonment proxy).
   return opts.expired ? 'cancel_release' : 'pending';
 }
 
@@ -228,6 +236,11 @@ async function reconcileSkateHolds(input: {
   eventId: string;
   partnerId: string;
   onlyExpired: boolean;
+  // Claim tokens this request owns (checkout-ownership cookie). Only
+  // holds carrying one of these tokens may be canceled; undefined
+  // (the hourly expired reconciler) means age already proved
+  // abandonment, so every expired row is treated as owned.
+  ownedClaimTokens?: string[];
 }): Promise<SkateReconcileResult> {
   const supabase = createAdminClient();
   let query = supabase
@@ -253,7 +266,13 @@ async function reconcileSkateHolds(input: {
     }
     try {
       const pi = await stripe.paymentIntents.retrieve(piId);
-      const disposition = skateHoldDisposition(pi.status, { expired: input.onlyExpired });
+      const owned =
+        input.ownedClaimTokens === undefined ||
+        input.ownedClaimTokens.includes(String(row.claim_token));
+      const disposition = skateHoldDisposition(pi.status, {
+        expired: input.onlyExpired,
+        owned,
+      });
       if (disposition === 'consume') {
         await consumeSkateAllowance(piId);
         console.error(
@@ -302,6 +321,7 @@ export async function reconcileExpiredSkateHolds(input: {
 export async function reconcileOwnSkateHolds(input: {
   eventId: string;
   partnerId: string;
+  ownedClaimTokens: string[];
 }): Promise<SkateReconcileResult> {
   return reconcileSkateHolds({ ...input, onlyExpired: false });
 }

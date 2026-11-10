@@ -23,7 +23,14 @@ const EVENT = '11111111-1111-1111-1111-111111111111';
 const PARTNER = '22222222-2222-2222-2222-222222222222';
 const HA_REG = '33333333-3333-3333-3333-333333333333';
 
+let shared: PGlite | null = null;
+// One PGlite instance per process: six separate instances OOM this
+// environment (SIGKILL). Hold tables are wiped per test instead.
 async function db() {
+  if (shared) {
+    await shared.exec('delete from chai_event_skate_reservations; delete from hebrew_fair_code_holds;');
+    return shared;
+  }
   const pg = new PGlite();
   // Supabase roles the migrations revoke/grant on.
   await pg.exec('create role anon nologin; create role authenticated nologin; create role service_role nologin;');
@@ -52,39 +59,61 @@ async function db() {
   ]) {
     await pg.exec(readFileSync(file, 'utf8'));
   }
+  shared = pg;
   return pg;
 }
 
 // ---------- 1. Disposition matrix (pure) ----------
 
 test('own unfinished checkout (requires_payment_method) -> cancel + release', () => {
-  assert.equal(skateHoldDisposition('requires_payment_method', { expired: false }), 'cancel_release');
-  assert.equal(haHoldDisposition('requires_payment_method', { expired: false }), 'cancel_release');
+  assert.equal(skateHoldDisposition('requires_payment_method', { expired: false, owned: true }), 'cancel_release');
+  assert.equal(haHoldDisposition('requires_payment_method', { expired: false, owned: true }), 'cancel_release');
+});
+
+test('FOREIGN live checkout (requires_payment_method, no ownership proof) -> pending, NEVER canceled', () => {
+  // requires_payment_method is also the state of a checkout whose
+  // payer is actively entering card details in another browser. A
+  // request that cannot prove it owns that checkout (no claim-token
+  // cookie) must leave it alone and report in-progress.
+  assert.equal(skateHoldDisposition('requires_payment_method', { expired: false, owned: false }), 'pending');
+  assert.equal(haHoldDisposition('requires_payment_method', { expired: false, owned: false }), 'pending');
+});
+
+test('terminal states reconcile regardless of ownership (no cancellation involved)', () => {
+  for (const owned of [false, true]) {
+    assert.equal(skateHoldDisposition('succeeded', { expired: false, owned }), 'consume');
+    assert.equal(skateHoldDisposition('canceled', { expired: false, owned }), 'release');
+    assert.equal(haHoldDisposition('succeeded', { expired: false, owned }), 'consume');
+    assert.equal(haHoldDisposition('canceled', { expired: false, owned }), 'release');
+  }
 });
 
 test('own in-flight payment is pending, never canceled under the payer', () => {
   for (const status of ['requires_confirmation', 'requires_action', 'processing', 'requires_capture']) {
-    assert.equal(skateHoldDisposition(status, { expired: false }), 'pending', status);
-    assert.equal(haHoldDisposition(status, { expired: false }), 'pending', status);
+    for (const owned of [false, true]) {
+      assert.equal(skateHoldDisposition(status, { expired: false, owned }), 'pending', status);
+      assert.equal(haHoldDisposition(status, { expired: false, owned }), 'pending', status);
+    }
   }
 });
 
 test('expired still-payable intents are canceled to a terminal state (unchanged)', () => {
   for (const status of ['requires_payment_method', 'requires_confirmation', 'requires_action']) {
-    assert.equal(skateHoldDisposition(status, { expired: true }), 'cancel_release', status);
-    assert.equal(haHoldDisposition(status, { expired: true }), 'cancel_release', status);
+    // the expired reconciler treats age as proof of abandonment
+    assert.equal(skateHoldDisposition(status, { expired: true, owned: true }), 'cancel_release', status);
+    assert.equal(haHoldDisposition(status, { expired: true, owned: true }), 'cancel_release', status);
   }
-  assert.equal(skateHoldDisposition('processing', { expired: true }), 'pending');
+  assert.equal(skateHoldDisposition('processing', { expired: true, owned: true }), 'pending');
 });
 
 test('paid -> consume, canceled -> release, never bound -> release', () => {
   for (const expired of [false, true]) {
-    assert.equal(skateHoldDisposition('succeeded', { expired }), 'consume');
-    assert.equal(skateHoldDisposition('canceled', { expired }), 'release');
-    assert.equal(skateHoldDisposition(null, { expired }), 'release');
-    assert.equal(haHoldDisposition('succeeded', { expired }), 'consume');
-    assert.equal(haHoldDisposition('canceled', { expired }), 'release');
-    assert.equal(haHoldDisposition(null, { expired }), 'release');
+    assert.equal(skateHoldDisposition('succeeded', { expired, owned: true }), 'consume');
+    assert.equal(skateHoldDisposition('canceled', { expired, owned: true }), 'release');
+    assert.equal(skateHoldDisposition(null, { expired, owned: true }), 'release');
+    assert.equal(haHoldDisposition('succeeded', { expired, owned: true }), 'consume');
+    assert.equal(haHoldDisposition('canceled', { expired, owned: true }), 'release');
+    assert.equal(haHoldDisposition(null, { expired, owned: true }), 'release');
   }
 });
 
@@ -113,6 +142,31 @@ test('retry after released checkout: full entitlement re-claims', async () => {
     [EVENT, PARTNER, 'HABAYIT-TEST', 6, 'token-2', 6],
   );
   assert.equal(retry.rows[0].claim_skate_allowance, 6);
+});
+
+test('competing browser: foreign token cannot release the live checkout holds', async () => {
+  const pg = await db();
+  // Browser A claims the whole entitlement (live checkout).
+  await pg.query('select claim_skate_allowance($1,$2,$3,$4,$5,$6)', [EVENT, PARTNER, 'HABAYIT-TEST', 6, 'token-A', 6]);
+  // Browser B's reconcile: rows are not in its ownership list, so the
+  // disposition is pending and no release call is made. Prove the DB
+  // level too: releasing by B's token frees nothing.
+  await pg.query('select release_skate_allowance(p_claim_token := $1)', ['token-B']);
+  const rows = await pg.query<{ status: string; claim_token: string }>(
+    "select status, claim_token from chai_event_skate_reservations where event_id = $1 and partner_id = $2",
+    [EVENT, PARTNER],
+  );
+  assert.equal(rows.rows.length, 6);
+  for (const r of rows.rows) {
+    assert.equal(r.status, 'reserved');
+    assert.equal(r.claim_token, 'token-A');
+  }
+  // And B's own claim attempt is refused (shortfall -> in-progress reply).
+  const b = await pg.query<{ claim_skate_allowance: number }>(
+    'select claim_skate_allowance($1,$2,$3,$4,$5,$6)',
+    [EVENT, PARTNER, 'HABAYIT-TEST', 6, 'token-B', 6],
+  );
+  assert.equal(b.rows[0].claim_skate_allowance, 0);
 });
 
 test('changed cart on retry: claim is entitlement-wide, pricing follows the cart', async () => {

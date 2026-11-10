@@ -172,13 +172,19 @@ export async function POST(req: NextRequest) {
           // is left in place with an accurate "still processing" reply -
           // never a false "already used". Any unreconciled state fails
           // closed without a discount.
+          const ownedSkateToken = req.cookies.get('chai_claim_token')?.value;
           const reconcile = await reconcileOwnSkateHolds({
             eventId,
             partnerId: lookup.partnerId,
+            // Only the checkout that owns its claim-token cookie may be
+            // canceled; a live checkout in ANOTHER browser stays
+            // pending instead of being canceled out from under its
+            // payer.
+            ownedClaimTokens: ownedSkateToken ? [ownedSkateToken] : [],
           });
           if (reconcile.supported && reconcile.pending > 0) {
             return NextResponse.json(
-              { error: 'A payment with this Chai code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.' },
+              { error: 'A checkout with this Chai code is still in progress. Please wait a few minutes, then try again.' },
               { status: 400 },
             );
           }
@@ -235,7 +241,7 @@ export async function POST(req: NextRequest) {
             // claim and say so accurately - not "already used".
             await releaseSkateAllowance({ claimToken: token });
             return NextResponse.json(
-              { error: 'A payment with this Chai code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.' },
+              { error: 'A checkout with this Chai code is still in progress. Please wait a few minutes, then try again.' },
               { status: 400 },
             );
           }
@@ -295,13 +301,17 @@ export async function POST(req: NextRequest) {
             // (a hold never frees by time alone, and a never-charged
             // checkout is canceled to a terminal state before release);
             // migration 0030 missing or unreconciled state fails closed.
+            const ownedHaToken = req.cookies.get('ha_claim_token')?.value;
             const reconcile = await reconcileOwnHebrewFairCodeHolds({
               eventId: eventId as string,
               registrationId: lookup.registrationId,
+              // Same ownership rule as the Chai path: never cancel a
+              // checkout this request does not own.
+              ownedClaimTokens: ownedHaToken ? [ownedHaToken] : [],
             });
             if (reconcile.supported && reconcile.pending > 0) {
               return await failHa(
-                'A payment with this Hebrew Adventure code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.',
+                'A checkout with this Hebrew Adventure code is still in progress. Please wait a few minutes, then try again.',
               );
             }
             if (!reconcile.supported || reconcile.failures > 0) {
@@ -325,7 +335,7 @@ export async function POST(req: NextRequest) {
               // refused claim means a COMPETING checkout with the same
               // code is holding it right now - say so accurately.
               return await failHa(
-                'A payment with this Hebrew Adventure code is still processing. Please wait a few minutes, then try again - or continue without the code at full price.',
+                'A checkout with this Hebrew Adventure code is still in progress. Please wait a few minutes, then try again.',
               );
             }
             claimed.push({ registrationId: lookup.registrationId, code: lookup.code ?? code });
@@ -436,10 +446,31 @@ export async function POST(req: NextRequest) {
       await bindHebrewFairCodePayment(haClaim.token, paymentIntent.id);
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
     });
+    // Checkout-ownership proof for a later retry in THIS browser: the
+    // claim token lets the reconcile cancel only this browser's own
+    // abandoned checkout, never a competing live one. httpOnly +
+    // sameSite=lax; expires with the 24h hold TTL.
+    if (skateClaim) {
+      res.cookies.set('chai_claim_token', skateClaim.token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60,
+      });
+    }
+    if (haClaim) {
+      res.cookies.set('ha_claim_token', haClaim.token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60,
+      });
+    }
+    return res;
   } catch (err) {
     console.error('[event-payment-intent]', err);
     return NextResponse.json({ error: 'Failed to initialize payment.' }, { status: 500 });

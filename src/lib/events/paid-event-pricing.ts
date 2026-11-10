@@ -9,14 +9,14 @@ export const COUPLES_MEMBER_TICKET_PRICE = 45;
 export const SKATE_TICKET_PRICE = 20;
 /** Non-skater entry pass: rink admission without skating. */
 export const SKATE_NON_SKATER_PRICE = 7;
-/** Chai member skate discount: 3% off each ticket, people on the reservation. */
-export const SKATE_CHAI_DISCOUNT_RATE = 0.03;
+/** Chai member skate discount: 15% off each ticket, people on the reservation. */
+export const SKATE_CHAI_DISCOUNT_RATE = 0.15;
 export const SKATE_CHAI_SKATER_PRICE =
   Math.round(SKATE_TICKET_PRICE * (1 - SKATE_CHAI_DISCOUNT_RATE) * 100) / 100;
 export const SKATE_CHAI_NON_SKATER_PRICE =
   Math.round(SKATE_NON_SKATER_PRICE * (1 - SKATE_CHAI_DISCOUNT_RATE) * 100) / 100;
-/** Hebrew Adventure event-code discount on skate tickets: 3% off one skater per code. */
-export const SKATE_HA_DISCOUNT_RATE = 0.03;
+/** Hebrew Adventure event-code discount on skate tickets: 15% off one skater per code. */
+export const SKATE_HA_DISCOUNT_RATE = 0.15;
 export const SKATE_HA_TICKET_PRICE =
   Math.round(SKATE_TICKET_PRICE * (1 - SKATE_HA_DISCOUNT_RATE) * 100) / 100;
 

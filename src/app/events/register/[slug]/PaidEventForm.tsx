@@ -972,7 +972,7 @@ function PaidEventFormInner({
                 : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
             }`}
           >
-            3% off for HaBayit Chai members
+            15% off for HaBayit Chai members
           </button>
           {habayitMember && (
             <div className="space-y-1.5">
@@ -1019,7 +1019,7 @@ function PaidEventFormInner({
                 : 'bg-white text-navy border-gold hover:bg-[#fbf6ea]'
             }`}
           >
-            3% off with a Hebrew Adventure code
+            15% off with a Hebrew Adventure code
           </button>
           {haDiscount && haDiscountable === 0 && (
             <p className="text-[0.85rem] text-muted">
@@ -1044,7 +1044,7 @@ function PaidEventFormInner({
                   )}
                   {haCodeStatus[i] === 'valid' && (
                     <p className="text-[0.8rem] text-green-700 font-semibold">
-                      Code confirmed - 3% off one skater
+                      Code confirmed - 15% off one skater
                     </p>
                   )}
                   {haCodeStatus[i] === 'invalid' && (

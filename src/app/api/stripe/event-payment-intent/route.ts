@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
         skateData = { skaters: skaterCount, nonSkaters: nonSkaterCount, memberDiscount: false };
       }
 
-      // Hebrew Adventure codes: 3% off one skater per code (never a
+      // Hebrew Adventure codes: 15% off one skater per code (never a
       // non-skater pass). Discounts never stack: when a Chai member
       // discount is applied to this registration, HA codes are IGNORED
       // entirely (the larger discount wins for the whole registration,

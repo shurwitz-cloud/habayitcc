@@ -159,7 +159,7 @@ export async function skateMemberPeopleUsed(
 
 /**
  * Verify a Chai member code for a SKATE event (Fire on Ice rules):
- * 3% off up to SKATE_MEMBER_PEOPLE_LIMIT people on ONE reservation per
+ * 15% off up to SKATE_MEMBER_PEOPLE_LIMIT people on ONE reservation per
  * member per event - any earlier use (a paid registration or an in-flight
  * checkout hold) means the code is already used for this event. The code
  * must match the registrant (or their spouse) by email, phone, full name,

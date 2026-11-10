@@ -136,3 +136,17 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   NOT covered: real Stripe payment end to end (first paid booking is the
   true check - being watched); offline CRM entry has no pass support.
 - Rollback: Vercel Instant Rollback to the pre-merge production deployment.
+
+
+## Skate discounts: Hebrew Adventure + Chai both 15% (2026-11-09)
+- User instruction (WhatsApp, same day): Hebrew Adventure and Chai event
+  codes both give 15% off (was 3%). Limits unchanged: HA = one 20-dollar
+  skater per code, never a non-skater pass; Chai = up to 6 people per
+  reservation, skaters + non-skaters, one discounted reservation per member
+  per event. Non-stacking unchanged (Chai still wins over HA).
+- New math: HA skater 20.00 -> 17.00; Chai skater 17.00, Chai non-skater
+  pass 7.00 -> 5.95.
+- Rate constants only: SKATE_HA_DISCOUNT_RATE / SKATE_CHAI_DISCOUNT_RATE
+  0.03 -> 0.15 in src/lib/events/paid-event-pricing.ts; UI copy updated.
+  Card processing fee (3%) untouched.
+- Checks: privacy gate clean; Vercel preview build + live form probe.

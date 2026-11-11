@@ -97,7 +97,9 @@ export function EventDetailDrawer({
         ? '55'
         : paidEvent?.type === 'skate'
           ? '20'
-          : paidEvent?.type === 'celebration'
+          : paidEvent?.type === 'bbq'
+            ? '10'
+            : paidEvent?.type === 'celebration'
             ? '0'
             : '12';
 

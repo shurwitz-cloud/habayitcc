@@ -14,6 +14,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/server';
 import type { EventRegistration, FormSubmission } from '@/types/database';
 import type {
+  BbqRegistrationData,
   CouplesRegistrationData,
   DinnerRegistrationData,
   FairRegistrationData,
@@ -34,6 +35,7 @@ export type PaidEventSheetRowInput = {
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
   skate?: SkateRegistrationData;
+  bbq?: BbqRegistrationData;
   fairChildLines?: PricingBreakdown['fairChildLines'];
   coupleLines?: PricingBreakdown['coupleLines'];
   skateLines?: PricingBreakdown['skateLines'];
@@ -155,6 +157,18 @@ export function buildPaidEventSheetValues(input: PaidEventSheetRowInput): (strin
     ];
   }
 
+  if (input.event.type === 'bbq') {
+    return [
+      timestamp,
+      input.lastName,
+      input.firstName,
+      input.email ?? '',
+      input.phone ?? '',
+      input.bbq?.attendees ?? 0,
+      ...sharedTail,
+    ];
+  }
+
   if (input.event.type === 'couples') {
     const coupleNote = (input.coupleLines ?? [])
       .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : ''}`)
@@ -233,6 +247,7 @@ function sheetInputFromRegistration(
   const womens = (details?.womens as WomensRegistrationData | undefined) ?? undefined;
   const couples = (details?.couples as CouplesRegistrationData | undefined) ?? undefined;
   const skate = (details?.skate as SkateRegistrationData | undefined) ?? undefined;
+  const bbq = (details?.bbq as BbqRegistrationData | undefined) ?? undefined;
   const fairChildLines = details?.fairChildLines as PricingBreakdown['fairChildLines'];
   const coupleLines = details?.coupleLines as PricingBreakdown['coupleLines'];
   const skateLines = details?.skateLines as PricingBreakdown['skateLines'];
@@ -264,6 +279,9 @@ function sheetInputFromRegistration(
     skate:
       skate ??
       (event.type === 'skate' ? { skaters: people.guests || 1 } : undefined),
+    bbq:
+      bbq ??
+      (event.type === 'bbq' ? { attendees: people.guests || 1 } : undefined),
     fairChildLines,
     coupleLines,
     skateLines,

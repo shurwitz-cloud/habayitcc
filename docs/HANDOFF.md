@@ -193,3 +193,33 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   used"). NOT covered: a real paid retry end to end (first real retry is
   being watched).
 - Rollback: Vercel Instant Rollback to the pre-merge production deployment.
+## Teens BBQ Kickoff event page (PR #19, SHIPPED 2026-11-11)
+- New paid event 'teens-bbq' (HaBayit Teens BBQ Kickoff, Sun Nov 22 2026, 6:00 PM,
+  Backyard of 3007 Bogota Ave) with new event type 'bbq': $10/person stepper,
+  sponsor presets, optional 3% card-fee checkbox. Short links /bbq and /teens-bbq.
+- Flyer public/flyers/teens-bbq.jpg is the user-supplied event art (metadata-clean).
+- Full standard wiring: Stripe intent + metadata, webhook rebuild (attendees key),
+  CRM registration + people mode 'people', events-sheet tab 'Teens BBQ Kickoff',
+  confirmation + office emails, offline CRM entry default $10.
+- Discounts per Shmuel 2026-11-09: flat $10, NO Chai discount and NO Hebrew
+  Adventure codes on this event. Instead: one-time staff codes. Discreet
+  'Have a code?' toggle on the form (promo-code style, no eligibility text
+  anywhere on the site).
+- Staff codes: migration 0031_bbq_staff_codes (bbq_staff_codes table + claim/
+  bind/consume/release/resolve RPCs, RLS-locked, dormant-safe fail-closed).
+  Each code covers ONE admission exactly once: claim before the Stripe intent
+  (never charge without the discount), bind PI, consume on persist (submit or
+  webhook path), release only when never charged, expired holds reconcile
+  against live Stripe state (mirrors 0029/0030). Free ($0) registrations
+  claim+consume in the submit action; the form already hides payment at $0.
+- Codes are generated and inserted ONLY by scripts/generate-bbq-staff-codes.mjs
+  (10 codes, BBQ-XXXXXXXX, unambiguous alphabet) at go-live with the service
+  key: no plaintext codes in the repo. Printout goes to Shmuel privately.
+- CONFIRMED by Shmuel 2026-11-11 (WhatsApp "Yes" to the exact question): each
+  code = one FREE admission, usable once for this BBQ.
+- Checks: tsc --noEmit clean; PGlite isolated staff-code tests 15/15; pricing
+  7/7; merged atop main incl. PR #21/#22 skate fixes (15% rates + retry
+  resume) with those tests re-run green; Vercel preview green.
+  Go-live done 2026-11-11: migration 0031 applied to production, codes
+  generated + inserted, page verified live. NOT covered: a real paid BBQ
+  checkout end to end (first real registration is being watched).

@@ -4,9 +4,11 @@ import { findFamilyIdByEmail } from '@/lib/families/lookup';
 import { ensureEventBySlug } from '@/lib/events/sync';
 import { consumeSkateAllowance } from '@/lib/events/skate-allowance';
 import { consumeHebrewFairCodeHolds } from '@/lib/events/hebrew-fair-code-holds';
+import { consumeBbqStaffCode } from '@/lib/events/bbq-staff-codes';
 import { sendPaidEventConfirmationEmail } from '@/lib/email/paid-event-confirmation';
 import {
   computePaidEventTotal,
+  type BbqRegistrationData,
   type CouplesRegistrationData,
   type DinnerRegistrationData,
   type FairRegistrationData,
@@ -37,6 +39,7 @@ export type PaidEventPersistInput = {
   womens?: WomensRegistrationData;
   couples?: CouplesRegistrationData;
   skate?: SkateRegistrationData;
+  bbq?: BbqRegistrationData;
   /** Skip confirmation email (e.g. when recovering duplicates). */
   skipEmail?: boolean;
   /** Skip Google Sheet append. */
@@ -63,6 +66,7 @@ function buildDetailsSummary(
   skate?: SkateRegistrationData,
   skateLines?: ReturnType<typeof computePaidEventTotal>['skateLines'],
   skatePassLines?: ReturnType<typeof computePaidEventTotal>['skatePassLines'],
+  bbq?: BbqRegistrationData,
 ): string {
   if ((event.type === 'dinner' || event.type === 'celebration') && dinner) {
     return `Adults: ${dinner.adults}\nChildren: ${dinner.kids}`;
@@ -77,6 +81,9 @@ function buildDetailsSummary(
   }
   if (event.type === 'womens' && womens) {
     return `Women attending: ${womens.women}`;
+  }
+  if (event.type === 'bbq' && bbq) {
+    return `Attendees: ${bbq.attendees}`;
   }
   if (event.type === 'skate' && skate) {
     const nonSkaters = Math.max(0, Math.round(skate.nonSkaters ?? 0) || 0);
@@ -150,6 +157,7 @@ export async function persistPaidEventRegistration(
     womens: input.womens,
     couples: input.couples,
     skate: input.skate,
+    bbq: input.bbq,
     sponsorAmount: input.sponsorAmount,
     coverFee: input.coverFee,
   });
@@ -228,6 +236,7 @@ export async function persistPaidEventRegistration(
     input.skate,
     pricing.skateLines,
     pricing.skatePassLines,
+    input.bbq,
   );
 
   const guestCount =
@@ -239,7 +248,9 @@ export async function persistPaidEventRegistration(
           ? (input.couples?.couples ?? 1)
           : event.type === 'skate'
             ? (input.skate?.skaters ?? 0) + (input.skate?.nonSkaters ?? 0) || 1
-            : (input.womens?.women ?? 1);
+            : event.type === 'bbq'
+              ? (input.bbq?.attendees ?? 1)
+              : (input.womens?.women ?? 1);
 
   const familyId = await findFamilyIdByEmail(email);
 
@@ -258,6 +269,7 @@ export async function persistPaidEventRegistration(
     womens: input.womens,
     couples: input.couples,
     skate: input.skate,
+    bbq: input.bbq,
     fairChildLines: pricing.fairChildLines,
     coupleLines: pricing.coupleLines,
     skateLines: pricing.skateLines,
@@ -447,6 +459,16 @@ export async function persistPaidEventRegistration(
     await consumeHebrewFairCodeHolds(paymentIntentId, registrationId);
   }
 
+  // Consume a held BBQ staff code (idempotent; no-op pre-migration
+  // 0031 or when this registration used none). Runs for both the
+  // submit and webhook paths, so a used code is always recorded.
+  if (event.type === 'bbq' && input.bbq?.staffFree) {
+    await consumeBbqStaffCode({
+      paymentIntentId: paymentIntentId ?? undefined,
+      registrationId,
+    });
+  }
+
   return { success: true, registrationId, receiptUrl };
 }
 
@@ -466,6 +488,7 @@ export function paidEventInputFromPaymentIntentMetadata(
   if (!email || !firstName) return null;
 
   const women = Number(meta.women || meta.guest_count || 1);
+  const bbqAttendees = Number(meta.attendees || 0);
   const adults = Number(meta.adults || 0);
   const kids = Number(meta.kids || 0);
   const fairChildren = Number(meta.fair_children || 0);
@@ -498,6 +521,13 @@ export function paidEventInputFromPaymentIntentMetadata(
           }
         : undefined,
     womens: event.type === 'womens' ? { women: Math.max(1, women) } : undefined,
+    bbq:
+      event.type === 'bbq'
+        ? {
+            attendees: Math.max(1, bbqAttendees),
+            staffFree: meta.bbq_staff_code === '1' || meta.bbq_staff_code === 'true',
+          }
+        : undefined,
     couples:
       event.type === 'couples'
         ? {

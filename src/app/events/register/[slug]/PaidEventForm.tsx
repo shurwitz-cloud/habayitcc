@@ -10,6 +10,7 @@ import {
   computePaidEventTotal,
   COUPLES_MEMBER_TICKET_PRICE,
   COUPLES_TICKET_PRICE,
+  BBQ_TICKET_PRICE,
   SKATE_TICKET_PRICE,
   SKATE_NON_SKATER_PRICE,
   DINNER_ADULT_PRICE,
@@ -21,6 +22,7 @@ import {
 } from '@/lib/events/paid-event-pricing';
 import {
   submitPaidEventRegistration,
+  verifyBbqStaffCodeAction,
   verifyHaBayitMemberCodeAction,
   verifyHebrewFairCodeAction,
 } from './actions';
@@ -76,6 +78,13 @@ function PaidEventFormInner({
   const [adults, setAdults] = useState(1);
   const [kids, setKids] = useState(0);
   const [women, setWomen] = useState(1);
+  const [bbqAttendees, setBbqAttendees] = useState(1);
+  const [staffCodeOpen, setStaffCodeOpen] = useState(false);
+  const [staffCode, setStaffCode] = useState('');
+  const [staffCodeStatus, setStaffCodeStatus] = useState<
+    'valid' | 'invalid' | 'checking' | null
+  >(null);
+  const [staffCodeReason, setStaffCodeReason] = useState<string | null>(null);
   const [couples, setCouples] = useState(1);
   const [skaters, setSkaters] = useState(1);
   const [nonSkaters, setNonSkaters] = useState(0);
@@ -161,6 +170,18 @@ function PaidEventFormInner({
     [haDiscount, haCodes, haCodeStatus, haDiscountable],
   );
 
+  const bbqData = useMemo(
+    () =>
+      event.type === 'bbq'
+        ? {
+            attendees: bbqAttendees,
+            staffCode: staffCodeStatus === 'valid' ? staffCode.trim() : undefined,
+            staffFree: staffCodeStatus === 'valid',
+          }
+        : undefined,
+    [event.type, bbqAttendees, staffCode, staffCodeStatus],
+  );
+
   const skateData = useMemo(
     () =>
       event.type === 'skate'
@@ -199,6 +220,7 @@ function PaidEventFormInner({
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
         skate: skateData,
+        bbq: bbqData,
         sponsorAmount,
         coverFee,
       }),
@@ -211,6 +233,7 @@ function PaidEventFormInner({
       fairFreeChildIndices,
       couplesData,
       skateData,
+      bbqData,
       sponsorAmount,
       coverFee,
     ]
@@ -273,6 +296,40 @@ function PaidEventFormInner({
   }
 
   const memberCodeVerifySeq = useRef(0);
+
+  // Live-verify the staff code (debounced). Neutral UX: the site never
+  // says who these codes are for.
+  useEffect(() => {
+    if (event.type !== 'bbq' || !staffCodeOpen) return;
+    if (!staffCode.trim()) {
+      setStaffCodeStatus(null);
+      setStaffCodeReason(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      void verifyStaffCode(staffCode);
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffCode, staffCodeOpen, event.type]);
+
+  const staffCodeVerifySeq = useRef(0);
+
+  async function verifyStaffCode(code: string) {
+    if (code.trim().length < 6) {
+      staffCodeVerifySeq.current += 1;
+      setStaffCodeStatus(null);
+      setStaffCodeReason(null);
+      return;
+    }
+    const seq = ++staffCodeVerifySeq.current;
+    setStaffCodeStatus('checking');
+    setStaffCodeReason(null);
+    const result = await verifyBbqStaffCodeAction(code, event.slug);
+    if (seq !== staffCodeVerifySeq.current) return;
+    setStaffCodeStatus(result.valid ? 'valid' : 'invalid');
+    setStaffCodeReason(result.valid ? null : result.reason || null);
+  }
 
   async function verifyMemberCode(code: string) {
     const normalized = code.trim().toUpperCase().replace(/\s+/g, '');
@@ -410,6 +467,17 @@ function PaidEventFormInner({
     if (event.type === 'womens' && women < 1) {
       return 'Please enter how many women are attending.';
     }
+    if (event.type === 'bbq' && bbqAttendees < 1) {
+      return 'Please enter how many people are attending.';
+    }
+    if (event.type === 'bbq' && staffCodeOpen && staffCode.trim()) {
+      if (staffCodeStatus === 'checking') {
+        return 'Please wait while we check your code.';
+      }
+      if (staffCodeStatus !== 'valid') {
+        return 'Please enter a valid code, or clear it to continue without one.';
+      }
+    }
     if (event.type === 'couples' && couples < 1) {
       return 'Please add at least one couple.';
     }
@@ -476,6 +544,7 @@ function PaidEventFormInner({
     kids,
     fairChildCount,
     women,
+    bbqAttendees,
     couples,
     skaters,
     nonSkaters,
@@ -519,6 +588,7 @@ function PaidEventFormInner({
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
         skate: skateData,
+        bbq: bbqData,
       }),
     });
 
@@ -548,6 +618,7 @@ function PaidEventFormInner({
     women,
     couplesData,
     skateData,
+    bbqData,
     fairChildCount,
     hebrewStudent,
     hebrewCodes,
@@ -575,6 +646,7 @@ function PaidEventFormInner({
           womens: event.type === 'womens' ? { women } : undefined,
           couples: couplesData,
           skate: skateData,
+          bbq: bbqData,
         });
 
         if (!result.success) {
@@ -602,6 +674,7 @@ function PaidEventFormInner({
       women,
       couplesData,
       skateData,
+      bbqData,
     ]
   );
 
@@ -656,6 +729,7 @@ function PaidEventFormInner({
               womens: event.type === 'womens' ? { women } : undefined,
               couples: couplesData,
               skate: skateData,
+              bbq: bbqData,
             }),
           });
 
@@ -713,6 +787,7 @@ function PaidEventFormInner({
         womens: event.type === 'womens' ? { women } : undefined,
         couples: couplesData,
         skate: skateData,
+        bbq: bbqData,
       });
 
       if (!result.success) {
@@ -880,6 +955,52 @@ function PaidEventFormInner({
             min={1}
             required
           />
+        </div>
+      )}
+
+      {event.type === 'bbq' && (
+        <div className="space-y-3 border-t border-line pt-5">
+          <StepperField
+            label={`Attendees — $${BBQ_TICKET_PRICE} each`}
+            value={bbqAttendees}
+            onChange={setBbqAttendees}
+            min={1}
+            required
+          />
+          {!staffCodeOpen ? (
+            <button
+              type="button"
+              onClick={() => setStaffCodeOpen(true)}
+              className="text-[0.85rem] text-gold font-bold underline underline-offset-2 hover:text-navy"
+            >
+              Have a code?
+            </button>
+          ) : (
+            <div className="space-y-1.5">
+              <input
+                value={staffCode}
+                onChange={(e) => setStaffCode(e.target.value)}
+                placeholder="Code"
+                autoComplete="off"
+                className="w-full"
+              />
+              {staffCodeStatus === 'checking' && (
+                <p className="text-[0.8rem] text-muted">Checking code…</p>
+              )}
+              {staffCodeStatus === 'valid' && (
+                <p className="text-[0.8rem] text-green-700 font-bold">Code applied.</p>
+              )}
+              {staffCodeStatus === 'invalid' && (
+                <p className="text-[0.8rem] text-red-700">
+                  {staffCodeReason === 'already_used'
+                    ? 'This code was already used.'
+                    : staffCodeReason && staffCodeReason !== 'invalid'
+                      ? staffCodeReason
+                      : 'This code is not valid.'}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1105,7 +1226,24 @@ function PaidEventFormInner({
             )}
           </>
         ) : (
-          pricing.ticketSubtotal > 0 && <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />
+          <>
+            {event.type === 'bbq' && bbqData?.staffFree ? (
+              <SummaryLine label="Tickets" amount={bbqAttendees * BBQ_TICKET_PRICE} />
+            ) : (
+              pricing.ticketSubtotal > 0 && (
+                <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />
+              )
+            )}
+            {event.type === 'bbq' && bbqData?.staffFree && (
+              <div className="flex justify-between text-[0.92rem] text-green-700">
+                <span>Code applied</span>
+                <span>
+                  -$
+                  {Math.min(BBQ_TICKET_PRICE, bbqAttendees * BBQ_TICKET_PRICE).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </>
         )}
         {pricing.sponsorAmount > 0 && (
           <SummaryLine

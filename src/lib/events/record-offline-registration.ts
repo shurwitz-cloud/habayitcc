@@ -113,7 +113,9 @@ export async function recordOfflinePaidEventRegistration(
           ? `Couples: ${guestCount}\n${paidNote}`
           : event.type === 'skate'
             ? `Skaters: ${guestCount}\n${paidNote}`
-            : `Children: ${guestCount}\n${paidNote}`;
+            : event.type === 'bbq'
+              ? `Attendees: ${guestCount}\n${paidNote}`
+              : `Children: ${guestCount}\n${paidNote}`;
   const extraNotes = (input.notes || '').trim();
   const notes = extraNotes ? `${detailsSummary}\n${extraNotes}` : detailsSummary;
 
@@ -127,6 +129,7 @@ export async function recordOfflinePaidEventRegistration(
     fair: event.type === 'family-fair' ? { children: Array.from({ length: guestCount }, () => ({})) } : undefined,
     couples: event.type === 'couples' ? { couples: guestCount } : undefined,
     skate: event.type === 'skate' ? { skaters: guestCount } : undefined,
+    bbq: event.type === 'bbq' ? { attendees: guestCount } : undefined,
     ticketSubtotal: amount,
     coverFee: false,
     paymentMethod,
@@ -214,6 +217,7 @@ export async function recordOfflinePaidEventRegistration(
       womens: event.type === 'womens' ? { women: guestCount } : undefined,
       couples: event.type === 'couples' ? { couples: guestCount } : undefined,
     skate: event.type === 'skate' ? { skaters: guestCount } : undefined,
+      bbq: event.type === 'bbq' ? { attendees: guestCount } : undefined,
       ticketSubtotal: amount,
       sponsorAmount: 0,
       cardFee: 0,

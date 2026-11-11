@@ -4,9 +4,17 @@ export type PaidEventSlug =
   | 'pre-rosh-hashana-womens'
   | 'simchat-torah'
   | 'erev-zugot'
+  | 'teens-bbq'
   | 'fire-on-ice';
 
-export type PaidEventType = 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate';
+export type PaidEventType =
+  | 'dinner'
+  | 'family-fair'
+  | 'womens'
+  | 'celebration'
+  | 'couples'
+  | 'skate'
+  | 'bbq';
 
 export type PaidEventSponsorOption = {
   amount: number;
@@ -167,6 +175,24 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     capacity: 22,
   },
   {
+    slug: 'teens-bbq',
+    title: 'HaBayit Teens BBQ Kickoff',
+    program: 'HaBayit Teens - High Schoolers',
+    month: 'Nov',
+    day: '22',
+    dateLabel: 'Sunday, November 22nd',
+    time: '6:00 PM',
+    startsAt: '2026-11-22T18:00:00-05:00',
+    description:
+      'Kick off the HaBayit Teens year with a backyard BBQ: food, friends, and a great night for high schoolers. $10 admission.',
+    location: 'Backyard of 3007 Bogota Ave',
+    flyer: '/flyers/teens-bbq.jpg',
+    type: 'bbq',
+    peopleMode: 'people',
+    sponsorPresets: [54, 72, 180, 360],
+    sheetTab: 'Teens BBQ Kickoff',
+  },
+  {
     slug: 'fire-on-ice',
     title: 'Fire on Ice \u2014 Musical Havdala',
     program: 'Community',
@@ -201,6 +227,7 @@ export function paidEventRegisterPath(slug: PaidEventSlug): string {
 export function paidEventSharePath(event: PaidEventConfig): string {
   if (event.slug === 'simchat-torah') return '/st';
   if (event.slug === 'erev-zugot') return '/zugot';
+  if (event.slug === 'teens-bbq') return '/bbq';
   if (event.slug === 'fire-on-ice') return '/skate';
   return paidEventRegisterPath(event.slug);
 }

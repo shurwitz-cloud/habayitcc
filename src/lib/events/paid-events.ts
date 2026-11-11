@@ -186,7 +186,7 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     description:
       'Kick off the HaBayit Teens year with a backyard BBQ: food, friends, and a great night for high schoolers. $10 admission.',
     location: 'Backyard of 3007 Bogota Ave',
-    flyer: '/flyers/teens-bbq.jpg',
+    flyer: '/flyers/teens-bbq-v2.jpg',
     type: 'bbq',
     peopleMode: 'people',
     sponsorPresets: [54, 72, 180, 360],

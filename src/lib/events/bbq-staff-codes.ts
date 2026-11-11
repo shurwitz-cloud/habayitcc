@@ -18,10 +18,10 @@ import { stripe } from '@/lib/stripe/server';
  * payment intent id -> consume when the registration persists
  * (submit path or webhook, idempotent) -> release on failure. A
  * free ($0) registration claims in the submit action and consumes
- * right after persist. Holds NEVER free by time alone: an expired
- * hold is reconciled against Stripe's live payment-intent state
- * (cancel if still payable, consume if paid, release if canceled),
- * and a paid discount is never rejected after charging.
+ * right after persist. Holds NEVER free by time alone. Only the cookie-owning
+ * browser can resume the same cart or replace a still-unpaid cart; processing,
+ * confirmation and unknown states stay pending. A canceled PI is terminal before
+ * its guarded release. Paid holds remain proof for submit/webhook recovery.
  */
 
 interface RpcError {
@@ -43,19 +43,19 @@ export interface StaffCodeLookup {
   valid: boolean;
   /** false when migration 0031 is not applied - fail closed. */
   supported: boolean;
-  reason?: 'invalid' | 'already_used';
+  reason?: 'invalid' | 'already_used' | 'in_progress';
   code?: string;
 }
 
 /** Verify a staff code for live form feedback (no claim). */
-export async function verifyBbqStaffCode(codeRaw: string): Promise<StaffCodeLookup> {
+export async function verifyBbqStaffCode(codeRaw: string, ownedClaimToken?: string): Promise<StaffCodeLookup> {
   const code = normalizeStaffCode(codeRaw);
   if (code.length < 6) return { valid: false, supported: true, reason: 'invalid' };
 
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('bbq_staff_codes')
-    .select('code, status')
+    .select('code, status, claim_token')
     .eq('code', code)
     .maybeSingle();
 
@@ -65,8 +65,11 @@ export async function verifyBbqStaffCode(codeRaw: string): Promise<StaffCodeLook
     return { valid: false, supported: false };
   }
   if (!data?.code) return { valid: false, supported: true, reason: 'invalid' };
-  if (data.status !== 'available') {
+  if (data.status === 'consumed') {
     return { valid: false, supported: true, reason: 'already_used', code };
+  }
+  if (data.status !== 'available' && (data.status !== 'held' || !ownedClaimToken || data.claim_token !== ownedClaimToken)) {
+    return { valid: false, supported: true, reason: 'in_progress', code };
   }
   return { valid: true, supported: true, code };
 }
@@ -107,7 +110,10 @@ export async function bindBbqStaffCodePayment(
     p_claim_token: claimToken,
     p_payment_intent_id: paymentIntentId,
   });
-  if (error) console.error('[bbq-staff-code] bind failed:', error.message);
+  if (error) throw new Error('BBQ code binding failed');
+  const { data, error: readError } = await supabase.from('bbq_staff_codes')
+    .select('code').eq('claim_token', claimToken).eq('payment_intent_id', paymentIntentId).eq('status', 'held').maybeSingle();
+  if (readError || !data) throw new Error('BBQ code binding could not be verified');
 }
 
 /**
@@ -183,70 +189,74 @@ export async function getHeldBbqStaffCode(
   return { code: data.code, claimToken: data.claim_token };
 }
 
-/**
- * Reconcile an expired hold for one code against Stripe's live
- * payment state before the code can be re-granted: a succeeded PI
- * consumes the code (and is logged for admin recovery), a PI that
- * can still be paid is canceled and the hold kept, a canceled one
- * frees the code. A hold with no payment was never charged and is
- * simply freed.
- */
-export async function reconcileExpiredBbqStaffCode(codeRaw: string): Promise<{
-  supported: boolean;
-  failures: number;
-}> {
-  const code = normalizeStaffCode(codeRaw);
-  const supabase = createAdminClient();
-  const { data: row, error } = await supabase
-    .from('bbq_staff_codes')
-    .select('code, status, payment_intent_id, expires_at')
-    .eq('code', code)
-    .maybeSingle();
-  if (error) {
-    if (isMissingSchema(error)) return { supported: false, failures: 0 };
-    console.error('[bbq-staff-code] reconcile lookup failed:', error.message);
-    return { supported: false, failures: 1 };
-  }
-  if (!row || row.status !== 'held') return { supported: true, failures: 0 };
-  if (!row.expires_at || new Date(row.expires_at) > new Date()) {
-    return { supported: true, failures: 0 };
-  }
+/** A paid code never frees by age. Only its cookie-owning checkout may resume
+ * or cancel it; a canceled PI is terminal before a guarded release. */
+export type BbqRetryResult =
+  | { kind: 'available' | 'pending' | 'used' | 'failure' }
+  | { kind: 'resume'; paymentIntentId: string; clientSecret: string };
 
-  let resolution: 'consumed' | 'available' = 'available';
-  if (row.payment_intent_id) {
-    try {
-      const pi = await stripe.paymentIntents.retrieve(row.payment_intent_id);
-      if (pi.status === 'succeeded') {
-        resolution = 'consumed';
-        console.error(
-          `[bbq-staff-code] expired hold on paid PI ${row.payment_intent_id}: consumed without a persisted registration; needs admin recovery.`,
-        );
-      } else if (pi.status === 'requires_payment_method' || pi.status === 'requires_confirmation' || pi.status === 'requires_action' || pi.status === 'processing') {
-        // Still payable: cancel it so the code can be safely re-granted.
-        try {
-          await stripe.paymentIntents.cancel(row.payment_intent_id);
-        } catch {
-          // already moved on; treat as still payable and keep the hold
-          return { supported: true, failures: 1 };
-        }
-        resolution = 'available';
-      } else {
-        resolution = 'available';
-      }
-    } catch {
-      console.error('[bbq-staff-code] Stripe reconcile failed for', row.payment_intent_id);
-      return { supported: true, failures: 1 };
+export async function reconcileBbqRetryRow(
+  row: { claim_token: string | null; payment_intent_id: string | null },
+  input: { ownedClaimToken?: string; amountCents: number; eventSlug: string; email: string; attendees: number; sponsorAmount: number; coverFee: boolean },
+  deps: {
+    retrieve: (id: string) => Promise<{ id: string; status: string; amount: number; client_secret: string | null; metadata: Record<string, string> }>;
+    cancel: (id: string) => Promise<{ status: string }>;
+    release: () => Promise<void>;
+  },
+): Promise<BbqRetryResult> {
+  if (!input.ownedClaimToken || row.claim_token !== input.ownedClaimToken) return { kind: 'pending' };
+  try {
+    if (!row.payment_intent_id) {
+      await deps.release();
+      return { kind: 'available' };
     }
+    const pi = await deps.retrieve(row.payment_intent_id);
+    if (pi.metadata.event_slug !== input.eventSlug || pi.metadata.donor_email !== input.email || pi.metadata.bbq_staff_code !== '1') return { kind: 'failure' };
+    if (pi.status === 'succeeded') return { kind: 'used' };
+    if (pi.status === 'canceled') {
+      await deps.release();
+      return { kind: 'available' };
+    }
+    if (pi.status === 'processing' || pi.status === 'requires_capture') return { kind: 'pending' };
+    const payable = ['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status);
+    const sameCart = pi.metadata.attendees === String(input.attendees) &&
+      pi.metadata.sponsor_amount === String(input.sponsorAmount) &&
+      pi.metadata.cover_fee === (input.coverFee ? '1' : '0');
+    if (payable && pi.amount === input.amountCents && sameCart && pi.client_secret) {
+      return { kind: 'resume', paymentIntentId: pi.id, clientSecret: pi.client_secret };
+    }
+    // Never interrupt 3DS/confirmation, processing, or future statuses. Only an
+    // owned retry still requiring a payment method may replace a changed cart.
+    if (pi.status !== 'requires_payment_method') return { kind: 'pending' };
+    const canceled = await deps.cancel(pi.id);
+    if (canceled.status !== 'canceled') return { kind: 'failure' };
+    await deps.release();
+    return { kind: 'available' };
+  } catch {
+    return { kind: 'failure' };
   }
+}
 
-  const { data: resolved, error: resolveError } = await supabase.rpc(
-    'resolve_expired_bbq_staff_code',
-    { p_code: code, p_resolution: resolution },
-  );
-  if (resolveError) {
-    if (isMissingSchema(resolveError)) return { supported: false, failures: 0 };
-    console.error('[bbq-staff-code] resolve failed:', resolveError.message);
-    return { supported: true, failures: 1 };
-  }
-  return { supported: true, failures: resolved === true ? 0 : 1 };
+export async function reconcileBbqCheckout(input: {
+  code: string; ownedClaimToken?: string; amountCents: number; eventSlug: string; email: string; attendees: number; sponsorAmount: number; coverFee: boolean;
+}): Promise<BbqRetryResult> {
+  const supabase = createAdminClient();
+  const { data: row, error } = await supabase.from('bbq_staff_codes')
+    .select('code, status, claim_token, payment_intent_id').eq('code', normalizeStaffCode(input.code)).maybeSingle();
+  if (error || !row) return { kind: 'failure' };
+  if (row.status === 'available') return { kind: 'available' };
+  if (row.status === 'consumed') return { kind: 'used' };
+  return reconcileBbqRetryRow(row, input, {
+    retrieve: (id) => stripe.paymentIntents.retrieve(id),
+    cancel: (id) => stripe.paymentIntents.cancel(id),
+    release: async () => {
+      let update = supabase.from('bbq_staff_codes').update({
+        status: 'available', claim_token: null, payment_intent_id: null,
+        expires_at: null, updated_at: new Date().toISOString(),
+      }).eq('code', row.code).eq('status', 'held').eq('claim_token', row.claim_token);
+      update = row.payment_intent_id ? update.eq('payment_intent_id', row.payment_intent_id) : update.is('payment_intent_id', null);
+      const { data, error: releaseError } = await update.select('code');
+      if (releaseError || data?.length !== 1) throw new Error('BBQ release did not affect exactly one owned hold');
+    },
+  });
 }

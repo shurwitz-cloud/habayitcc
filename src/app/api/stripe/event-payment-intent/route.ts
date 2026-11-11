@@ -40,7 +40,7 @@ import { ensureEventBySlug } from '@/lib/events/sync';
 import {
   bindBbqStaffCodePayment,
   claimBbqStaffCode,
-  reconcileExpiredBbqStaffCode,
+  reconcileBbqCheckout,
   releaseBbqStaffCode,
   verifyBbqStaffCode,
 } from '@/lib/events/bbq-staff-codes';
@@ -156,24 +156,29 @@ export async function POST(req: NextRequest) {
           if (bbqClaim) await releaseBbqStaffCode(bbqClaim.token);
           return NextResponse.json({ error: message }, { status: 400 });
         };
+        const ownedClaimToken = req.cookies.get('bbq_claim_token')?.value;
+        const candidateCents = totalToCents(computePaidEventTotal({
+          event, bbq: { attendees, staffFree: true, staffCode: rawCode },
+          sponsorAmount: body.sponsorAmount ?? 0, coverFee: !!body.coverFee,
+        }).total);
+        if (candidateCents !== body.amountCents || candidateCents <= 0) {
+          return await failCode('Payment amount mismatch. Please refresh and try again.');
+        }
+        const retry = await reconcileBbqCheckout({ code: rawCode, ownedClaimToken,
+          amountCents: candidateCents, eventSlug: event.slug, email, attendees, sponsorAmount: body.sponsorAmount ?? 0, coverFee: !!body.coverFee });
+        if (retry.kind === 'resume') {
+          return NextResponse.json({ clientSecret: retry.clientSecret, paymentIntentId: retry.paymentIntentId });
+        }
+        if (retry.kind !== 'available') {
+          return await failCode(retry.kind === 'used' ? 'This code was already used.' :
+            retry.kind === 'pending' ? 'This code has a checkout in progress. Please finish it in the original browser or try again later.' :
+            'We could not verify that code right now. Please try again in a moment.');
+        }
         const lookup = await verifyBbqStaffCode(rawCode);
-        if (!lookup.supported) {
-          return await failCode(
-            'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
-          );
-        }
-        if (!lookup.valid || !lookup.code) {
-          return await failCode(
-            lookup.reason === 'already_used'
-              ? 'This code was already used.'
-              : 'This code is not valid.',
-          );
-        }
-        const reconcile = await reconcileExpiredBbqStaffCode(lookup.code);
-        if (!reconcile.supported || reconcile.failures > 0) {
-          return await failCode(
-            'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
-          );
+        if (!lookup.supported || !lookup.valid || !lookup.code) {
+          return await failCode(lookup.reason === 'already_used' ? 'This code was already used.' :
+            lookup.reason === 'in_progress' ? 'This code has a checkout in progress. Please try again later.' :
+            'We could not verify that code right now. Please try again in a moment.');
         }
         const token = crypto.randomUUID();
         const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
@@ -183,7 +188,7 @@ export async function POST(req: NextRequest) {
           );
         }
         if (!claim.claimed) {
-          return await failCode('This code was already used.');
+          return await failCode('This code has a checkout in progress. Please try again later.');
         }
         bbqClaim = { token, code: lookup.code };
         bbqData = { ...bbqData, attendees, staffCode: lookup.code, staffFree: true };
@@ -663,7 +668,16 @@ export async function POST(req: NextRequest) {
       await bindHebrewFairCodePayment(haClaim.token, paymentIntent.id);
     }
     if (bbqClaim) {
-      await bindBbqStaffCodePayment(bbqClaim.token, paymentIntent.id);
+      try {
+        await bindBbqStaffCodePayment(bbqClaim.token, paymentIntent.id);
+      } catch (bindError) {
+        // The secret has not been exposed: cancel before returning an error.
+        await stripe.paymentIntents.cancel(paymentIntent.id);
+        await reconcileBbqCheckout({ code: bbqClaim.code, ownedClaimToken: bbqClaim.token,
+          amountCents: expectedCents, eventSlug: event.slug, email, attendees: bbqData?.attendees ?? 1, sponsorAmount: body.sponsorAmount ?? 0, coverFee: !!body.coverFee });
+        await releaseBbqStaffCode(bbqClaim.token);
+        throw bindError;
+      }
     }
 
     const res = NextResponse.json({
@@ -674,6 +688,9 @@ export async function POST(req: NextRequest) {
     // claim token lets the reconcile cancel only this browser's own
     // abandoned checkout, never a competing live one. httpOnly +
     // sameSite=lax; expires with the 24h hold TTL.
+    if (bbqClaim) {
+      res.cookies.set('bbq_claim_token', bbqClaim.token, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 24 * 60 * 60 });
+    }
     if (skateClaim) {
       res.cookies.set('chai_claim_token', skateClaim.token, {
         httpOnly: true,

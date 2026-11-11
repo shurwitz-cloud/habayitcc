@@ -212,14 +212,29 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   webhook path), release only when never charged, expired holds reconcile
   against live Stripe state (mirrors 0029/0030). Free ($0) registrations
   claim+consume in the submit action; the form already hides payment at $0.
-- Codes are generated and inserted ONLY by scripts/generate-bbq-staff-codes.mjs
-  (10 codes, BBQ-XXXXXXXX, unambiguous alphabet) at go-live with the service
-  key: no plaintext codes in the repo. Printout goes to Shmuel privately.
-- CONFIRMED by Shmuel 2026-11-11 (WhatsApp "Yes" to the exact question): each
-  code = one FREE admission, usable once for this BBQ.
-- Checks: tsc --noEmit clean; PGlite isolated staff-code tests 15/15; pricing
-  7/7; merged atop main incl. PR #21/#22 skate fixes (15% rates + retry
-  resume) with those tests re-run green; Vercel preview green.
-  Go-live done 2026-11-11: migration 0031 applied to production, codes
-  generated + inserted, page verified live. NOT covered: a real paid BBQ
-  checkout end to end (first real registration is being watched).
+- Ten random codes inserted privately at go-live; all ten read back available.
+  No plaintext codes in the repo. Private printout delivered to Shmuel's assistant.
+- User approved each code = one free admission once, then publishing, on Nov 11.
+- Go-live main merge e8a9658 preserves PR #21/#22 skate fixes. Migration 0031
+  applied to production; table + 5 RPCs and unique registration PI guard verified.
+  Live /bbq, /events ordering and /skate checked. Code validation only (no submit):
+  one attendee $0, two $10, two + $54 sponsor = $64. Actual Stripe inputs load.
+- Checks: tsc clean; isolated PGlite 19/19 and pricing 9/9. These checks are NOT
+  full reruns of all skate tests. No production test registration, charge or email.
+- BBQ-only retry follow-up: cookie-owned same-PI resume; cart + email + event
+  metadata rechecked. Foreign/processing/unknown holds stay pending, not used.
+  No expiry-based cancellation. An owned changed cart cancels only a PI still
+  requiring a payment method; terminal canceled response required before guarded
+  release. Existing consumed/paid records never released. Bind readback fails closed.
+  Free claim failure cleanup releases only an unbound, unpersisted claim.
+  Source-grounded retry tests 42/42, tsc/import audit clean, SQL 19/19 and
+  pricing 9/9 rechecked. No other-event retry logic changed.
+- Residual: cookie-less or cross-device abandoned holds need staff recovery; age
+  alone does not release them. No automatic scheduled reconciler exists for BBQ.
+  A retrieve/cancel race can interrupt an owned in-flight PI if Stripe accepts
+  cancellation; only a terminal canceled PI is released, never double charged.
+- First-real-registration signal: website watcher accepted via main, admin email
+  subject `New registration` matches both free and paid paths. Email failures are
+  logged/caught, so no email is not proof no registration. Main routes full check.
+- NOT covered: real paid/free BBQ signup and downstream CRM/sheet/email delivery
+  end to end. The first real registration remains the verification checkpoint.

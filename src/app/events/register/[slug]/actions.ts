@@ -46,8 +46,8 @@ import {
   claimBbqStaffCode,
   consumeBbqStaffCode,
   getHeldBbqStaffCode,
-  reconcileExpiredBbqStaffCode,
   releaseBbqStaffCode,
+  reconcileBbqCheckout,
   verifyBbqStaffCode,
 } from '@/lib/events/bbq-staff-codes';
 import { enforceActionRateLimit } from '@/lib/security/action-rate-limit';
@@ -157,7 +157,8 @@ export async function verifyBbqStaffCodeAction(
   const event = eventSlug ? getPaidEvent(eventSlug) : null;
   if (!event || event.type !== 'bbq') return { valid: false, reason: 'invalid' };
 
-  const lookup = await verifyBbqStaffCode(code);
+  const ownedClaimToken = (await cookies()).get('bbq_claim_token')?.value;
+  const lookup = await verifyBbqStaffCode(code, ownedClaimToken);
   if (!lookup.supported) {
     return {
       valid: false,
@@ -165,7 +166,7 @@ export async function verifyBbqStaffCodeAction(
         'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
     };
   }
-  if (!lookup.valid) return { valid: false, reason: lookup.reason };
+  if (!lookup.valid) return { valid: false, reason: lookup.reason === 'in_progress' ? 'This code has a checkout in progress. Please finish it in the original browser or try again later.' : lookup.reason };
   return { valid: true };
 }
 
@@ -178,6 +179,8 @@ export async function submitPaidEventRegistration(
   const ready = assertSupabaseWriteReady();
   if (!ready.ok) return { success: false, error: ready.error };
 
+  let freeBbqClaimToken: string | undefined;
+  let bbqRegistrationPersisted = false;
   try {
     const event = getPaidEvent(input.slug);
     if (!event) return { success: false, error: 'Event not found.' };
@@ -316,7 +319,7 @@ export async function submitPaidEventRegistration(
               return await failCode(
                 lookup.reason === 'already_used'
                   ? 'This code was already used.'
-                  : 'This code is not valid.',
+                  : lookup.reason === 'in_progress' ? 'This code has a checkout in progress. Please try again later.' : 'This code is not valid.',
               );
             }
             const token = crypto.randomUUID();
@@ -327,13 +330,19 @@ export async function submitPaidEventRegistration(
               );
             }
             if (!claim.claimed) {
-              return await failCode('This code was already used.');
+              return await failCode('This code has a checkout in progress. Please try again later.');
             }
             await bindBbqStaffCodePayment(token, input.paymentIntentId);
             bbqStaffClaim = { token, code: lookup.code };
           }
         } else {
-          // Free path: no payment is taken, so claim the code here.
+          // A formerly paid cart changed to free must resolve its owned hold
+          // before a fresh free claim. Never touch another browser's checkout.
+          const retry = await reconcileBbqCheckout({ code: rawCode,
+            ownedClaimToken: (await cookies()).get('bbq_claim_token')?.value,
+            amountCents: 0, eventSlug: event.slug, email: input.email.trim().toLowerCase(), attendees, sponsorAmount: input.sponsorAmount ?? 0, coverFee: !!input.coverFee });
+          if (retry.kind !== 'available') return await failCode(retry.kind === 'used'
+            ? 'This code was already used.' : 'This code has a checkout in progress. Please finish it in the original browser or try again later.');
           const lookup = await verifyBbqStaffCode(rawCode);
           if (!lookup.supported) {
             return await failCode(
@@ -344,13 +353,7 @@ export async function submitPaidEventRegistration(
             return await failCode(
               lookup.reason === 'already_used'
                 ? 'This code was already used.'
-                : 'This code is not valid.',
-            );
-          }
-          const reconcile = await reconcileExpiredBbqStaffCode(lookup.code);
-          if (!reconcile.supported || reconcile.failures > 0) {
-            return await failCode(
-              'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
+                : lookup.reason === 'in_progress' ? 'This code has a checkout in progress. Please try again later.' : 'This code is not valid.',
             );
           }
           const token = crypto.randomUUID();
@@ -361,9 +364,10 @@ export async function submitPaidEventRegistration(
             );
           }
           if (!claim.claimed) {
-            return await failCode('This code was already used.');
+            return await failCode('This code has a checkout in progress. Please try again later.');
           }
           bbqStaffClaim = { token, code: lookup.code };
+          freeBbqClaimToken = token;
         }
         bbqData = { attendees, staffCode: bbqStaffClaim.code, staffFree: true };
       } else {
@@ -701,6 +705,7 @@ export async function submitPaidEventRegistration(
       return { success: false, error: result.error };
     }
 
+    bbqRegistrationPersisted = true;
     if (bbqStaffClaim) {
       await consumeBbqStaffCode({
         claimToken: bbqStaffClaim.token,
@@ -725,6 +730,9 @@ export async function submitPaidEventRegistration(
 
     return { success: true, receiptUrl: result.receiptUrl };
   } catch (err) {
+    if (freeBbqClaimToken && !bbqRegistrationPersisted) {
+      await releaseBbqStaffCode(freeBbqClaimToken).catch(() => undefined);
+    }
     console.error('[paid event] submission error:', err);
     return { success: false, error: 'Something went wrong. Please try again.' };
   }

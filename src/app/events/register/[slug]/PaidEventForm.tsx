@@ -973,14 +973,14 @@ function PaidEventFormInner({
               onClick={() => setStaffCodeOpen(true)}
               className="text-[0.85rem] text-gold font-bold underline underline-offset-2 hover:text-navy"
             >
-              Have a code?
+              Have a HaBayit gift card?
             </button>
           ) : (
             <div className="space-y-1.5">
               <input
                 value={staffCode}
                 onChange={(e) => setStaffCode(e.target.value)}
-                placeholder="Code"
+                placeholder="Enter gift card"
                 autoComplete="off"
                 className="w-full"
               />
@@ -988,7 +988,7 @@ function PaidEventFormInner({
                 <p className="text-[0.8rem] text-muted">Checking code…</p>
               )}
               {staffCodeStatus === 'valid' && (
-                <p className="text-[0.8rem] text-green-700 font-bold">Code applied.</p>
+                <p className="text-[0.8rem] text-green-700 font-bold">Gift card applied.</p>
               )}
               {staffCodeStatus === 'invalid' && (
                 <p className="text-[0.8rem] text-red-700">
@@ -1236,7 +1236,7 @@ function PaidEventFormInner({
             )}
             {event.type === 'bbq' && bbqData?.staffFree && (
               <div className="flex justify-between text-[0.92rem] text-green-700">
-                <span>Code applied</span>
+                <span>Gift card applied</span>
                 <span>
                   -$
                   {Math.min(BBQ_TICKET_PRICE, bbqAttendees * BBQ_TICKET_PRICE).toFixed(2)}

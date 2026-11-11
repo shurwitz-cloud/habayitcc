@@ -203,8 +203,11 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   confirmation + office emails, offline CRM entry default $10.
 - Discounts per Shmuel 2026-11-09: flat $10, NO Chai discount and NO Hebrew
   Adventure codes on this event. Instead: one-time staff codes. Discreet
-  'Have a code?' toggle on the form (promo-code style, no eligibility text
-  anywhere on the site).
+  toggle on the form (promo-code style, no eligibility text anywhere on the
+  site). Wording per Shmuel 2026-11-11: 'Have a HaBayit gift card?' /
+  placeholder 'Enter gift card' / 'Gift card applied' (was 'Have a code?' /
+  'Code' / 'Code applied'). Same one-time free-admission behavior, one code
+  per admission, NOT a stored-balance gift card.
 - Staff codes: migration 0031_bbq_staff_codes (bbq_staff_codes table + claim/
   bind/consume/release/resolve RPCs, RLS-locked, dormant-safe fail-closed).
   Each code covers ONE admission exactly once: claim before the Stripe intent

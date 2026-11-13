@@ -160,6 +160,7 @@ export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export type DedicationType = 'honor' | 'memory';
 
 export interface ReceiptCorrection {
+  correct_content?: boolean;
   id: string;
   original_sig: string;
   donation_id: string;

@@ -110,7 +110,7 @@ export default async function ReceiptPage({
     !!qpqDescription && !Number.isNaN(qpqFmv) && !Number.isNaN(qpqDeductible);
   const line: ReceiptLine = {
     date: dates.short,
-    memo,
+    memo: correction?.content?.memo ?? memo,
     method,
     amount: hasQpq ? qpqDeductible : Number.isNaN(amount) ? 0 : amount,
     goodsDescription: hasQpq ? qpqDescription : undefined,
@@ -119,7 +119,7 @@ export default async function ReceiptPage({
 
   return (
     <ReceiptDocument
-      name={name}
+      name={correction?.content?.name ?? name}
       lines={[line]}
       letterDate={dates.long}
       variant="single"

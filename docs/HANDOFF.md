@@ -241,3 +241,21 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   logged/caught, so no email is not proof no registration. Main routes full check.
 - NOT covered: real paid/free BBQ signup and downstream CRM/sheet/email delivery
   end to end. The first real registration remains the verification checkpoint.
+
+## Exact-link company/memo correction (PREPARED, not yet live)
+- Based on current production/GitHub main 31608bc. Extends receipt_corrections
+  with default-off correct_content boolean (migration 0032). No donor data in code.
+- Finance-only /admin/receipt-correction previews an actual verified signed URL
+  against one succeeded donation/payment, then explicitly confirms one private
+  mapping. Requires matching personal name, amount, method, campaign and ET date;
+  rejects QPQ/dedication/duplicate fields and conflicting nonblank memos.
+- Only this exact opted-in signature renders the saved company and receipt memo.
+  Existing date-only mappings stay date-only. No emails, revocations or changes
+  to donation/payment records. Existing resend helper is outside this repair.
+- Synthetic tests: node scripts/test-receipt-content.cjs (24 checks).
+- TypeScript clean with locked dependencies and the pre-existing skate test's
+  external pglite test dependency available locally. No dependency files changed.
+- Production publish, migration and private mapping require owner go-live approval.
+  After deployment: visually inspect original URL and unaffected receipts, verify
+  no new email, record exact deployment and test status here. Cursor: pull main
+  only after merge, do not reintroduce donor data or bypass preview/confirmation.

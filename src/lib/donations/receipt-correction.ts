@@ -18,6 +18,7 @@ import { receiptMethodFromDonationType } from './receipt-method';
 export interface ReceiptCorrectionMatch {
   donationId: string;
   paidAt: Date;
+  content?: { name: string; memo: string };
 }
 
 /**
@@ -87,14 +88,14 @@ export async function resolveReceiptCorrection(input: {
 
     const { data: row, error } = await supabase
       .from('receipt_corrections')
-      .select('donation_id')
+      .select('donation_id, correct_content')
       .eq('original_sig', input.sig)
       .maybeSingle();
     if (error || !row) return null;
 
     const { data: donation } = await supabase
       .from('donations')
-      .select('id, first_name, last_name, amount, memo, campaign, donation_type, status')
+      .select('id, first_name, last_name, company, amount, memo, campaign, donation_type, status')
       .eq('id', row.donation_id)
       .maybeSingle();
     if (!donation || donation.status !== 'succeeded') return null;
@@ -129,7 +130,13 @@ export async function resolveReceiptCorrection(input: {
     const paidAt = new Date(payment.paid_at);
     if (Number.isNaN(paidAt.getTime())) return null;
 
-    return { donationId: donation.id, paidAt };
+    return {
+      donationId: donation.id, paidAt,
+      ...(row.correct_content === true ? { content: {
+        name: donation.company?.trim() || donationName,
+        memo: bareDonationMemo(donation.memo) || '',
+      } } : {}),
+    };
   } catch (err) {
     // Table missing on an undeployed migration, network error, etc: render the
     // link exactly as minted.

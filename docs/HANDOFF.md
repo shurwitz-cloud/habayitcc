@@ -259,3 +259,12 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   After deployment: visually inspect original URL and unaffected receipts, verify
   no new email, record exact deployment and test status here. Cursor: pull main
   only after merge, do not reintroduce donor data or bypass preview/confirmation.
+
+### Receipt helper continuation (approved narrow scope)
+- Shared record-to-email helper forwards receipt memo and optional company/name;
+  manual-entry supplies its computed donor-of-record name; resend supplies saved
+  company and removes generated bookkeeping from the receipt memo.
+- Email wording, presentation, personal greeting and recipients unchanged.
+- Additional 11 synthetic helper tests; no live email in the test harness.
+- Both receipt repairs approved after testing; deployment/correction verification
+  still pending. Do not send another email for an existing-link-only correction.

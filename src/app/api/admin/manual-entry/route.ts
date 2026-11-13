@@ -595,6 +595,8 @@ export async function POST(req: NextRequest) {
       amountDollars: amount,
       campaign,
       memo: userMemo,
+      company,
+      receiptName: receiptDisplayName,
       donationType,
       method: methodLabel,
       paidAt,

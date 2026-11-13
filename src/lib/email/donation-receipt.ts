@@ -126,6 +126,9 @@ export async function sendDonationReceiptEmailFromRecord(input: {
   firstName: string;
   lastName: string;
   amountDollars: number;
+  /** Donor-of-record override; does not change personal greeting or recipients. */
+  company?: string | null;
+  receiptName?: string | null;
   campaign?: string | null;
   /** Optional receipt memo (only when admin entered one). */
   memo?: string | null;
@@ -172,11 +175,12 @@ export async function sendDonationReceiptEmailFromRecord(input: {
   return sendDonationTaxReceiptEmail({
     email: recipients,
     firstName: input.firstName,
-    name: names.receiptName,
+    name: input.company?.trim() || input.receiptName?.trim() || names.receiptName,
     greetingName: names.greeting,
     amount: input.amountDollars,
     date: paidDate,
     campaign,
+    memo: input.memo,
     dedicationName: input.dedicationName,
     dedicationType: input.dedicationType,
     method,

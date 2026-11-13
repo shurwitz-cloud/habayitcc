@@ -1,3 +1,4 @@
+import { bareDonationMemo } from '@/lib/donations/receipt-correction';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCapabilityApi } from '@/lib/admin/guard';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -64,7 +65,8 @@ export async function POST(req: NextRequest) {
       lastName: donation.last_name,
       amountDollars: Number(donation.amount),
       campaign: donation.campaign,
-      memo: donation.memo,
+      memo: bareDonationMemo(donation.memo),
+      company: donation.company,
       dedicationName: donation.dedication_name,
       dedicationType: donation.dedication_type,
       donationType: donation.donation_type === 'Monthly' ? 'Monthly' : 'One-Time',

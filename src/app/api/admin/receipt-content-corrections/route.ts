@@ -37,18 +37,18 @@ export async function POST(req: NextRequest) {
     .eq('id', body.donationId).maybeSingle();
   if (donationError) return fail('Donation lookup failed', 500);
   if (!donation || donation.status !== 'succeeded') return fail('Succeeded donation required');
+  const { data: payment, error: paymentError } = await supabase.from('payments').select('paid_at, status, payment_method')
+    .eq('source_type', 'donation').eq('source_id', donation.id).order('paid_at', { ascending: true }).limit(1).maybeSingle();
+  if (paymentError) return fail('Payment lookup failed', 500);
+  if (!payment?.paid_at || payment.status !== 'succeeded' || Number.isNaN(new Date(payment.paid_at).getTime())) return fail('Succeeded dated payment required');
   const name = readReceiptParam(params.name)!;
   const amount = Number(readReceiptParam(params.amount));
   const method = readReceiptParam(params.method) || 'Credit Card';
   if (!Number.isFinite(amount) || amount <= 0 || !correctionConsistent({
     donationName: `${donation.first_name} ${donation.last_name}`.trim(), donationAmount: Number(donation.amount),
-    donationMethod: donationReceiptMethod(donation), donationCampaign: donation.campaign,
+    donationMethod: payment.payment_method?.trim() || donationReceiptMethod(donation), donationCampaign: donation.campaign,
     linkName: name, linkAmount: amount, linkMethod: method, linkCampaign: readReceiptParam(params.campaign),
   })) return fail('Receipt does not match this donation');
-  const { data: payment, error: paymentError } = await supabase.from('payments').select('paid_at, status')
-    .eq('source_type', 'donation').eq('source_id', donation.id).order('paid_at', { ascending: true }).limit(1).maybeSingle();
-  if (paymentError) return fail('Payment lookup failed', 500);
-  if (!payment?.paid_at || payment.status !== 'succeeded' || Number.isNaN(new Date(payment.paid_at).getTime())) return fail('Succeeded dated payment required');
   const date = formatReceiptDate(new Date(payment.paid_at));
   // This route is ONLY a company/memo repair, not a date or financial repair.
   if (readReceiptParam(params.date) !== date) return fail('Payment date differs; use date correction separately');

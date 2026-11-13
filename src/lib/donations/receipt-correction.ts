@@ -100,12 +100,23 @@ export async function resolveReceiptCorrection(input: {
       .maybeSingle();
     if (!donation || donation.status !== 'succeeded') return null;
 
+    const { data: payment } = await supabase
+      .from('payments')
+      .select('paid_at, status, payment_method')
+      .eq('source_type', 'donation')
+      .eq('source_id', donation.id)
+      .order('paid_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!payment?.paid_at || payment.status !== 'succeeded') return null;
+
+
     const donationName = `${donation.first_name} ${donation.last_name}`.trim();
     if (
       !correctionConsistent({
         donationName,
         donationAmount: Number(donation.amount),
-        donationMethod: donationReceiptMethod(donation),
+        donationMethod: payment.payment_method?.trim() || donationReceiptMethod(donation),
         donationCampaign: donation.campaign,
         linkName: input.name,
         linkAmount: input.amount,
@@ -117,15 +128,6 @@ export async function resolveReceiptCorrection(input: {
       return null;
     }
 
-    const { data: payment } = await supabase
-      .from('payments')
-      .select('paid_at, status')
-      .eq('source_type', 'donation')
-      .eq('source_id', donation.id)
-      .order('paid_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (!payment?.paid_at || payment.status !== 'succeeded') return null;
 
     const paidAt = new Date(payment.paid_at);
     if (Number.isNaN(paidAt.getTime())) return null;

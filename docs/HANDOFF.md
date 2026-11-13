@@ -268,3 +268,11 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 - Additional 11 synthetic helper tests; no live email in the test harness.
 - Both receipt repairs approved after testing; deployment/correction verification
   still pending. Do not send another email for an existing-link-only correction.
+- Live grounding: correction consistency uses payments.payment_method before
+  legacy memo inference, so separately edited receipt memos do not lose Zelle.
+  Added regression test (25 exact-link tests + 11 helper tests pass).
+- Authenticated preview form and signature-rejection fail-closed verified.
+  Production signatures cannot verify on this preview: receipt signing secret
+  in Vercel is Production plus an older branch-specific preview only. No secret
+  was copied, exposed or changed. Actual signature/mapping must verify on live
+  production after tested deployment; invalid signature must never be bypassed.

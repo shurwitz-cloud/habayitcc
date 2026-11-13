@@ -9,7 +9,7 @@ const route=load('src/app/api/admin/receipt-content-corrections/route.ts',{'next
 const original={name:'Example Person',amount:'100.00',date:'11/13/2026',method:'Zelle'};
 const link=p=>'https://habayitcc.org/receipt?'+new URLSearchParams({...p,sig:url.computeReceiptSig(p)});
 const base={donationId:'synthetic-id',receiptUrl:link(original)};
-function reset(){writes=[];denied=false;rows={donations:{id:'synthetic-id',first_name:'Example',last_name:'Person',company:'Example Organization',amount:100,memo:'Printing · via Zelle',campaign:null,donation_type:'One-Time',status:'succeeded'},payments:{paid_at:'2026-11-13T17:00:00Z',status:'succeeded'},receipt_corrections:null};}
+function reset(){writes=[];denied=false;rows={donations:{id:'synthetic-id',first_name:'Example',last_name:'Person',company:'Example Organization',amount:100,memo:'Printing · via Zelle',campaign:null,donation_type:'One-Time',status:'succeeded'},payments:{payment_method:'Zelle',paid_at:'2026-11-13T17:00:00Z',status:'succeeded'},receipt_corrections:null};}
 const req=(body,origin='https://www.habayitcc.org')=>({nextUrl:{origin:'https://www.habayitcc.org'},headers:{get:()=>origin},json:async()=>body});
 let count=0;async function test(name,fn){reset();await fn();console.log('PASS',++count,name)}
 (async()=>{
@@ -35,5 +35,6 @@ await test('legacy date-only resolver has no content override',async()=>{rows.re
 await test('explicit content resolver returns stored company/memo',async()=>{rows.receipt_corrections={donation_id:'synthetic-id',correct_content:true};const x=await helper.resolveReceiptCorrection({sig:'test',name:original.name,amount:100,method:'Zelle'});assert.equal(x.content.name,'Example Organization');assert.equal(x.content.memo,'Printing')});
 await test('no exact mapping means unchanged receipt',async()=>assert.equal(await helper.resolveReceiptCorrection({sig:'different',name:original.name,amount:100,method:'Zelle'}),null));
 await test('content resolver mismatched donor fails closed',async()=>{rows.receipt_corrections={donation_id:'synthetic-id',correct_content:true};assert.equal(await helper.resolveReceiptCorrection({sig:'test',name:'Other',amount:100,method:'Zelle'}),null)});
+await test('ledger method wins when stored receipt memo has no generated method',async()=>{rows.donations.memo='Printing';rows.donations.donation_type='One-Time';rows.payments.payment_method='Zelle';const x=await route.POST(req(base));assert.equal(x.body.corrected.method,'Zelle');rows.receipt_corrections={donation_id:'synthetic-id',correct_content:true};const y=await helper.resolveReceiptCorrection({sig:'test',name:original.name,amount:100,method:'Zelle'});assert.equal(y.content.memo,'Printing')});
 console.log(count+' tests passed; all fixture data synthetic');
 })().catch(e=>{console.error(e);process.exit(1)});

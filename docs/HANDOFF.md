@@ -276,3 +276,25 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   in Vercel is Production plus an older branch-specific preview only. No secret
   was copied, exposed or changed. Actual signature/mapping must verify on live
   production after tested deployment; invalid signature must never be bypassed.
+
+### Receipt repairs SHIPPED 2026-11-13
+- GitHub main ee1e3cc fast-forwarded from the verified production baseline;
+  byte-identical to the tested branch. Vercel Production Ready 1m19s:
+  https://vercel.com/habayit/habayitcc/AQERW7xv1ocJTBVRQFWBEKynhF1k .
+- Migration0032 applied through authenticated SQL UI; existing date-only row
+  remained correct_content=false. One exact signed company-receipt correction
+  previewed with valid production signature, then confirmed via finance UI.
+  Original emailed URL visually verified with company/memo and unchanged
+  date/amount/method. No donor identifiers or signatures recorded in this repo.
+- No emails sent by the repair. Sent-mail log checked before/after: unchanged
+  existing delivery. New approved standard emails remain their own workflow.
+- 25 exact-link tests +11 helper tests pass; TypeScript clean. Two additional
+  local real-builder/HMAC checks validate signed button target fields. Preview
+  and production optimized builds Ready. Authenticated preview UI and rejection
+  verified; preview secret is branch-scoped, so actual signature validated only
+  on production. No secret/config changed.
+- Public homepage and an independent signed receipt checked after deployment;
+  layout/style unchanged. Receipt screenshot inspected on actual old URL.
+- Cursor: pull main. Do not resend an existing-link-only correction. Company
+  and memo forwarding fix is live, standard email template unchanged. No other
+  site features or payment/donation records changed by this repair.

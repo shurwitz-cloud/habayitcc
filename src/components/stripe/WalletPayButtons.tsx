@@ -6,6 +6,15 @@ import {
   useElements,
   useStripe,
 } from '@stripe/react-stripe-js';
+import {
+  createWalletDebugRecorder,
+  diagnosticStopConfirm,
+  isWalletDebugEnabled,
+  shouldStopConfirmForDebug,
+  type WalletDebugFlags,
+  type WalletDebugRecorder,
+  type WalletDebugEvent,
+} from '@/lib/events/wallet-debug';
 import type {
   StripeExpressCheckoutElementConfirmEvent,
   StripeExpressCheckoutElementClickEvent,
@@ -53,6 +62,22 @@ export function WalletPayButtons({
   const elements = useElements();
   const [visible, setVisible] = useState(false);
 
+  // --- wallet_debug diagnostic mode (client-only, ?wallet_debug=1) ---
+  const [debugEnabled] = useState(
+    () => typeof window !== 'undefined' && isWalletDebugEnabled(window.location.search)
+  );
+  const debugRef = useRef<WalletDebugRecorder | null>(null);
+  if (debugEnabled && !debugRef.current) debugRef.current = createWalletDebugRecorder();
+  const [debugLines, setDebugLines] = useState<string[]>([]);
+  const [debugCopied, setDebugCopied] = useState(false);
+  const recordDebug = (event: WalletDebugEvent, flags?: WalletDebugFlags) => {
+    const r = debugRef.current;
+    if (!r) return;
+    r.record(event, flags);
+    setDebugLines(r.lines());
+  };
+  // --- end wallet_debug diagnostic mode ---
+
   const onBeforeOpenRef = useRef(onBeforeOpen);
   const createClientSecretRef = useRef(createClientSecret);
   const onPaymentSucceededRef = useRef(onPaymentSucceeded);
@@ -70,7 +95,13 @@ export function WalletPayButtons({
     onPaymentSucceededRef.current = onPaymentSucceeded;
   }, [onPaymentSucceeded]);
   useEffect(() => {
-    onErrorRef.current = onError;
+    onErrorRef.current = onError
+      ? (message: string) => {
+          recordDebug('error');
+          onError(message);
+        }
+      : onError;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onError]);
   useEffect(() => {
     amountRef.current = amountCents;
@@ -92,9 +123,33 @@ export function WalletPayButtons({
   const handleReady = (event: StripeExpressCheckoutElementReadyEvent) => {
     const methods = event.availablePaymentMethods;
     setVisible(Boolean(methods?.applePay || methods?.googlePay || methods?.link));
+    if (debugRef.current) {
+      let applePaySessionApi = false;
+      let applePayCanMakePayments: boolean | undefined;
+      try {
+        const w = window as unknown as { ApplePaySession?: { canMakePayments(): boolean } };
+        applePaySessionApi = typeof w.ApplePaySession?.canMakePayments === 'function';
+        applePayCanMakePayments = applePaySessionApi
+          ? w.ApplePaySession!.canMakePayments()
+          : undefined;
+      } catch {
+        applePayCanMakePayments = undefined;
+      }
+      recordDebug('ready', {
+        applePayAvailable: Boolean(methods?.applePay),
+        googlePayAvailable: Boolean(methods?.googlePay),
+        linkAvailable: Boolean(methods?.link),
+        applePaySessionApi,
+        applePayCanMakePayments,
+      });
+    }
   };
 
+  // Recorded only in diagnostic mode; normal mode attaches no cancel handler.
+  const handleCancel = () => recordDebug('cancel');
+
   const handleClick = (event: StripeExpressCheckoutElementClickEvent) => {
+    recordDebug('click');
     try {
       onBeforeOpenRef.current?.();
       event.resolve({
@@ -106,7 +161,9 @@ export function WalletPayButtons({
           },
         ],
       });
+      recordDebug('resolve');
     } catch (err) {
+      recordDebug('reject');
       event.reject();
       onErrorRef.current?.(
         err instanceof Error ? err.message : 'Please complete the form before paying.'
@@ -115,6 +172,14 @@ export function WalletPayButtons({
   };
 
   const handleConfirm = async (event: StripeExpressCheckoutElementConfirmEvent) => {
+    // Diagnostic mode: never submit, never create a PaymentIntent, never confirm.
+    if (shouldStopConfirmForDebug(Boolean(debugRef.current))) {
+      diagnosticStopConfirm(
+        (message) => event.paymentFailed({ reason: 'fail', message }),
+        recordDebug,
+      );
+      return;
+    }
     if (!stripe || !elements) {
       event.paymentFailed({ reason: 'fail', message: 'Payment is still loading.' });
       return;
@@ -222,6 +287,7 @@ export function WalletPayButtons({
           onReady={handleReady}
           onClick={handleClick}
           onConfirm={handleConfirm}
+          onCancel={debugEnabled ? handleCancel : undefined}
         />
       </div>
       {visible ? (
@@ -229,6 +295,30 @@ export function WalletPayButtons({
           <div className="flex-1 border-t border-line" />
           <span className="text-[0.78rem] text-muted">or pay with card</span>
           <div className="flex-1 border-t border-line" />
+        </div>
+      ) : null}
+      {debugEnabled ? (
+        <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[45vh] overflow-y-auto bg-black/90 p-3 font-mono text-[11px] leading-relaxed text-green-200">
+          <p className="font-bold text-white">
+            DIAGNOSTIC MODE - no payment will be created or charged. If the Apple Pay sheet
+            opens, it stops itself before payment.
+          </p>
+          {debugLines.length ? (
+            debugLines.map((line, i) => <p key={i}>{line}</p>)
+          ) : (
+            <p>Waiting for wallet events... tap Apple Pay above.</p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(debugLines.join('\n')).then(() => {
+                setDebugCopied(true);
+              });
+            }}
+            className="mt-2 rounded-full bg-white px-4 py-1.5 font-sans text-[12px] font-bold text-black"
+          >
+            {debugCopied ? 'Copied - paste it in WhatsApp' : 'Copy diagnostics'}
+          </button>
         </div>
       ) : null}
     </div>

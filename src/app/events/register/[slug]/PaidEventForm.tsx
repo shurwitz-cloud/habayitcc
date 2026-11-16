@@ -664,6 +664,20 @@ function PaidEventFormInner({
         }
         if (result.receiptUrl) setReceiptUrl(result.receiptUrl);
         setSubmitted(true);
+      } catch (err) {
+        // The wallet section (with its wallet-local error block) unmounted
+        // when the payment succeeded, so this failure must surface in the
+        // form-level error block: it carries the "card already charged, you
+        // will not be charged again" recovery note and pairs with the
+        // "Finish registration (no extra charge)" submit button. Set it
+        // directly here and swallow the error - the caller's catch would
+        // route it to the now-invisible wallet-local block (and report
+        // paymentFailed for a payment that succeeded).
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Registration failed. Please try again.'
+        );
       } finally {
         setProcessing(false);
       }

@@ -18,7 +18,7 @@ import {
   walletErrorFocusTarget,
 } from '../src/lib/events/wallet-error';
 
-const FULL = { firstName: 'A', lastName: 'B', email: 'a@b.com', phone: '5551234567' };
+const FULL = { firstName: 'A', lastName: 'B', email: 'test@example.com', phone: '5551234567' };
 
 test('identity validation message is reworded to name contact details, not card fields', () => {
   const shown = walletErrorDisplay(IDENTITY_VALIDATION_MESSAGE);

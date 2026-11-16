@@ -5,6 +5,11 @@ import { Elements, useStripe, useElements, CardElement } from '@stripe/react-str
 import type { StripeCardElementOptions } from '@stripe/stripe-js';
 import { stripePromise } from '@/lib/stripe/client';
 import { WalletPayButtons } from '@/components/stripe/WalletPayButtons';
+import {
+  IDENTITY_VALIDATION_MESSAGE,
+  walletErrorDisplay,
+  walletErrorFocusTarget,
+} from '@/lib/events/wallet-error';
 import { eventUsesAdultsKids, type PaidEventConfig } from '@/lib/events/paid-events';
 import {
   computePaidEventTotal,
@@ -113,6 +118,8 @@ function PaidEventFormInner({
 
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [walletError, setWalletError] = useState('');
+  const walletErrorRef = useRef<HTMLDivElement>(null);
   const [submitted, setSubmitted] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState('');
   /** After Stripe succeeds, keep the PI so a failed CRM save can retry without recharging. */
@@ -448,7 +455,7 @@ function PaidEventFormInner({
 
   function validateRegistrationFields(): string | null {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
-      return 'Please fill in all required fields.';
+      return IDENTITY_VALIDATION_MESSAGE;
     }
     if (eventUsesAdultsKids(event) && adults + kids < 1) {
       return 'Please enter at least one adult or child.';
@@ -530,6 +537,7 @@ function PaidEventFormInner({
   }
 
   const handleWalletBeforeOpen = useCallback(() => {
+    setWalletError('');
     const validationError = validateRegistrationFields();
     if (validationError) throw new Error(validationError);
     if (totalToCents(pricing.total) < 100) throw new Error('Nothing to pay.');
@@ -568,6 +576,7 @@ function PaidEventFormInner({
 
     setProcessing(true);
     setError('');
+    setWalletError('');
 
     const res = await fetch('/api/stripe/event-payment-intent', {
       method: 'POST',
@@ -628,6 +637,7 @@ function PaidEventFormInner({
   const handleWalletSucceeded = useCallback(
     async (paymentIntentId: string) => {
       try {
+        setWalletError('');
         setPaidIntentId(paymentIntentId);
 
         const result = await submitPaidEventRegistration({
@@ -678,10 +688,32 @@ function PaidEventFormInner({
     ]
   );
 
-  const handleWalletError = useCallback((message: string) => {
-    setError(message);
-    setProcessing(false);
-  }, []);
+  const handleWalletError = useCallback(
+    (message: string) => {
+      setWalletError(message);
+      setProcessing(false);
+      const targetId = walletErrorFocusTarget(message, {
+        firstName,
+        lastName,
+        email,
+        phone,
+      });
+      // Wait a tick so the error block exists before scrolling to it.
+      setTimeout(() => {
+        if (targetId) {
+          const field = document.getElementById(targetId);
+          field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          field?.focus();
+        } else {
+          walletErrorRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }
+      }, 50);
+    },
+    [firstName, lastName, email, phone]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -828,19 +860,19 @@ function PaidEventFormInner({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <Field label="First Name" required>
-          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+          <input id="reg-first-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
         </Field>
         <Field label="Last Name" required>
-          <input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+          <input id="reg-last-name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
         </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Email" required>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
         <Field label="Phone" required>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+          <input id="reg-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
         </Field>
       </div>
 
@@ -1283,6 +1315,16 @@ function PaidEventFormInner({
             onPaymentSucceeded={handleWalletSucceeded}
             onError={handleWalletError}
           />
+
+          {walletError ? (
+            <div
+              ref={walletErrorRef}
+              role="alert"
+              className="bg-[#fdecea] border border-[#f3c4c0] text-red-700 rounded-2xl px-5 py-3.5 text-[0.9rem]"
+            >
+              {walletErrorDisplay(walletError)}
+            </div>
+          ) : null}
 
           <Field label="Card Details" required>
             <div className="border border-line rounded-xl px-4 py-3.5 bg-white">

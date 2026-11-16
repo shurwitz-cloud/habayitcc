@@ -18,7 +18,7 @@ import { receiptMethodFromDonationType } from './receipt-method';
 export interface ReceiptCorrectionMatch {
   donationId: string;
   paidAt: Date;
-  content?: { name: string; memo: string };
+  content?: { name: string; memo: string; method: string };
 }
 
 /**
@@ -47,6 +47,7 @@ export function correctionConsistent(input: {
   donationName: string;
   donationAmount: number;
   donationMethod: string;
+  donationOriginalMethod?: string | null;
   donationCampaign: string | null | undefined;
   linkName: string;
   linkAmount: number;
@@ -55,7 +56,12 @@ export function correctionConsistent(input: {
 }): boolean {
   if (Math.abs(input.donationAmount - input.linkAmount) > 0.005) return false;
   if (normalizeName(input.donationName) !== normalizeName(input.linkName)) return false;
-  if (normalizeName(input.donationMethod) !== normalizeName(input.linkMethod)) return false;
+  const acceptedMethods = new Set(
+    [input.donationMethod, input.donationOriginalMethod]
+      .filter((m): m is string => !!m?.trim())
+      .map(normalizeName),
+  );
+  if (!acceptedMethods.has(normalizeName(input.linkMethod))) return false;
   const donationCampaign = (input.donationCampaign ?? '').trim().toLowerCase();
   const linkCampaign = (input.linkCampaign ?? '').trim().toLowerCase();
   return donationCampaign === linkCampaign;
@@ -112,11 +118,16 @@ export async function resolveReceiptCorrection(input: {
 
 
     const donationName = `${donation.first_name} ${donation.last_name}`.trim();
+    const originalMethod = donationReceiptMethod(donation);
+    const recordMethod = payment.payment_method?.trim() || originalMethod;
     if (
       !correctionConsistent({
         donationName,
         donationAmount: Number(donation.amount),
-        donationMethod: payment.payment_method?.trim() || donationReceiptMethod(donation),
+        donationMethod: recordMethod,
+        // An explicit content correction may repair the method itself, so the
+        // link only needs to carry a method THIS donation could have minted.
+        donationOriginalMethod: row.correct_content === true ? originalMethod : undefined,
         donationCampaign: donation.campaign,
         linkName: input.name,
         linkAmount: input.amount,
@@ -137,6 +148,7 @@ export async function resolveReceiptCorrection(input: {
       ...(row.correct_content === true ? { content: {
         name: donation.company?.trim() || donationName,
         memo: bareDonationMemo(donation.memo) || '',
+        method: recordMethod,
       } } : {}),
     };
   } catch (err) {

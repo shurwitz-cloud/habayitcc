@@ -8,6 +8,7 @@ import { bareDonationMemo, correctionConsistent, donationReceiptMethod } from '@
 export const dynamic = 'force-dynamic';
 
 /** Finance-only exact-link repair. No email or donation/payment mutations. */
+/** Repairs company/memo/method to the ledger record on ONE verified sent link. */
 export async function POST(req: NextRequest) {
   const denied = await requireCapabilityApi('crm_finance');
   if (denied) return denied;
@@ -44,9 +45,11 @@ export async function POST(req: NextRequest) {
   const name = readReceiptParam(params.name)!;
   const amount = Number(readReceiptParam(params.amount));
   const method = readReceiptParam(params.method) || 'Credit Card';
+  const originalMethod = donationReceiptMethod(donation);
+  const recordMethod = payment.payment_method?.trim() || originalMethod;
   if (!Number.isFinite(amount) || amount <= 0 || !correctionConsistent({
     donationName: `${donation.first_name} ${donation.last_name}`.trim(), donationAmount: Number(donation.amount),
-    donationMethod: payment.payment_method?.trim() || donationReceiptMethod(donation), donationCampaign: donation.campaign,
+    donationMethod: recordMethod, donationOriginalMethod: originalMethod, donationCampaign: donation.campaign,
     linkName: name, linkAmount: amount, linkMethod: method, linkCampaign: readReceiptParam(params.campaign),
   })) return fail('Receipt does not match this donation');
   const date = formatReceiptDate(new Date(payment.paid_at));
@@ -54,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (readReceiptParam(params.date) !== date) return fail('Payment date differs; use date correction separately');
   const corrected = {
     name: donation.company?.trim() || `${donation.first_name} ${donation.last_name}`.trim(),
-    memo: bareDonationMemo(donation.memo) || '', amount: Number(donation.amount).toFixed(2), date, method,
+    memo: bareDonationMemo(donation.memo) || '', amount: Number(donation.amount).toFixed(2), date, method: recordMethod,
     campaign: donation.campaign?.trim() || undefined,
   };
   const originalMemo = readReceiptParam(params.memo);

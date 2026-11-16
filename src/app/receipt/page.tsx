@@ -111,7 +111,7 @@ export default async function ReceiptPage({
   const line: ReceiptLine = {
     date: dates.short,
     memo: correction?.content?.memo ?? memo,
-    method,
+    method: correction?.content?.method ?? method,
     amount: hasQpq ? qpqDeductible : Number.isNaN(amount) ? 0 : amount,
     goodsDescription: hasQpq ? qpqDescription : undefined,
     goodsFmv: hasQpq ? qpqFmv : undefined,

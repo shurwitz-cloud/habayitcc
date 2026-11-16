@@ -7,6 +7,11 @@ import {
   useStripe,
 } from '@stripe/react-stripe-js';
 import {
+  isApplePaySessionAbort,
+  isWithinAbortWatchWindow,
+  WALLET_ABORT_FALLBACK_MESSAGE,
+} from '@/lib/events/wallet-availability';
+import {
   createWalletDebugRecorder,
   diagnosticStopConfirm,
   isWalletDebugEnabled,
@@ -77,6 +82,19 @@ export function WalletPayButtons({
     setDebugLines(r.lines());
   };
   // --- end wallet_debug diagnostic mode ---
+
+  // Watchdog: surface the silent Apple Pay session-start abort (stripe-js #909).
+  const lastWalletClickRef = useRef<number | null>(null);
+  useEffect(() => {
+    const onUnhandledRejection = (ev: PromiseRejectionEvent) => {
+      if (!isApplePaySessionAbort(ev.reason)) return;
+      if (!isWithinAbortWatchWindow(lastWalletClickRef.current, Date.now())) return;
+      onErrorRef.current?.(WALLET_ABORT_FALLBACK_MESSAGE);
+    };
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    return () => window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onBeforeOpenRef = useRef(onBeforeOpen);
   const createClientSecretRef = useRef(createClientSecret);
@@ -149,6 +167,7 @@ export function WalletPayButtons({
   const handleCancel = () => recordDebug('cancel');
 
   const handleClick = (event: StripeExpressCheckoutElementClickEvent) => {
+    lastWalletClickRef.current = Date.now();
     recordDebug('click');
     try {
       onBeforeOpenRef.current?.();

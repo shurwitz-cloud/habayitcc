@@ -1324,6 +1324,7 @@ function PaidEventFormInner({
             label={event.title}
             disabled={processing || !stripe}
             buttonVariant="checkout"
+            applePayEnabled={event.slug !== 'erev-zugot'}
             onBeforeOpen={handleWalletBeforeOpen}
             createClientSecret={handleWalletCreateSecret}
             onPaymentSucceeded={handleWalletSucceeded}

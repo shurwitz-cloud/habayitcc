@@ -23,6 +23,8 @@ export interface WalletPayButtonsProps {
   /** Shown as the line item in the wallet sheet. */
   label: string;
   disabled?: boolean;
+  /** Temporarily disable Apple Pay for a specific checkout without affecting other wallets. */
+  applePayEnabled?: boolean;
   /** Donate vs checkout button label style. */
   buttonVariant?: 'donate' | 'checkout';
   /** Monthly gifts need Apple Pay recurring payment metadata. */
@@ -47,6 +49,7 @@ export function WalletPayButtons({
   amountCents,
   label,
   disabled = false,
+  applePayEnabled = true,
   buttonVariant = 'checkout',
   recurringMonthly = false,
   onBeforeOpen,
@@ -204,7 +207,7 @@ export function WalletPayButtons({
             paymentMethods: {
               // Always show wallets on supported devices so the button is visible
               // even before a card is saved in Wallet (user can still add one).
-              applePay: 'always',
+              applePay: applePayEnabled ? 'always' : 'never',
               googlePay: 'always',
               link: 'auto',
               paypal: 'never',

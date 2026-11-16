@@ -298,3 +298,28 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 - Cursor: pull main. Do not resend an existing-link-only correction. Company
   and memo forwarding fix is live, standard email template unchanged. No other
   site features or payment/donation records changed by this repair.
+
+### Receipt method repair SHIPPED 2026-11-16
+- main 763b78f fast-forwarded from the tested branch fix-exact-receipt-method
+  (same tree). Vercel auto-deploy confirmed live by behavior: the finance
+  receipt-correction preview accepted a link minted with the original method
+  only after the new build was serving.
+- A recorded exact-link content correction can now carry the ledger payment
+  method: resolveReceiptCorrection returns content.method and /receipt renders
+  it. Signature validation, the donation/payment binding, and the fail-closed
+  consistency check are unchanged; the link method must match the ledger
+  method or the method that donation's original link could have minted.
+  Date-only corrections still require the exact ledger method.
+- One exact signed receipt (wrongly minted "Credit Card" for a Zelle gift
+  because manual entry never stored payment_method) was previewed then
+  confirmed via the finance UI. The original emailed URL now renders the
+  ledger method with unchanged name/date/amount/memo. No email sent; the
+  admin email log was checked before and after.
+- The 2026-11-13 company/memo correction link was re-opened after deploy and
+  renders unchanged (company, memo, method, date, amount).
+- 30 synthetic-fixture tests pass (25 prior + 5 method-repair); typecheck
+  clean for changed files (pre-existing unrelated pglite fixture error in
+  tests/skate-retry-holds.test.ts). No schema change, no secret/config
+  change, no other site features touched.
+- Cursor: pull main. Resending a receipt email is still not the repair path
+  for an already-sent link.

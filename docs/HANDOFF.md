@@ -361,7 +361,9 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   function claim_event_gift_code; old claim_bbq_staff_code left in place so
   the pre-deploy app is unaffected (fail-closed either way). Verify and
   reconcile reads are event-scoped in app code.
-- Go-live steps after approval: merge PR; apply migration 0033; then copy
+- Go-live steps after approval: apply migration 0033 first (additive and
+  safe for the current live app: the old claim function stays in place),
+  then merge the PR, then copy
   the existing BBQ codes for this event:
     insert into bbq_staff_codes (code, event_slug)
     select code, 'teens-topgolf' from bbq_staff_codes

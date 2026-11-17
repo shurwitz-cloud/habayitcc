@@ -400,6 +400,7 @@ export async function persistPaidEventRegistration(
         womens: input.womens,
         couples: input.couples,
         skate: input.skate,
+        bbq: input.bbq,
         fairChildLines: pricing.fairChildLines,
         coupleLines: pricing.coupleLines,
         skateLines: pricing.skateLines,

@@ -362,13 +362,19 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   the pre-deploy app is unaffected (fail-closed either way). Verify and
   reconcile reads are event-scoped in app code.
 - Go-live steps after approval: apply migration 0033 first (additive and
-  safe for the current live app: the old claim function stays in place),
-  then merge the PR, then copy
+  safe for the current live app: it also re-pins the legacy 2-arg claim
+  function to the BBQ event in place), then merge the PR, then copy
   the existing BBQ codes for this event:
     insert into bbq_staff_codes (code, event_slug)
     select code, 'teens-topgolf' from bbq_staff_codes
     where event_slug = 'teens-bbq';
   No new code strings are generated and none enter the repo.
+- Rollback: revert the merge (redeploy the previous production deployment)
+  to remove the event; optionally delete the teens-topgolf code rows and
+  drop claim_event_gift_code. Note: after the codes are copied, a rolled
+  back (old) app verifies BBQ gift cards fail-closed because the same
+  string exists for two events - restore by re-merging or by deleting the
+  teens-topgolf rows (rollback steps are in migration 0033's header).
 - Typecheck clean (only the known pre-existing pglite fixture error in
   tests/skate-retry-holds.test.ts); 42/42 bbq retry tests pass.
 - Cursor: pull main after merge. Nothing else on the site changes.

@@ -15,12 +15,13 @@
 --      event with its own available -> held -> consumed state.
 --      Nothing references bbq_staff_codes.code, so the swap is
 --      safe; the table holds 10 rows.
---   2. ADDS claim_event_gift_code (code + claim token + event),
---      leaving the original claim_bbq_staff_code in place so the
---      previously deployed app keeps working unchanged until the
---      new app (which calls the scoped function) is serving.
---      Drop the old function in a later cleanup once no
---      deployment calls it.
+--   2. ADDS claim_event_gift_code (code + claim token + event) for
+--      the new app, and REPLACES claim_bbq_staff_code in place
+--      (same 2-argument signature) with a version pinned to
+--      event_slug 'teens-bbq'. The previously deployed app keeps
+--      calling it unchanged and can now only ever hold BBQ rows -
+--      without this, the old code-only UPDATE would hold every
+--      event's copy of a reused code string at once.
 --
 -- The table, statuses, hold lifecycle and RLS are otherwise
 -- unchanged. No codes are created here: at go-live the Topgolf
@@ -75,3 +76,33 @@ end;
 $$;
 
 revoke all on function claim_event_gift_code(text, text, text) from public, anon, authenticated;
+
+-- Legacy entry point for the pre-migration app build: same
+-- signature, now pinned to the BBQ event so a reused code string
+-- can never be held for the wrong event. Drop once no deployment
+-- calls it.
+create or replace function claim_bbq_staff_code(
+  p_code text,
+  p_claim_token text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update bbq_staff_codes
+     set status = 'held',
+         claim_token = p_claim_token,
+         expires_at = now() + interval '2 hours',
+         updated_at = now()
+   where code = p_code
+     and event_slug = 'teens-bbq'
+     and (
+       status = 'available'
+       or (status = 'held' and claim_token = p_claim_token)
+     );
+  return found;
+end;
+$$;
+
+revoke all on function claim_bbq_staff_code(text, text) from public, anon, authenticated;

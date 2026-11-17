@@ -158,7 +158,7 @@ export async function verifyBbqStaffCodeAction(
   if (!event || event.type !== 'bbq') return { valid: false, reason: 'invalid' };
 
   const ownedClaimToken = (await cookies()).get('bbq_claim_token')?.value;
-  const lookup = await verifyBbqStaffCode(code, ownedClaimToken);
+  const lookup = await verifyBbqStaffCode(code, ownedClaimToken, eventSlug);
   if (!lookup.supported) {
     return {
       valid: false,
@@ -309,7 +309,7 @@ export async function submitPaidEventRegistration(
             // Late claim (hold released after a failed first submit): the
             // payment already happened, so claim and bind to the SAME
             // intent - never reject a paid registration.
-            const lookup = await verifyBbqStaffCode(rawCode);
+            const lookup = await verifyBbqStaffCode(rawCode, undefined, event.slug);
             if (!lookup.supported) {
               return await failCode(
                 'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
@@ -323,7 +323,7 @@ export async function submitPaidEventRegistration(
               );
             }
             const token = crypto.randomUUID();
-            const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
+            const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token, eventSlug: event.slug });
             if (!claim.supported || claim.error) {
               return await failCode(
                 'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
@@ -343,7 +343,7 @@ export async function submitPaidEventRegistration(
             amountCents: 0, eventSlug: event.slug, email: input.email.trim().toLowerCase(), attendees, sponsorAmount: input.sponsorAmount ?? 0, coverFee: !!input.coverFee });
           if (retry.kind !== 'available') return await failCode(retry.kind === 'used'
             ? 'This code was already used.' : 'This code has a checkout in progress. Please finish it in the original browser or try again later.');
-          const lookup = await verifyBbqStaffCode(rawCode);
+          const lookup = await verifyBbqStaffCode(rawCode, undefined, event.slug);
           if (!lookup.supported) {
             return await failCode(
               'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',
@@ -357,7 +357,7 @@ export async function submitPaidEventRegistration(
             );
           }
           const token = crypto.randomUUID();
-          const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
+          const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token, eventSlug: event.slug });
           if (!claim.supported || claim.error) {
             return await failCode(
               'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',

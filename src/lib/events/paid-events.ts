@@ -4,7 +4,8 @@ export type PaidEventSlug =
   | 'pre-rosh-hashana-womens'
   | 'simchat-torah'
   | 'erev-zugot'
-  | 'fire-on-ice';
+  | 'fire-on-ice'
+  | 'teens-topgolf';
 
 export type PaidEventType =
   | 'dinner'
@@ -49,6 +50,8 @@ export interface PaidEventConfig {
   hebrewKidsFreeWithCode?: boolean;
   /** When true, HaBayit members can use a unique Chai Partner code once for a discounted first ticket. */
   memberPriceWithCode?: boolean;
+  /** Per-person admission for bbq-type events (defaults to BBQ_TICKET_PRICE). */
+  ticketPrice?: number;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
   /** Optional labels for donation/sponsor presets. */
@@ -174,6 +177,26 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     capacity: 22,
   },
   {
+  {
+    slug: 'teens-topgolf',
+    title: 'HaBayit Teens Topgolf \u2014 Chanukah Kickoff',
+    program: 'HaBayit Teens - High Schoolers',
+    month: 'Dec',
+    day: '7',
+    dateLabel: 'Monday, December 7th',
+    time: '6:00 PM',
+    startsAt: '2026-12-07T18:00:00-05:00',
+    description:
+      'HaBayit Teens hits Topgolf for a Chanukah kickoff: golf, menorah lighting, and Chanukah treats for high schoolers. $20 admission. Pick up & drop off at 10225 Panama Street.',
+    location: 'Topgolf \u2014 pick up & drop off at 10225 Panama Street',
+    flyer: '/flyers/teens-topgolf.jpg',
+    type: 'bbq',
+    peopleMode: 'people',
+    ticketPrice: 20,
+    sponsorPresets: [54, 72, 180, 360],
+    sheetTab: 'Topgolf Chanukah Kickoff',
+  },
+  {
     slug: 'fire-on-ice',
     title: 'Fire on Ice \u2014 Musical Havdala',
     program: 'Community',
@@ -209,6 +232,7 @@ export function paidEventSharePath(event: PaidEventConfig): string {
   if (event.slug === 'simchat-torah') return '/st';
   if (event.slug === 'erev-zugot') return '/zugot';
   if (event.slug === 'fire-on-ice') return '/skate';
+  if (event.slug === 'teens-topgolf') return '/topgolf';
   return paidEventRegisterPath(event.slug);
 }
 

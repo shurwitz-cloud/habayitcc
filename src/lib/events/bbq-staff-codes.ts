@@ -48,16 +48,21 @@ export interface StaffCodeLookup {
 }
 
 /** Verify a staff code for live form feedback (no claim). */
-export async function verifyBbqStaffCode(codeRaw: string, ownedClaimToken?: string): Promise<StaffCodeLookup> {
+export async function verifyBbqStaffCode(
+  codeRaw: string,
+  ownedClaimToken?: string,
+  eventSlug?: string,
+): Promise<StaffCodeLookup> {
   const code = normalizeStaffCode(codeRaw);
   if (code.length < 6) return { valid: false, supported: true, reason: 'invalid' };
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('bbq_staff_codes')
     .select('code, status, claim_token')
-    .eq('code', code)
-    .maybeSingle();
+    .eq('code', code);
+  if (eventSlug) query = query.eq('event_slug', eventSlug);
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     if (isMissingSchema(error)) return { valid: false, supported: false };
@@ -86,11 +91,13 @@ export interface StaffCodeClaimResult {
 export async function claimBbqStaffCode(input: {
   code: string;
   claimToken: string;
+  eventSlug: string;
 }): Promise<StaffCodeClaimResult> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('claim_bbq_staff_code', {
+  const { data, error } = await supabase.rpc('claim_event_gift_code', {
     p_code: normalizeStaffCode(input.code),
     p_claim_token: input.claimToken,
+    p_event_slug: input.eventSlug,
   });
   if (error) {
     if (isMissingSchema(error)) return { supported: false, claimed: false };
@@ -242,7 +249,10 @@ export async function reconcileBbqCheckout(input: {
 }): Promise<BbqRetryResult> {
   const supabase = createAdminClient();
   const { data: row, error } = await supabase.from('bbq_staff_codes')
-    .select('code, status, claim_token, payment_intent_id').eq('code', normalizeStaffCode(input.code)).maybeSingle();
+    .select('code, status, claim_token, payment_intent_id')
+    .eq('code', normalizeStaffCode(input.code))
+    .eq('event_slug', input.eventSlug)
+    .maybeSingle();
   if (error || !row) return { kind: 'failure' };
   if (row.status === 'available') return { kind: 'available' };
   if (row.status === 'consumed') return { kind: 'used' };

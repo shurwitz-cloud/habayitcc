@@ -174,14 +174,14 @@ export async function POST(req: NextRequest) {
             retry.kind === 'pending' ? 'This code has a checkout in progress. Please finish it in the original browser or try again later.' :
             'We could not verify that code right now. Please try again in a moment.');
         }
-        const lookup = await verifyBbqStaffCode(rawCode);
+        const lookup = await verifyBbqStaffCode(rawCode, undefined, event.slug);
         if (!lookup.supported || !lookup.valid || !lookup.code) {
           return await failCode(lookup.reason === 'already_used' ? 'This code was already used.' :
             lookup.reason === 'in_progress' ? 'This code has a checkout in progress. Please try again later.' :
             'We could not verify that code right now. Please try again in a moment.');
         }
         const token = crypto.randomUUID();
-        const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token });
+        const claim = await claimBbqStaffCode({ code: lookup.code, claimToken: token, eventSlug: event.slug });
         if (!claim.supported || claim.error) {
           return await failCode(
             'We could not verify that code right now. Please try again in a moment, or continue without it at full price.',

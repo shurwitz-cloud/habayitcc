@@ -347,3 +347,26 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 - Cursor: pull main. Do not recreate the BBQ event; the teen Chanukah event
   lives on the teens-topgolf branch (draft PR #24), still unmerged pending
   Shmuel's go-live approval.
+### Topgolf Chanukah Kickoff event PREPARED 2026-11-17 (not live)
+- Branch teens-topgolf: new paid event teens-topgolf (type bbq) - "HaBayit
+  Teens Topgolf - Chanukah Kickoff", Mon Dec 7 2026 6:00 PM, $20 admission,
+  pickup/dropoff 10225 Panama Street, flyer public/flyers/teens-topgolf.jpg,
+  short link /topgolf. Same terms as teens BBQ: flat price, no Chai/HA
+  discounts, 3% cc-fee checkbox, sponsor presets 54/72/180/360.
+- ticketPrice added to PaidEventConfig (bbq-type events; default keeps BBQ
+  at $10). computeBbqTickets and the form's price display use it.
+- Gift cards: Shmuel chose to REUSE the same BBQ code strings for this
+  event (2026-11-17), independent per-event redemption. Migration 0033 makes
+  the bbq_staff_codes primary key (code, event_slug) and adds scoped claim
+  function claim_event_gift_code; old claim_bbq_staff_code left in place so
+  the pre-deploy app is unaffected (fail-closed either way). Verify and
+  reconcile reads are event-scoped in app code.
+- Go-live steps after approval: merge PR; apply migration 0033; then copy
+  the existing BBQ codes for this event:
+    insert into bbq_staff_codes (code, event_slug)
+    select code, 'teens-topgolf' from bbq_staff_codes
+    where event_slug = 'teens-bbq';
+  No new code strings are generated and none enter the repo.
+- Typecheck clean (only the known pre-existing pglite fixture error in
+  tests/skate-retry-holds.test.ts); 42/42 bbq retry tests pass.
+- Cursor: pull main after merge. Nothing else on the site changes.

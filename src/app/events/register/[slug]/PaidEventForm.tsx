@@ -90,6 +90,7 @@ function PaidEventFormInner({
     'valid' | 'invalid' | 'checking' | null
   >(null);
   const [staffCodeReason, setStaffCodeReason] = useState<string | null>(null);
+  const bbqTicketPrice = event.ticketPrice ?? BBQ_TICKET_PRICE;
   const [couples, setCouples] = useState(1);
   const [skaters, setSkaters] = useState(1);
   const [nonSkaters, setNonSkaters] = useState(0);
@@ -1007,7 +1008,7 @@ function PaidEventFormInner({
       {event.type === 'bbq' && (
         <div className="space-y-3 border-t border-line pt-5">
           <StepperField
-            label={`Attendees — $${BBQ_TICKET_PRICE} each`}
+            label={`Attendees — $${bbqTicketPrice} each`}
             value={bbqAttendees}
             onChange={setBbqAttendees}
             min={1}
@@ -1274,7 +1275,7 @@ function PaidEventFormInner({
         ) : (
           <>
             {event.type === 'bbq' && bbqData?.staffFree ? (
-              <SummaryLine label="Tickets" amount={bbqAttendees * BBQ_TICKET_PRICE} />
+              <SummaryLine label="Tickets" amount={bbqAttendees * bbqTicketPrice} />
             ) : (
               pricing.ticketSubtotal > 0 && (
                 <SummaryLine label="Tickets" amount={pricing.ticketSubtotal} />
@@ -1285,7 +1286,7 @@ function PaidEventFormInner({
                 <span>Gift card applied</span>
                 <span>
                   -$
-                  {Math.min(BBQ_TICKET_PRICE, bbqAttendees * BBQ_TICKET_PRICE).toFixed(2)}
+                  {Math.min(bbqTicketPrice, bbqAttendees * bbqTicketPrice).toFixed(2)}
                 </span>
               </div>
             )}

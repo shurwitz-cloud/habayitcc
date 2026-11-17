@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
       { source: '/skate', destination: '/events/register/fire-on-ice' },
       { source: '/fire-on-ice', destination: '/events/register/fire-on-ice' },
       { source: '/fireonice', destination: '/events/register/fire-on-ice' },
+      { source: '/topgolf', destination: '/events/register/teens-topgolf' },
+      { source: '/teens-topgolf', destination: '/events/register/teens-topgolf' },
     ];
   },
   async redirects() {

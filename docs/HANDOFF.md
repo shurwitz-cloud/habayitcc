@@ -323,3 +323,27 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
   change, no other site features touched.
 - Cursor: pull main. Resending a receipt email is still not the repair path
   for an already-sent link.
+
+### Teens BBQ Kickoff canceled and removed 2026-11-17
+- Shmuel canceled the HaBayit Teens BBQ Kickoff (was Sun Nov 22): "Remove the
+  barbecue teen program from the website." Removed on branch remove-teens-bbq.
+- Live DB checked first (Supabase SQL editor, read-only): ZERO registrations,
+  $0 collected, no payment intents for teens-bbq. No refunds or attendee
+  notices needed. All 10 gift-card codes remain 'available' in bbq_staff_codes
+  (event_slug teens-bbq) and were left untouched - they are the strings Shmuel
+  wants reused for the Topgolf Chanukah event (see teens-topgolf branch).
+- Code removal: teens-bbq config + slug union entry + /bbq share-path case
+  dropped from src/lib/events/paid-events.ts; /bbq and /teens-bbq rewrites
+  removed from next.config.ts and replaced with non-permanent redirects
+  (/bbq, /teens-bbq, /events/register/teens-bbq -> /events) so old flyer/QR
+  links land somewhere useful; public/flyers/teens-bbq-v2.jpg deleted.
+- The 'bbq' event type and all gift-card machinery (bbq-staff-codes, pricing,
+  register form, payment-intent route) intentionally stay: the Topgolf event
+  reuses them. CRM event stats stop listing the BBQ (config-driven); DB rows
+  unchanged. The events Google Sheet 'Teens BBQ Kickoff' tab was never
+  created (zero registrations).
+- Typecheck clean (pre-existing unrelated pglite fixture error in
+  tests/skate-retry-holds.test.ts); 42/42 retry/pricing tests pass.
+- Cursor: pull main. Do not recreate the BBQ event; the teen Chanukah event
+  lives on the teens-topgolf branch (draft PR #24), still unmerged pending
+  Shmuel's go-live approval.

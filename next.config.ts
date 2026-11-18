@@ -25,8 +25,6 @@ const nextConfig: NextConfig = {
       { source: '/erev-zugot', destination: '/events/register/erev-zugot' },
       { source: '/erevzugot', destination: '/events/register/erev-zugot' },
       { source: '/skate', destination: '/events/register/fire-on-ice' },
-      { source: '/bbq', destination: '/events/register/teens-bbq' },
-      { source: '/teens-bbq', destination: '/events/register/teens-bbq' },
       { source: '/fire-on-ice', destination: '/events/register/fire-on-ice' },
       { source: '/fireonice', destination: '/events/register/fire-on-ice' },
     ];
@@ -45,6 +43,10 @@ const nextConfig: NextConfig = {
         destination: 'https://www.habayitcc.org/:path*',
         permanent: true,
       },
+      // Teens BBQ Kickoff was canceled 2026-11-17; old flyer/QR links land on the events list.
+      { source: '/bbq', destination: '/events', permanent: false },
+      { source: '/teens-bbq', destination: '/events', permanent: false },
+      { source: '/events/register/teens-bbq', destination: '/events', permanent: false },
       { source: '/hebrew-school', destination: '/hebrew-adventure', permanent: true },
       { source: '/hebrew-school/register', destination: '/hebrew-adventure/register', permanent: true },
       { source: '/bat-mitzvah', destination: '/bloom', permanent: true },

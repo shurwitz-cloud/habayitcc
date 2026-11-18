@@ -177,7 +177,6 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     capacity: 22,
   },
   {
-  {
     slug: 'teens-topgolf',
     title: 'HaBayit Teens Topgolf \u2014 Chanukah Kickoff',
     program: 'HaBayit Teens - High Schoolers',

@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
     if (!event) {
       return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
     }
+    const memberPeopleLimit = event.memberPeopleLimit ?? SKATE_MEMBER_PEOPLE_LIMIT;
     const room = await assertPaidEventHasRoom(
       event,
       paidEventUnitsFromInput(event, {
@@ -82,6 +83,11 @@ export async function POST(req: NextRequest) {
     if (!room.ok) {
       return NextResponse.json({ error: room.error }, { status: 400 });
     }
+
+    if (event.type === 'admission' && (
+      (body.skate?.nonSkaters ?? 0) !== 0 ||
+      (!event.hebrewAdmissionDiscount && ((body.skate?.haCodes?.length ?? 0) > 0 || (body.skate?.haDiscountedSkaters ?? 0) > 0))
+    )) { return NextResponse.json({ error: 'Unsupported admission option.' }, { status: 400 }); }
 
     const email = normalizeDonorEmail(body.email ?? '');
     if (!email || !body.firstName?.trim() || !body.lastName?.trim()) {
@@ -206,7 +212,7 @@ export async function POST(req: NextRequest) {
     // claimed before the payment intent exists.
     let haClaim: { token: string; claimed: Array<{ registrationId: string; code: string }> } | null =
       null;
-    if (event.type === 'skate') {
+    if ((event.type === 'skate' || event.type === 'admission')) {
       const skaterCount = Math.max(0, Math.round(body.skate?.skaters || 0));
       const nonSkaterCount = Math.max(0, Math.round(body.skate?.nonSkaters || 0));
       if (skaterCount + nonSkaterCount < 1) {
@@ -262,7 +268,7 @@ export async function POST(req: NextRequest) {
                 nonSkaters: nonSkaterCount,
                 memberCode: lookup.code ?? rawCode,
                 memberDiscount: true,
-                memberPeople: SKATE_MEMBER_PEOPLE_LIMIT,
+                memberPeople: memberPeopleLimit,
               },
               sponsorAmount: body.sponsorAmount ?? 0,
               coverFee: !!body.coverFee,
@@ -291,7 +297,7 @@ export async function POST(req: NextRequest) {
                 held &&
                 held.partnerId === lookup.partnerId &&
                 held.code === lookup.code &&
-                held.count === SKATE_MEMBER_PEOPLE_LIMIT &&
+                held.count === memberPeopleLimit &&
                 pi.metadata?.event_slug === event.slug &&
                 pi.amount === chaiCandidateCents &&
                 (pi.status === 'requires_payment_method' ||
@@ -356,9 +362,9 @@ export async function POST(req: NextRequest) {
             eventId: eventId as string,
             partnerId: lookup.partnerId,
             code: lookup.code,
-            wanted: SKATE_MEMBER_PEOPLE_LIMIT,
+            wanted: memberPeopleLimit,
             claimToken: token,
-            limit: SKATE_MEMBER_PEOPLE_LIMIT,
+            limit: memberPeopleLimit,
           });
           if (!claim.supported || claim.error) {
             return NextResponse.json(
@@ -366,7 +372,7 @@ export async function POST(req: NextRequest) {
               { status: 400 },
             );
           }
-          if (claim.claimed < SKATE_MEMBER_PEOPLE_LIMIT) {
+          if (claim.claimed < memberPeopleLimit) {
             // The member's own holds were just reconciled above, so a
             // partial grant means a COMPETING checkout on the same
             // account is holding slots right now. Release the partial
@@ -405,7 +411,7 @@ export async function POST(req: NextRequest) {
         if (new Set(rawHaCodes).size !== rawHaCodes.length) {
           if (skateClaim) await releaseSkateAllowance({ claimToken: skateClaim.token });
           return NextResponse.json(
-            { error: 'Each Hebrew Adventure code can only discount one skater on this registration.' },
+            { error: `Each Hebrew Adventure code can only discount one ${event.type === 'admission' ? 'admission' : 'skater'} on this registration.` },
             { status: 400 },
           );
         }
@@ -629,27 +635,27 @@ export async function POST(req: NextRequest) {
         fair_children:
           event.type === 'family-fair' ? String(body.fair?.children?.length ?? 0) : '',
         couples: event.type === 'couples' ? String(couplesData?.couples ?? 0) : '',
-        skaters: event.type === 'skate' ? String(skateData?.skaters ?? 0) : '',
-        non_skaters: event.type === 'skate' ? String(skateData?.nonSkaters ?? 0) : '',
+        skaters: (event.type === 'skate' || event.type === 'admission') ? String(skateData?.skaters ?? 0) : '',
+        non_skaters: (event.type === 'skate' || event.type === 'admission') ? String(skateData?.nonSkaters ?? 0) : '',
         member_people:
-          event.type === 'skate' && skateData?.memberDiscount
+          (event.type === 'skate' || event.type === 'admission') && skateData?.memberDiscount
             ? String(
                 skateData?.memberPeople ??
                   (skateData?.skaters ?? 0) + (skateData?.nonSkaters ?? 0),
               )
             : '',
         ha_skaters:
-          event.type === 'skate' ? String(skateData?.haDiscountedSkaters ?? 0) : '',
+          (event.type === 'skate' || event.type === 'admission') ? String(skateData?.haDiscountedSkaters ?? 0) : '',
         member_code:
           (event.type === 'couples' && couplesData?.memberDiscount) ||
-          (event.type === 'skate' && skateData?.memberDiscount)
+          ((event.type === 'skate' || event.type === 'admission') && skateData?.memberDiscount)
             ? String(
-                (event.type === 'skate' ? skateData?.memberCode : couplesData?.memberCode) ?? '',
+                ((event.type === 'skate' || event.type === 'admission') ? skateData?.memberCode : couplesData?.memberCode) ?? '',
               ).slice(0, 40)
             : '',
         member_discount:
           (event.type === 'couples' && couplesData?.memberDiscount) ||
-          (event.type === 'skate' && skateData?.memberDiscount)
+          ((event.type === 'skate' || event.type === 'admission') && skateData?.memberDiscount)
             ? '1'
             : '0',
       },

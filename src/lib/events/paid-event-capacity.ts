@@ -26,7 +26,7 @@ export function paidEventUnitsFromInput(event: PaidEventConfig, input: {
   if (event.type === 'womens') {
     return Math.max(0, input.womens?.women ?? 0);
   }
-  if (event.type === 'skate') {
+  if ((event.type === 'skate' || event.type === 'admission')) {
     return Math.max(0, Math.round(Number(input.skate?.skaters) || 0));
   }
   if (event.type === 'bbq') {

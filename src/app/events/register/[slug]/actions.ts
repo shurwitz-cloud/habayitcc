@@ -123,7 +123,7 @@ export async function verifyHaBayitMemberCodeAction(
   }
 
   const event = eventSlug ? getPaidEvent(eventSlug) : null;
-  if (event?.type === 'skate') {
+  if ((event?.type === 'skate' || event?.type === 'admission')) {
     const lookup = await verifySkateMemberCode(code, {
       eventSlug: event.slug,
       ...identity,
@@ -199,6 +199,11 @@ export async function submitPaidEventRegistration(
 
     const firstName = input.firstName.trim();
     const lastName = input.lastName.trim();
+    if (event.type === 'admission' && (
+      (input.skate?.nonSkaters ?? 0) !== 0 ||
+      (!event.hebrewAdmissionDiscount && ((input.skate?.haCodes?.length ?? 0) > 0 || (input.skate?.haDiscountedSkaters ?? 0) > 0))
+    )) { return { success: false, error: 'Unsupported admission option.' }; }
+
     const email = input.email.trim().toLowerCase();
     const phone = input.phone.trim();
 
@@ -406,7 +411,7 @@ export async function submitPaidEventRegistration(
       }
     }
 
-    if (event.type === 'skate') {
+    if ((event.type === 'skate' || event.type === 'admission')) {
       const skaterCount = Math.max(0, Math.round(input.skate?.skaters || 0));
       const nonSkaterCount = Math.max(0, Math.round(input.skate?.nonSkaters || 0));
       if (skaterCount + nonSkaterCount < 1) {
@@ -494,7 +499,7 @@ export async function submitPaidEventRegistration(
         if (new Set(rawHaCodes).size !== rawHaCodes.length) {
           return {
             success: false,
-            error: 'Each Hebrew Adventure code can only discount one skater on this registration.',
+            error: `Each Hebrew Adventure code can only discount one ${event.type === 'admission' ? 'admission' : 'skater'} on this registration.`,
           };
         }
         const codesToApply = rawHaCodes.slice(0, skaterCount);
@@ -642,7 +647,7 @@ export async function submitPaidEventRegistration(
           eventRegistrationId: null,
           partnerId: memberRedemption.partnerId,
           code: memberRedemption.code,
-          allowReuse: event.type === 'skate',
+          allowReuse: (event.type === 'skate' || event.type === 'admission'),
         });
         if (!reservedMember.ok) {
           return { success: false, error: reservedMember.error };

@@ -134,7 +134,7 @@ export function buildPaidEventSheetValues(input: PaidEventSheetRowInput): (strin
     ];
   }
 
-  if (input.event.type === 'skate') {
+  if ((input.event.type === 'skate' || input.event.type === 'admission')) {
     const skaterNote = (input.skateLines ?? [])
       .map((l) => `#${l.index}: ${usd(l.price)}${l.member ? ' member' : l.ha ? ' HA-code' : ''}`)
       .join('; ');
@@ -278,7 +278,7 @@ function sheetInputFromRegistration(
       (event.type === 'couples' ? { couples: people.guests || 1 } : undefined),
     skate:
       skate ??
-      (event.type === 'skate' ? { skaters: people.guests || 1 } : undefined),
+      ((event.type === 'skate' || event.type === 'admission') ? { skaters: people.guests || 1 } : undefined),
     bbq:
       bbq ??
       (event.type === 'bbq' ? { attendees: people.guests || 1 } : undefined),

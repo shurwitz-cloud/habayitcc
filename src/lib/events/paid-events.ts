@@ -5,7 +5,8 @@ export type PaidEventSlug =
   | 'simchat-torah'
   | 'erev-zugot'
   | 'fire-on-ice'
-  | 'teens-topgolf';
+  | 'teens-topgolf'
+  | 'chanukah-glow-party';
 
 export type PaidEventType =
   | 'dinner'
@@ -14,7 +15,8 @@ export type PaidEventType =
   | 'celebration'
   | 'couples'
   | 'skate'
-  | 'bbq';
+  | 'bbq'
+  | 'admission';
 
 export type PaidEventSponsorOption = {
   amount: number;
@@ -50,8 +52,13 @@ export interface PaidEventConfig {
   hebrewKidsFreeWithCode?: boolean;
   /** When true, HaBayit members can use a unique Chai Partner code once for a discounted first ticket. */
   memberPriceWithCode?: boolean;
-  /** Per-person admission for bbq-type events (defaults to BBQ_TICKET_PRICE). */
+  /** Per-person price for BBQ-style and general-admission events. */
   ticketPrice?: number;
+  /** General admission only: enable Hebrew Adventure admission-code discount. */
+  hebrewAdmissionDiscount?: boolean;
+  /** General admission: fixed Chai admission price and one-reservation cap. */
+  memberTicketPrice?: number;
+  memberPeopleLimit?: number;
   /** Preset sponsor amounts (optional add-on). */
   sponsorPresets: number[];
   /** Optional labels for donation/sponsor presets. */
@@ -214,6 +221,29 @@ export const PAID_EVENTS: PaidEventConfig[] = [
     sponsorPresets: [54, 72, 180, 360],
     sheetTab: 'Fire on Ice',
   },
+  {
+    slug: 'chanukah-glow-party',
+    title: 'Chanukah Glow Party',
+    program: 'HaBayit - Middle Schoolers',
+    month: 'Dec',
+    day: '9',
+    dateLabel: 'Wednesday, December 9th',
+    time: '6:30 PM',
+    startsAt: '2026-12-09T18:30:00-05:00',
+    description: 'A Chanukah Glow Party for middle schoolers. $15 admission.',
+    location: '3007 Bogota Ave',
+    flyer: '/flyers/chanukah-glow-party.jpg',
+    type: 'admission',
+    peopleMode: 'people',
+    ticketPrice: 15,
+    memberPriceWithCode: true,
+    // Owner voice note, Nov 18: fixed partner price, two kids, one reservation.
+    hebrewAdmissionDiscount: false,
+    memberTicketPrice: 10,
+    memberPeopleLimit: 2,
+    sponsorPresets: [54, 72, 180, 360],
+    sheetTab: 'Chanukah Glow Party',
+  },
 ];
 
 /** Shared events workbook — one tab per event. */
@@ -232,6 +262,7 @@ export function paidEventSharePath(event: PaidEventConfig): string {
   if (event.slug === 'erev-zugot') return '/zugot';
   if (event.slug === 'fire-on-ice') return '/skate';
   if (event.slug === 'teens-topgolf') return '/topgolf';
+  if (event.slug === 'chanukah-glow-party') return '/glow';
   return paidEventRegisterPath(event.slug);
 }
 

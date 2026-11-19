@@ -111,8 +111,8 @@ export async function recordOfflinePaidEventRegistration(
         ? `Guests: ${guestCount}\n${paidNote}`
         : event.type === 'couples'
           ? `Couples: ${guestCount}\n${paidNote}`
-          : event.type === 'skate'
-            ? `Skaters: ${guestCount}\n${paidNote}`
+          : (event.type === 'skate' || event.type === 'admission')
+            ? `${event.type === 'admission' ? 'Attendees' : 'Skaters'}: ${guestCount}\n${paidNote}`
             : event.type === 'bbq'
               ? `Attendees: ${guestCount}\n${paidNote}`
               : `Children: ${guestCount}\n${paidNote}`;
@@ -128,7 +128,7 @@ export async function recordOfflinePaidEventRegistration(
         : undefined,
     fair: event.type === 'family-fair' ? { children: Array.from({ length: guestCount }, () => ({})) } : undefined,
     couples: event.type === 'couples' ? { couples: guestCount } : undefined,
-    skate: event.type === 'skate' ? { skaters: guestCount } : undefined,
+    skate: (event.type === 'skate' || event.type === 'admission') ? { skaters: guestCount } : undefined,
     bbq: event.type === 'bbq' ? { attendees: guestCount } : undefined,
     ticketSubtotal: amount,
     coverFee: false,
@@ -216,7 +216,7 @@ export async function recordOfflinePaidEventRegistration(
           : undefined,
       womens: event.type === 'womens' ? { women: guestCount } : undefined,
       couples: event.type === 'couples' ? { couples: guestCount } : undefined,
-    skate: event.type === 'skate' ? { skaters: guestCount } : undefined,
+    skate: (event.type === 'skate' || event.type === 'admission') ? { skaters: guestCount } : undefined,
       bbq: event.type === 'bbq' ? { attendees: guestCount } : undefined,
       ticketSubtotal: amount,
       sponsorAmount: 0,

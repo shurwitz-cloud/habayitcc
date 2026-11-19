@@ -435,6 +435,11 @@ const PAID_EVENT_HEADERS: Record<string, string[]> = {
     'Skaters', 'Member Code', 'Skater Details', 'Ticket Subtotal', 'Sponsor Amount',
     'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
   ],
+  admission: [
+    'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
+    'Attendees', 'Member Code', 'Admission Details', 'Ticket Subtotal', 'Sponsor Amount',
+    'Cover Fee', 'Card Fee', 'Total Charged', 'Payment Method', 'Payment ID', 'Notes',
+  ],
   bbq: [
     'Timestamp', 'Last Name', 'First Name', 'Email', 'Phone',
     'Attendees', 'Ticket Subtotal', 'Sponsor Amount',
@@ -511,7 +516,7 @@ async function ensureTabWithHeaders(
  */
 export async function appendPaidEventRow(
   spreadsheetId: string,
-  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate' | 'bbq',
+  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate' | 'bbq' | 'admission',
   values: (string | number)[],
   tabName: string,
 ): Promise<void> {
@@ -537,7 +542,7 @@ export async function appendPaidEventRow(
 
 export async function ensurePaidEventTabs(
   spreadsheetId: string,
-  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate' | 'bbq' }>,
+  tabs: Array<{ tabName: string; eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate' | 'bbq' | 'admission' }>,
 ): Promise<void> {
   for (const tab of tabs) {
     const headers = PAID_EVENT_HEADERS[tab.eventType];
@@ -549,7 +554,7 @@ export async function ensurePaidEventTabs(
 /** Replace a tab's header + data rows (used for backfill). */
 export async function replacePaidEventTab(
   spreadsheetId: string,
-  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate' | 'bbq',
+  eventType: 'dinner' | 'family-fair' | 'womens' | 'celebration' | 'couples' | 'skate' | 'bbq' | 'admission',
   tabName: string,
   rows: (string | number)[][],
 ): Promise<void> {

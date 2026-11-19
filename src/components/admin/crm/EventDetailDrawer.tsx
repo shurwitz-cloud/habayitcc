@@ -95,7 +95,9 @@ export function EventDetailDrawer({
       ? '36'
       : paidEvent?.type === 'dinner' || paidEvent?.type === 'couples'
         ? '55'
-        : paidEvent?.type === 'skate'
+        : paidEvent?.type === 'admission'
+          ? String(paidEvent.ticketPrice ?? 15)
+          : paidEvent?.type === 'skate'
           ? '20'
           : paidEvent?.type === 'bbq'
             ? '10'

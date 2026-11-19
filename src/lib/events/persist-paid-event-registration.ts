@@ -85,12 +85,12 @@ function buildDetailsSummary(
   if (event.type === 'bbq' && bbq) {
     return `Attendees: ${bbq.attendees}`;
   }
-  if (event.type === 'skate' && skate) {
+  if ((event.type === 'skate' || event.type === 'admission') && skate) {
     const nonSkaters = Math.max(0, Math.round(skate.nonSkaters ?? 0) || 0);
     const lines =
       skateLines?.map(
         (l) =>
-          `Skater ${l.index}: $${l.price.toFixed(2)}${l.member ? ' — HaBayit member' : l.ha ? ' — Hebrew Adventure code' : ''}`,
+          `${event.type === 'admission' ? 'Admission' : 'Skater'} ${l.index}: $${l.price.toFixed(2)}${l.member ? ' — HaBayit member' : l.ha ? ' — Hebrew Adventure code' : ''}`,
       ) ?? [];
     const passLines =
       skatePassLines?.map(
@@ -100,7 +100,7 @@ function buildDetailsSummary(
     const code = skate.memberCode?.trim();
     const haCodes = (skate.haCodes ?? []).filter(Boolean);
     return [
-      skate.skaters > 0 ? `Skaters: ${skate.skaters}` : '',
+      skate.skaters > 0 ? `${event.type === 'admission' ? 'Attendees' : 'Skaters'}: ${skate.skaters}` : '',
       ...lines,
       nonSkaters > 0 ? `Non-skater entry passes: ${nonSkaters}` : '',
       ...passLines,
@@ -246,7 +246,7 @@ export async function persistPaidEventRegistration(
         ? (input.fair?.children.length ?? 0)
         : event.type === 'couples'
           ? (input.couples?.couples ?? 1)
-          : event.type === 'skate'
+          : (event.type === 'skate' || event.type === 'admission')
             ? (input.skate?.skaters ?? 0) + (input.skate?.nonSkaters ?? 0) || 1
             : event.type === 'bbq'
               ? (input.bbq?.attendees ?? 1)
@@ -449,14 +449,14 @@ export async function persistPaidEventRegistration(
   // Consume held skate allowance (idempotent; no-op pre-migration 0028
   // or when this PI holds none). Runs for both the submit and webhook
   // paths, so a paid registration's discount is always recorded.
-  if (event.type === 'skate' && input.skate?.memberDiscount && paymentIntentId) {
+  if ((event.type === 'skate' || event.type === 'admission') && input.skate?.memberDiscount && paymentIntentId) {
     await consumeSkateAllowance(paymentIntentId);
   }
 
   // Consume held Hebrew Adventure code discounts (idempotent; no-op
   // pre-migration 0030 or when this PI holds none): writes the
   // permanent redemptions rows and attaches them to this registration.
-  if (event.type === 'skate' && paymentIntentId) {
+  if ((event.type === 'skate' || event.type === 'admission') && paymentIntentId) {
     await consumeHebrewFairCodeHolds(paymentIntentId, registrationId);
   }
 
@@ -538,7 +538,7 @@ export function paidEventInputFromPaymentIntentMetadata(
           }
         : undefined,
     skate:
-      event.type === 'skate'
+      (event.type === 'skate' || event.type === 'admission')
         ? {
             skaters,
             nonSkaters,

@@ -164,6 +164,8 @@ export function computeBbqTickets(
 
 export function computeSkateTickets(
   data: SkateRegistrationData,
+  ticketPrice: number = SKATE_TICKET_PRICE,
+  memberTicketPrice?: number,
 ): {
   subtotal: number;
   lines: NonNullable<PricingBreakdown['skateLines']>;
@@ -194,10 +196,10 @@ export function computeSkateTickets(
     const member = i < memberAllowance;
     const ha = !member && i < haAllowance;
     const price = member
-      ? SKATE_CHAI_SKATER_PRICE
+      ? (memberTicketPrice ?? roundMoney(ticketPrice * (1 - SKATE_CHAI_DISCOUNT_RATE)))
       : ha
-        ? SKATE_HA_TICKET_PRICE
-        : SKATE_TICKET_PRICE;
+        ? roundMoney(ticketPrice * (1 - SKATE_HA_DISCOUNT_RATE))
+        : ticketPrice;
     subtotal += price;
     lines.push({ index: i + 1, price, member, ha });
   }
@@ -255,8 +257,20 @@ export function computePaidEventTotal(input: {
       coupleLines = result.lines;
       break;
     }
+    case 'admission':
     case 'skate': {
-      const result = computeSkateTickets(input.skate ?? { skaters: 0 });
+      const admission = input.event.type === 'admission';
+      const data = input.skate ?? { skaters: 0 };
+      const result = computeSkateTickets(
+        admission ? {
+          ...data,
+          nonSkaters: 0,
+          memberPeople: Math.min(data.memberPeople ?? input.event.memberPeopleLimit ?? 2, input.event.memberPeopleLimit ?? 2),
+          haDiscountedSkaters: 0,
+        } : data,
+        admission ? input.event.ticketPrice : undefined,
+        admission ? input.event.memberTicketPrice : undefined,
+      );
       ticketSubtotal = result.subtotal;
       skateLines = result.lines;
       skatePassLines = result.passLines;

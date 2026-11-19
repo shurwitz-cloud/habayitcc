@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { getPaidEvent } from '@/lib/events/paid-events';
 import { skateAllowanceConsumed } from '@/lib/events/skate-allowance';
 
 export function normalizeMemberCode(raw: string): string {
@@ -139,7 +140,7 @@ export async function skateMemberPeopleUsed(
   let used = 0;
   for (const row of rows ?? []) {
     const details = asDetails(row.registration_details);
-    if (details?.type !== 'skate') continue;
+    if (details?.type !== 'skate' && details?.type !== 'admission') continue;
     const skate = asDetails(details.skate);
     const stored = normalizeMemberCode(String(skate?.memberCode || ''));
     if (!stored || stored !== code) continue;
@@ -266,7 +267,7 @@ export async function verifySkateMemberCode(
   if (used > 0) {
     return { valid: false, reason: 'already_used', partnerId: partner.id, code, remaining: 0 };
   }
-  return { valid: true, partnerId: partner.id, code, remaining: SKATE_MEMBER_PEOPLE_LIMIT };
+  return { valid: true, partnerId: partner.id, code, remaining: getPaidEvent(options.eventSlug)?.memberPeopleLimit ?? SKATE_MEMBER_PEOPLE_LIMIT };
 }
 
 export async function recordMemberCodeRedemption(input: {

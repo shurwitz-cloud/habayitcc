@@ -155,10 +155,13 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
   const program = getAttendanceProgram(programSlug);
   if (!program) return { ok: false, error: 'Unknown program.', migration: false };
 
-  // Teacher logins are Hebrew Adventure only; keep child info (allergies,
-  // staff notes) for other programs out of their snapshots entirely.
+  // Teacher logins are Hebrew Adventure only; volunteer logins have no
+  // documented access to sensitive child info. Keep allergies and staff
+  // notes out of both roles' snapshots beyond that scope.
   const callerRole = await getAdminRole();
-  const restrictChildInfo = callerRole === 'teacher' && program.slug !== 'hebrew-adventure';
+  const restrictChildInfo =
+    callerRole === 'volunteer' ||
+    (callerRole === 'teacher' && program.slug !== 'hebrew-adventure');
 
   const synced = await syncEnrolledRoster(program);
   if (synced && 'ok' in synced) return synced;
@@ -316,8 +319,8 @@ export async function addChildNote(
     return { ok: false, error: 'Unknown program.', migration: false };
   }
   const role = (await getAdminRole()) ?? 'staff';
-  if (role === 'teacher' && programSlug !== 'hebrew-adventure') {
-    return { ok: false, error: 'Your access covers Hebrew Adventure only.', migration: false };
+  if (role === 'volunteer' || (role === 'teacher' && programSlug !== 'hebrew-adventure')) {
+    return { ok: false, error: 'Your access does not include child notes here.', migration: false };
   }
   const text = clip(note, 1000);
   if (!text) return { ok: false, error: 'Write a note first.', migration: false };
@@ -355,8 +358,8 @@ export async function updateChildNote(
     return { ok: false, error: 'Unknown program.', migration: false };
   }
   const updateRole = await getAdminRole();
-  if (updateRole === 'teacher' && programSlug !== 'hebrew-adventure') {
-    return { ok: false, error: 'Your access covers Hebrew Adventure only.', migration: false };
+  if (updateRole === 'volunteer' || (updateRole === 'teacher' && programSlug !== 'hebrew-adventure')) {
+    return { ok: false, error: 'Your access does not include child notes here.', migration: false };
   }
   const text = clip(note, 1000);
   if (!text) return { ok: false, error: 'Write a note first.', migration: false };

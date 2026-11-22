@@ -155,6 +155,11 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
   const program = getAttendanceProgram(programSlug);
   if (!program) return { ok: false, error: 'Unknown program.', migration: false };
 
+  // Teacher logins are Hebrew Adventure only; keep child info (allergies,
+  // staff notes) for other programs out of their snapshots entirely.
+  const callerRole = await getAdminRole();
+  const restrictChildInfo = callerRole === 'teacher' && program.slug !== 'hebrew-adventure';
+
   const synced = await syncEnrolledRoster(program);
   if (synced && 'ok' in synced) return synced;
 
@@ -184,7 +189,9 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
     if (kids.error) return fail(kids.error, 'Could not load children.');
     childRows = kids.data ?? [];
   }
-  const children = childRows.map(mapChild);
+  const children = childRows
+    .map(mapChild)
+    .map((child) => (restrictChildInfo ? { ...child, allergies: null } : child));
   const byId = new Map(children.map((child) => [child.id, child]));
 
   const unplaced: UnplacedChild[] = unplacedIds.flatMap((childId) => {
@@ -263,7 +270,7 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
   }
 
   let childNotes: ChildNote[] = [];
-  if (childIds.length > 0) {
+  if (childIds.length > 0 && !restrictChildInfo) {
     const notesRes = await supabase
       .from('staff_notes')
       .select('*')
@@ -282,7 +289,17 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
 
   return {
     ok: true,
-    data: { programSlug: program.slug, roster, children, sessions, marks, progress, childNotes, unplaced },
+    data: {
+      programSlug: program.slug,
+      roster,
+      children,
+      sessions,
+      marks,
+      progress,
+      childNotes,
+      childInfoRestricted: restrictChildInfo,
+      unplaced,
+    },
   };
 }
 
@@ -298,10 +315,13 @@ export async function addChildNote(
   if (!getAttendanceProgram(programSlug)) {
     return { ok: false, error: 'Unknown program.', migration: false };
   }
+  const role = (await getAdminRole()) ?? 'staff';
+  if (role === 'teacher' && programSlug !== 'hebrew-adventure') {
+    return { ok: false, error: 'Your access covers Hebrew Adventure only.', migration: false };
+  }
   const text = clip(note, 1000);
   if (!text) return { ok: false, error: 'Write a note first.', migration: false };
 
-  const role = (await getAdminRole()) ?? 'staff';
   const supabase = createAdminClient();
   const onRoster = await supabase
     .from('class_rosters')
@@ -333,6 +353,10 @@ export async function updateChildNote(
   if (denied) return denied;
   if (!getAttendanceProgram(programSlug)) {
     return { ok: false, error: 'Unknown program.', migration: false };
+  }
+  const updateRole = await getAdminRole();
+  if (updateRole === 'teacher' && programSlug !== 'hebrew-adventure') {
+    return { ok: false, error: 'Your access covers Hebrew Adventure only.', migration: false };
   }
   const text = clip(note, 1000);
   if (!text) return { ok: false, error: 'Write a note first.', migration: false };

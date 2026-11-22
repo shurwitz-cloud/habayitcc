@@ -70,6 +70,9 @@ export type AttendanceSnapshot = {
   marks: AttendanceMarkRecord[];
   progress: ProgressRecord[];
   childNotes: ChildNote[];
+  /** True when the caller's role may not see child info for this program
+   *  (teacher login is restricted to Hebrew Adventure). */
+  childInfoRestricted: boolean;
   unplaced: UnplacedChild[];
 };
 

@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { isAdminAuthenticated } from '@/lib/admin/auth';
+import { getAdminRole, isAdminAuthenticated } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { Child, ClassRoster, ClassSession, LearningProgress } from '@/types/database';
 import { rosterCoversDate, todayIso } from './dates';
@@ -10,6 +10,7 @@ import type {
   AttendanceMarkRecord,
   AttendanceResult,
   AttendanceSnapshot,
+  ChildNote,
   ChildSearchHit,
   ClassMarkInput,
   ProgressTrack,
@@ -59,7 +60,7 @@ function mapRoster(row: ClassRoster): RosterEntry {
 }
 
 function mapChild(
-  row: Pick<Child, 'id' | 'first_name' | 'last_name' | 'hebrew_name' | 'grade' | 'hebrew_level'>,
+  row: Pick<Child, 'id' | 'first_name' | 'last_name' | 'hebrew_name' | 'grade' | 'hebrew_level' | 'allergies'>,
 ): AttendanceChild {
   return {
     id: row.id,
@@ -68,6 +69,7 @@ function mapChild(
     hebrewName: row.hebrew_name,
     grade: row.grade,
     hebrewLevel: row.hebrew_level,
+    allergies: row.allergies,
   };
 }
 
@@ -170,11 +172,14 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
   const unplacedIds = [...joinedByChild.keys()].filter((id) => !activeIds.has(id));
   const childIds = [...new Set([...roster.map((row) => row.childId), ...unplacedIds])];
 
-  let childRows: Pick<Child, 'id' | 'first_name' | 'last_name' | 'hebrew_name' | 'grade' | 'hebrew_level'>[] = [];
+  let childRows: Pick<
+    Child,
+    'id' | 'first_name' | 'last_name' | 'hebrew_name' | 'grade' | 'hebrew_level' | 'allergies'
+  >[] = [];
   if (childIds.length > 0) {
     const kids = await supabase
       .from('children')
-      .select('id, first_name, last_name, hebrew_name, grade, hebrew_level')
+      .select('id, first_name, last_name, hebrew_name, grade, hebrew_level, allergies')
       .in('id', childIds);
     if (kids.error) return fail(kids.error, 'Could not load children.');
     childRows = kids.data ?? [];
@@ -257,13 +262,71 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
     }));
   }
 
+  let childNotes: ChildNote[] = [];
+  if (childIds.length > 0) {
+    const notesRes = await supabase
+      .from('staff_notes')
+      .select('*')
+      .eq('notable_type', 'child')
+      .in('notable_id', childIds)
+      .order('created_at', { ascending: false });
+    if (notesRes.error) return fail(notesRes.error, 'Could not load child notes.');
+    childNotes = (notesRes.data ?? []).map((row) => ({
+      id: row.id,
+      childId: row.notable_id,
+      note: row.note,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+    }));
+  }
+
   return {
     ok: true,
-    data: { programSlug: program.slug, roster, children, sessions, marks, progress, unplaced },
+    data: { programSlug: program.slug, roster, children, sessions, marks, progress, childNotes, unplaced },
   };
 }
 
 export const getAttendanceSnapshot = cache(loadSnapshot);
+
+export async function addChildNote(
+  childId: string,
+  note: string,
+): Promise<AttendanceFailure | { ok: true }> {
+  const denied = await requireStaff();
+  if (denied) return denied;
+  const text = clip(note, 1000);
+  if (!text) return { ok: false, error: 'Write a note first.', migration: false };
+
+  const role = (await getAdminRole()) ?? 'staff';
+  const supabase = createAdminClient();
+  const inserted = await supabase.from('staff_notes').insert({
+    notable_type: 'child',
+    notable_id: childId,
+    note: text,
+    created_by: role,
+  });
+  if (inserted.error) return fail(inserted.error, 'Could not save this note.');
+  return { ok: true };
+}
+
+export async function updateChildNote(
+  noteId: string,
+  note: string,
+): Promise<AttendanceFailure | { ok: true }> {
+  const denied = await requireStaff();
+  if (denied) return denied;
+  const text = clip(note, 1000);
+  if (!text) return { ok: false, error: 'Write a note first.', migration: false };
+
+  const supabase = createAdminClient();
+  const updated = await supabase
+    .from('staff_notes')
+    .update({ note: text })
+    .eq('id', noteId)
+    .eq('notable_type', 'child');
+  if (updated.error) return fail(updated.error, 'Could not update this note.');
+  return { ok: true };
+}
 
 export async function searchChildren(query: string): Promise<AttendanceResult<ChildSearchHit[]>> {
   const denied = await requireStaff();

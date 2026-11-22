@@ -17,6 +17,15 @@ export type AttendanceChild = {
   hebrewName: string | null;
   grade: string | null;
   hebrewLevel: string | null;
+  allergies: string | null;
+};
+
+export type ChildNote = {
+  id: string;
+  childId: string;
+  note: string;
+  createdBy: string | null;
+  createdAt: string;
 };
 
 export type ClassSessionRecord = {
@@ -60,6 +69,7 @@ export type AttendanceSnapshot = {
   sessions: ClassSessionRecord[];
   marks: AttendanceMarkRecord[];
   progress: ProgressRecord[];
+  childNotes: ChildNote[];
   unplaced: UnplacedChild[];
 };
 

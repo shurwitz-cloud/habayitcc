@@ -8,7 +8,7 @@ import { formatChildDisplayName } from '@/lib/attendance/names';
 import { formatRatedNote } from '@/lib/attendance/notes';
 import { attendanceRate, formatRate } from '@/lib/attendance/stats';
 import type { ProgressRecord } from '@/lib/attendance/types';
-import { ProgressEditor, RemoveTryoutButton } from './ChildTools';
+import { ProgressEditor, RemoveTryoutButton, ChildNotesEditor } from './ChildTools';
 
 function currentStanding(rows: ProgressRecord[]): ProgressRecord | null {
   return rows[0] ?? null;
@@ -52,6 +52,7 @@ export default async function ChildAttendancePage({
     .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
   const torah = snapshot.data.progress.filter((row) => row.childId === childId && row.track === 'torah');
   const hebrew = snapshot.data.progress.filter((row) => row.childId === childId && row.track === 'hebrew_reading');
+  const childNotes = snapshot.data.childNotes.filter((entry) => entry.childId === childId);
 
   return (
     <>
@@ -94,6 +95,19 @@ export default async function ChildAttendancePage({
             />
           }
         />
+
+        <section className="bg-white border border-line rounded-2xl p-4">
+          <p className="text-[0.68rem] font-bold uppercase tracking-wider text-gold">Child info</p>
+          <p className="text-sm text-navy mt-2">
+            <span className="font-semibold">Allergies / medical info. </span>
+            {child.allergies?.trim() ? child.allergies : 'None reported'}
+          </p>
+        </section>
+
+        <section className="bg-white border border-line rounded-2xl p-4">
+          <h2 className="font-display text-2xl text-navy font-bold">Child notes</h2>
+          <ChildNotesEditor childId={child.id} notes={childNotes} />
+        </section>
 
         <section className="bg-white border border-line rounded-2xl p-4">
           <h2 className="font-display text-2xl text-navy font-bold">Sessions</h2>

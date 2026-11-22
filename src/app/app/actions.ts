@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
+  addChildNote,
   addExistingTryout,
   addLearningProgress,
   addTryoutChild,
@@ -9,6 +10,7 @@ import {
   removeTryout,
   saveClassMarks,
   searchChildren,
+  updateChildNote,
 } from '@/lib/attendance/data';
 import type { ClassMarkInput, ProgressTrack } from '@/lib/attendance/types';
 
@@ -83,4 +85,16 @@ export async function addProgressAction(input: {
 
 export async function searchChildrenAction(query: string) {
   return searchChildren(query);
+}
+
+export async function addChildNoteAction(childId: string, note: string) {
+  const result = await addChildNote(childId, note);
+  if (result.ok) refreshAttendance();
+  return result;
+}
+
+export async function updateChildNoteAction(noteId: string, note: string) {
+  const result = await updateChildNote(noteId, note);
+  if (result.ok) refreshAttendance();
+  return result;
 }

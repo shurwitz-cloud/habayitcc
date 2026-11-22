@@ -289,16 +289,31 @@ async function loadSnapshot(programSlug: string): Promise<AttendanceResult<Atten
 export const getAttendanceSnapshot = cache(loadSnapshot);
 
 export async function addChildNote(
+  programSlug: string,
   childId: string,
   note: string,
 ): Promise<AttendanceFailure | { ok: true }> {
   const denied = await requireStaff();
   if (denied) return denied;
+  if (!getAttendanceProgram(programSlug)) {
+    return { ok: false, error: 'Unknown program.', migration: false };
+  }
   const text = clip(note, 1000);
   if (!text) return { ok: false, error: 'Write a note first.', migration: false };
 
   const role = (await getAdminRole()) ?? 'staff';
   const supabase = createAdminClient();
+  const onRoster = await supabase
+    .from('class_rosters')
+    .select('id')
+    .eq('program_slug', programSlug)
+    .eq('child_id', childId)
+    .limit(1);
+  if (onRoster.error) return fail(onRoster.error, 'Could not save this note.');
+  if (!onRoster.data?.length) {
+    return { ok: false, error: 'This child is not on a class list.', migration: false };
+  }
+
   const inserted = await supabase.from('staff_notes').insert({
     notable_type: 'child',
     notable_id: childId,
@@ -310,15 +325,39 @@ export async function addChildNote(
 }
 
 export async function updateChildNote(
+  programSlug: string,
   noteId: string,
   note: string,
 ): Promise<AttendanceFailure | { ok: true }> {
   const denied = await requireStaff();
   if (denied) return denied;
+  if (!getAttendanceProgram(programSlug)) {
+    return { ok: false, error: 'Unknown program.', migration: false };
+  }
   const text = clip(note, 1000);
   if (!text) return { ok: false, error: 'Write a note first.', migration: false };
 
   const supabase = createAdminClient();
+  const existing = await supabase
+    .from('staff_notes')
+    .select('id, notable_id')
+    .eq('id', noteId)
+    .eq('notable_type', 'child')
+    .maybeSingle();
+  if (existing.error) return fail(existing.error, 'Could not update this note.');
+  if (!existing.data) return { ok: false, error: 'That note was not found.', migration: false };
+
+  const onRoster = await supabase
+    .from('class_rosters')
+    .select('id')
+    .eq('program_slug', programSlug)
+    .eq('child_id', existing.data.notable_id)
+    .limit(1);
+  if (onRoster.error) return fail(onRoster.error, 'Could not update this note.');
+  if (!onRoster.data?.length) {
+    return { ok: false, error: 'This child is not on a class list.', migration: false };
+  }
+
   const updated = await supabase
     .from('staff_notes')
     .update({ note: text })

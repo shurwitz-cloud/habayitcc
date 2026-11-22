@@ -87,14 +87,14 @@ export async function searchChildrenAction(query: string) {
   return searchChildren(query);
 }
 
-export async function addChildNoteAction(childId: string, note: string) {
-  const result = await addChildNote(childId, note);
+export async function addChildNoteAction(programSlug: string, childId: string, note: string) {
+  const result = await addChildNote(programSlug, childId, note);
   if (result.ok) refreshAttendance();
   return result;
 }
 
-export async function updateChildNoteAction(noteId: string, note: string) {
-  const result = await updateChildNote(noteId, note);
+export async function updateChildNoteAction(programSlug: string, noteId: string, note: string) {
+  const result = await updateChildNote(programSlug, noteId, note);
   if (result.ok) refreshAttendance();
   return result;
 }

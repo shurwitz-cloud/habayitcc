@@ -92,7 +92,15 @@ function formatNoteDate(iso: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function ChildNotesEditor({ childId, notes }: { childId: string; notes: ChildNote[] }) {
+export function ChildNotesEditor({
+  programSlug,
+  childId,
+  notes,
+}: {
+  programSlug: string;
+  childId: string;
+  notes: ChildNote[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState('');
@@ -104,7 +112,7 @@ export function ChildNotesEditor({ childId, notes }: { childId: string; notes: C
     event.preventDefault();
     setError('');
     startTransition(async () => {
-      const result = await addChildNoteAction(childId, draft);
+      const result = await addChildNoteAction(programSlug, childId, draft);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -117,7 +125,7 @@ export function ChildNotesEditor({ childId, notes }: { childId: string; notes: C
   function saveEdit(noteId: string) {
     setError('');
     startTransition(async () => {
-      const result = await updateChildNoteAction(noteId, editText);
+      const result = await updateChildNoteAction(programSlug, noteId, editText);
       if (!result.ok) {
         setError(result.error);
         return;

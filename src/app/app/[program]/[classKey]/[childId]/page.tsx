@@ -106,7 +106,7 @@ export default async function ChildAttendancePage({
 
         <section className="bg-white border border-line rounded-2xl p-4">
           <h2 className="font-display text-2xl text-navy font-bold">Child notes</h2>
-          <ChildNotesEditor childId={child.id} notes={childNotes} />
+          <ChildNotesEditor programSlug={program.slug} childId={child.id} notes={childNotes} />
         </section>
 
         <section className="bg-white border border-line rounded-2xl p-4">

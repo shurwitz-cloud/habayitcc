@@ -20,6 +20,12 @@ export interface Family {
   stripe_customer_id: string | null;
   stripe_payment_method_id: string | null;
   payment_method_preference: string | null;
+  mother_jewish_status: string | null;
+  mother_conversion_org: string | null;
+  mother_conversion_rabbi: string | null;
+  father_jewish_status: string | null;
+  father_conversion_org: string | null;
+  father_conversion_rabbi: string | null;
   created_at: string;
   updated_at: string;
 }

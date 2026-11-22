@@ -2263,6 +2263,12 @@ function FamilyDetailRow({ f }: { f: CrmSnapshot['families'][number] }) {
           ['Emergency phone', f.emergencyContactPhone],
           ['Payment method', f.paymentMethodPreference],
           ['Notes', f.notes],
+          ...(f.motherJewishStatus
+            ? ([['Mother Jewish status', f.motherJewishStatus.replace(/_/g, ' ')]] as Array<[string, string]>)
+            : []),
+          ...(f.fatherJewishStatus
+            ? ([['Father Jewish status', f.fatherJewishStatus.replace(/_/g, ' ')]] as Array<[string, string]>)
+            : []),
         ]}
       />
       {f.parents.length > 0 && (

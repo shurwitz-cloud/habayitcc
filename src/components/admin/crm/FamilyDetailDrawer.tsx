@@ -123,6 +123,27 @@ export function FamilyDetailDrawer({
             </SectionCard>
           ))}
 
+          {(family.motherJewishStatus || family.fatherJewishStatus) && (
+            <SectionCard title="Jewish background (as submitted)">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <DetailField label="Mother" value={labelize(family.motherJewishStatus)} />
+                <DetailField label="Father" value={labelize(family.fatherJewishStatus)} />
+                {family.motherJewishStatus === 'jewish_by_conversion' && (
+                  <>
+                    <DetailField label="Mother's conversion org" value={family.motherConversionOrg} />
+                    <DetailField label="Mother's certifying rabbi" value={family.motherConversionRabbi} />
+                  </>
+                )}
+                {family.fatherJewishStatus === 'jewish_by_conversion' && (
+                  <>
+                    <DetailField label="Father's conversion org" value={family.fatherConversionOrg} />
+                    <DetailField label="Father's certifying rabbi" value={family.fatherConversionRabbi} />
+                  </>
+                )}
+              </div>
+            </SectionCard>
+          )}
+
           <SectionCard title="Home & emergency">
             <div className="grid sm:grid-cols-2 gap-4">
               <DetailField label="Address" value={family.address} />

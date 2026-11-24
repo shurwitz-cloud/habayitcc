@@ -38,6 +38,12 @@ export type CrmFamilyRecord = {
   emergencyContactPhone: string | null;
   stripeCustomerId: string | null;
   paymentMethodPreference: string | null;
+  motherJewishStatus: string | null;
+  motherConversionOrg: string | null;
+  motherConversionRabbi: string | null;
+  fatherJewishStatus: string | null;
+  fatherConversionOrg: string | null;
+  fatherConversionRabbi: string | null;
   createdAt: string;
   parents: Parent[];
   children: Child[];

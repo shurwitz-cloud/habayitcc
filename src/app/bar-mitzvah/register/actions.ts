@@ -266,6 +266,12 @@ export async function submitBmxRegistration(
       stripe_customer_id: stripeCustomerId,
       stripe_payment_method_id: stripePaymentMethodId,
       payment_method_preference: input.paymentMethod,
+      mother_jewish_status: input.motherStatus || null,
+      mother_conversion_org: input.motherConversionOrg?.trim() || null,
+      mother_conversion_rabbi: input.motherConversionRabbi?.trim() || null,
+      father_jewish_status: input.fatherStatus || null,
+      father_conversion_org: input.fatherConversionOrg?.trim() || null,
+      father_conversion_rabbi: input.fatherConversionRabbi?.trim() || null,
     };
 
     const familyResult = await insertWithSchemaFallback(familyRow, async (payload) =>

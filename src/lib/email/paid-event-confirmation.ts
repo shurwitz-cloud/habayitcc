@@ -1,4 +1,4 @@
-import { buildEmailHtml, sendAdminNotification, sendEmail } from './client';
+import { buildEmailHtml, getSiteUrl, sendAdminNotification, sendEmail } from './client';
 import type { PaidEventConfig } from '@/lib/events/paid-events';
 import type { PricingBreakdown } from '@/lib/events/paid-event-pricing';
 
@@ -26,8 +26,16 @@ export async function sendPaidEventConfirmationEmail(
           <tr><td style="padding:8px 0;font-weight:bold;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;">$${pricing.total.toFixed(2)}</td></tr>
         </table>`;
 
-  const receiptLink = input.receiptUrl
-    ? `<p style="margin:16px 0 0;"><a href="${input.receiptUrl}" style="color:#b8892a;font-weight:bold;">View your receipt</a></p>`
+  // buildReceiptUrl returns a site-relative path (fine on the website, broken in
+  // an email client). Make it absolute here.
+  const absoluteReceiptUrl = input.receiptUrl
+    ? /^https?:\/\//i.test(input.receiptUrl)
+      ? input.receiptUrl
+      : `${getSiteUrl()}${input.receiptUrl.startsWith('/') ? '' : '/'}${input.receiptUrl}`
+    : undefined;
+
+  const receiptLink = absoluteReceiptUrl
+    ? `<p style="margin:16px 0 0;"><a href="${absoluteReceiptUrl}" style="color:#b8892a;font-weight:bold;">View your receipt</a></p>`
     : '';
 
   const html = buildEmailHtml(`

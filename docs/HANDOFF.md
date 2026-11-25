@@ -378,3 +378,18 @@ needs a shared source/history plan that keeps Cursor in sync and user review.
 - Typecheck clean (only the known pre-existing pglite fixture error in
   tests/skate-retry-holds.test.ts); 42/42 bbq retry tests pass.
 - Cursor: pull main after merge. Nothing else on the site changes.
+
+### Event confirmation receipt link fixed SHIPPED 2026-11-25
+- main 5d34343 (one file, src/lib/email/paid-event-confirmation.ts). The
+  "View your receipt" link in paid event confirmation emails was the
+  site-relative path from buildReceiptUrl ("/receipt?..."), which email
+  clients cannot open (Gmail: "invalid url http:///receipt?..."). The email
+  now prefixes getSiteUrl(). Same signed query string, receipt page and
+  signing unchanged; the website thank-you link still uses the relative path.
+- Checked: Vercel Production is main 5d34343 (Ready); local render of the
+  real template before/after with sendEmail stubbed, nothing sent; signature
+  verify true, changed amount false, missing sig false.
+- Emails already delivered keep the broken link; it cannot be repaired from
+  the site. No resend was done or approved. All paid events using this
+  template were affected (Fire on Ice, Erev Zugot, others).
+- Cursor: pull main. Do not resend confirmations for this fix.

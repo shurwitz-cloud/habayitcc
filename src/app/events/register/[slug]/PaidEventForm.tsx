@@ -75,12 +75,39 @@ function PaidEventFormInner({
   onAmountCentsChange: (cents: number) => void;
 }) {
   const admission = event.type === 'admission';
-  // Re-check the clock so a page left open flips to the door price at 6:15 PM.
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // Price follows the SERVER clock, so a wrong device clock cannot show the
+  // wrong skate price. The page re-checks every 15 seconds and re-syncs with
+  // the server every minute, so a page left open flips at 6:15 PM by itself.
+  const [localNowMs, setLocalNowMs] = useState(() => Date.now());
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 15_000);
+    const id = setInterval(() => setLocalNowMs(Date.now()), 15_000);
     return () => clearInterval(id);
   }, []);
+  useEffect(() => {
+    if (event.type !== 'skate') return;
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const t0 = Date.now();
+        const res = await fetch('/api/server-time', { cache: 'no-store' });
+        const data = (await res.json()) as { now?: number };
+        const t1 = Date.now();
+        if (!cancelled && res.ok && typeof data.now === 'number') {
+          setClockOffsetMs(data.now - (t0 + t1) / 2);
+        }
+      } catch {
+        // Keep the last offset; the server still decides the charged price.
+      }
+    };
+    void sync();
+    const id = setInterval(sync, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [event.type]);
+  const nowMs = localNowMs + clockOffsetMs;
   const skatePrice = skateTicketPriceAt(new Date(nowMs));
   const doorPriceActive = skatePrice === SKATE_DOOR_TICKET_PRICE;
   const admissionPrice = admission ? (event.ticketPrice ?? 15) : skatePrice;

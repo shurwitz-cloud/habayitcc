@@ -17,6 +17,8 @@ import {
   COUPLES_TICKET_PRICE,
   BBQ_TICKET_PRICE,
   SKATE_TICKET_PRICE,
+  SKATE_DOOR_TICKET_PRICE,
+  skateTicketPriceAt,
   SKATE_NON_SKATER_PRICE,
   DINNER_ADULT_PRICE,
   DINNER_CHILD_PRICE,
@@ -73,7 +75,15 @@ function PaidEventFormInner({
   onAmountCentsChange: (cents: number) => void;
 }) {
   const admission = event.type === 'admission';
-  const admissionPrice = admission ? (event.ticketPrice ?? 15) : SKATE_TICKET_PRICE;
+  // Re-check the clock so a page left open flips to the door price at 6:15 PM.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  const skatePrice = skateTicketPriceAt(new Date(nowMs));
+  const doorPriceActive = skatePrice === SKATE_DOOR_TICKET_PRICE;
+  const admissionPrice = admission ? (event.ticketPrice ?? 15) : skatePrice;
   const allowHa = event.type === 'skate' || (admission && event.hebrewAdmissionDiscount === true);
   const stripe = useStripe();
   const elements = useElements();
@@ -234,8 +244,10 @@ function PaidEventFormInner({
         bbq: bbqData,
         sponsorAmount,
         coverFee,
+        pricedAt: new Date(nowMs),
       }),
     [
+      nowMs,
       event,
       adults,
       kids,
@@ -1112,7 +1124,7 @@ function PaidEventFormInner({
         <div className="space-y-4 border-t border-line pt-5">
           <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Tickets</p>
           <StepperField
-            label={admission ? `Admission - $${admissionPrice} each` : `$${SKATE_TICKET_PRICE} Per Skater`}
+            label={admission ? `Admission - $${admissionPrice} each` : `$${skatePrice} Per Skater`}
             value={skaters}
             onChange={setSkaters}
             min={0}
@@ -1120,7 +1132,9 @@ function PaidEventFormInner({
           />
           {!admission && (<>
           <p className="text-[0.82rem] text-muted">
-            Advance online price. ${SKATE_TICKET_PRICE + 5} per skater at the door.
+            {doorPriceActive
+              ? 'Door price now in effect.'
+              : `Advance online price. $${SKATE_DOOR_TICKET_PRICE} per skater at the door.`}
           </p>
           <StepperField
             label={`$${SKATE_NON_SKATER_PRICE} Entry pass for non-skaters`}

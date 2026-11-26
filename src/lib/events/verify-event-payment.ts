@@ -28,3 +28,20 @@ export async function verifyPaidEventPaymentIntent(
 
   return { ok: true, amountDollars: pi.amount / 100 };
 }
+
+/**
+ * The moment a payment was priced: when its PaymentIntent was created.
+ * Registrations re-price at this moment so a payment started just before a
+ * price change is never rejected or re-priced after the fact.
+ */
+export async function getPaymentIntentPricedAt(
+  paymentIntentId: string | null | undefined,
+): Promise<Date | undefined> {
+  if (!paymentIntentId) return undefined;
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    return new Date(pi.created * 1000);
+  } catch {
+    return undefined;
+  }
+}

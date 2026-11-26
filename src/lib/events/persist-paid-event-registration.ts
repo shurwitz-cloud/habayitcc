@@ -24,6 +24,7 @@ import { buildReceiptUrl } from '@/lib/donations/receipt-url';
 import { createAdminClient } from '@/lib/supabase/server';
 import { insertWithSchemaFallback } from '@/lib/supabase/insert-helpers';
 import { normalizeDonorEmail } from '@/lib/donations/normalize-donor';
+import { getPaymentIntentPricedAt } from '@/lib/events/verify-event-payment';
 
 export type PaidEventPersistInput = {
   slug: string;
@@ -150,7 +151,11 @@ export async function persistPaidEventRegistration(
 
   const supabase = createAdminClient();
 
+  const pricedAt =
+    event.type === 'skate' ? await getPaymentIntentPricedAt(paymentIntentId) : undefined;
+
   const pricing = computePaidEventTotal({
+    pricedAt,
     event,
     dinner: input.dinner,
     fair: input.fair,

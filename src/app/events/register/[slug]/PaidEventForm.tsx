@@ -17,6 +17,8 @@ import {
   COUPLES_TICKET_PRICE,
   BBQ_TICKET_PRICE,
   SKATE_TICKET_PRICE,
+  SKATE_DOOR_TICKET_PRICE,
+  skateTicketPriceAt,
   SKATE_NON_SKATER_PRICE,
   DINNER_ADULT_PRICE,
   DINNER_CHILD_PRICE,
@@ -73,7 +75,42 @@ function PaidEventFormInner({
   onAmountCentsChange: (cents: number) => void;
 }) {
   const admission = event.type === 'admission';
-  const admissionPrice = admission ? (event.ticketPrice ?? 15) : SKATE_TICKET_PRICE;
+  // Price follows the SERVER clock, so a wrong device clock cannot show the
+  // wrong skate price. The page re-checks every 15 seconds and re-syncs with
+  // the server every minute, so a page left open flips at 6:15 PM by itself.
+  const [localNowMs, setLocalNowMs] = useState(() => Date.now());
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setLocalNowMs(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  useEffect(() => {
+    if (event.type !== 'skate') return;
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const t0 = Date.now();
+        const res = await fetch('/api/server-time', { cache: 'no-store' });
+        const data = (await res.json()) as { now?: number };
+        const t1 = Date.now();
+        if (!cancelled && res.ok && typeof data.now === 'number') {
+          setClockOffsetMs(data.now - (t0 + t1) / 2);
+        }
+      } catch {
+        // Keep the last offset; the server still decides the charged price.
+      }
+    };
+    void sync();
+    const id = setInterval(sync, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [event.type]);
+  const nowMs = localNowMs + clockOffsetMs;
+  const skatePrice = skateTicketPriceAt(new Date(nowMs));
+  const doorPriceActive = skatePrice === SKATE_DOOR_TICKET_PRICE;
+  const admissionPrice = admission ? (event.ticketPrice ?? 15) : skatePrice;
   const allowHa = event.type === 'skate' || (admission && event.hebrewAdmissionDiscount === true);
   const stripe = useStripe();
   const elements = useElements();
@@ -234,8 +271,10 @@ function PaidEventFormInner({
         bbq: bbqData,
         sponsorAmount,
         coverFee,
+        pricedAt: new Date(nowMs),
       }),
     [
+      nowMs,
       event,
       adults,
       kids,
@@ -1112,7 +1151,7 @@ function PaidEventFormInner({
         <div className="space-y-4 border-t border-line pt-5">
           <p className="text-[0.78rem] font-bold uppercase tracking-wide text-gold">Tickets</p>
           <StepperField
-            label={admission ? `Admission - $${admissionPrice} each` : `$${SKATE_TICKET_PRICE} Per Skater`}
+            label={admission ? `Admission - $${admissionPrice} each` : `$${skatePrice} Per Skater`}
             value={skaters}
             onChange={setSkaters}
             min={0}
@@ -1120,7 +1159,9 @@ function PaidEventFormInner({
           />
           {!admission && (<>
           <p className="text-[0.82rem] text-muted">
-            Advance online price. ${SKATE_TICKET_PRICE + 5} per skater at the door.
+            {doorPriceActive
+              ? 'Door price now in effect.'
+              : `Advance online price. $${SKATE_DOOR_TICKET_PRICE} per skater at the door.`}
           </p>
           <StepperField
             label={`$${SKATE_NON_SKATER_PRICE} Entry pass for non-skaters`}

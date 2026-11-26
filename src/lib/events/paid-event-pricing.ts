@@ -8,6 +8,19 @@ export const COUPLES_TICKET_PRICE = 55;
 export const COUPLES_MEMBER_TICKET_PRICE = 45;
 export const BBQ_TICKET_PRICE = 10;
 export const SKATE_TICKET_PRICE = 20;
+/** Fire on Ice: skater price rises to the door price at 6:15 PM ET on Nov 28, 2026. */
+export const SKATE_DOOR_TICKET_PRICE = 25;
+export const SKATE_DOOR_PRICE_STARTS_AT = '2026-11-28T18:15:00-05:00';
+
+/**
+ * Per-skater price at a given moment. Chai and Hebrew Adventure discounts
+ * are percentages, so they follow this price.
+ */
+export function skateTicketPriceAt(at: Date = new Date()): number {
+  return at.getTime() >= Date.parse(SKATE_DOOR_PRICE_STARTS_AT)
+    ? SKATE_DOOR_TICKET_PRICE
+    : SKATE_TICKET_PRICE;
+}
 /** Non-skater entry pass: rink admission without skating. */
 export const SKATE_NON_SKATER_PRICE = 7;
 /** Chai member skate discount: 15% off each ticket, people on the reservation. */
@@ -164,7 +177,7 @@ export function computeBbqTickets(
 
 export function computeSkateTickets(
   data: SkateRegistrationData,
-  ticketPrice: number = SKATE_TICKET_PRICE,
+  ticketPrice: number = skateTicketPriceAt(),
   memberTicketPrice?: number,
 ): {
   subtotal: number;
@@ -225,6 +238,8 @@ export function computePaidEventTotal(input: {
   bbq?: BbqRegistrationData;
   sponsorAmount: number;
   coverFee: boolean;
+  /** Moment the price is quoted for. Defaults to now. A paid registration uses its payment's creation time. */
+  pricedAt?: Date;
 }): PricingBreakdown {
   let ticketSubtotal = 0;
   let fairChildLines: PricingBreakdown['fairChildLines'];
@@ -268,7 +283,7 @@ export function computePaidEventTotal(input: {
           memberPeople: Math.min(data.memberPeople ?? input.event.memberPeopleLimit ?? 2, input.event.memberPeopleLimit ?? 2),
           haDiscountedSkaters: 0,
         } : data,
-        admission ? input.event.ticketPrice : undefined,
+        admission ? input.event.ticketPrice : skateTicketPriceAt(input.pricedAt),
         admission ? input.event.memberTicketPrice : undefined,
       );
       ticketSubtotal = result.subtotal;

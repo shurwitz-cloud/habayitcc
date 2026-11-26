@@ -16,7 +16,7 @@ import {
   assertPaidEventHasRoom,
   paidEventUnitsFromInput,
 } from '@/lib/events/paid-event-capacity';
-import { verifyPaidEventPaymentIntent } from '@/lib/events/verify-event-payment';
+import { getPaymentIntentPricedAt, verifyPaidEventPaymentIntent } from '@/lib/events/verify-event-payment';
 import { persistPaidEventRegistration } from '@/lib/events/persist-paid-event-registration';
 import {
   verifyHebrewFairCode,
@@ -598,7 +598,10 @@ export async function submitPaidEventRegistration(
       }
     }
 
+    const pricedAt =
+      event.type === 'skate' ? await getPaymentIntentPricedAt(input.paymentIntentId) : undefined;
     const pricing = computePaidEventTotal({
+      pricedAt,
       event,
       dinner: input.dinner,
       fair: input.fair,
